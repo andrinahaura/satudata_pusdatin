@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Asisten AI untuk menanyakan kondisi gedung." />
+    <title>Chatbot · SatuData Pusdatin</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body>
+    <div class="flex min-h-dvh flex-col">
+      <header id="navbar" class="sticky top-0 z-30 border-b border-hairline bg-surface-alt"></header>
+      <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <section class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <article class="card flex h-[calc(100dvh-8rem)] min-h-[520px] min-w-0 flex-col lg:h-[calc(100dvh-9rem)]">
+            <div class="card-header pb-4">
+              <div class="flex items-center gap-3">
+                <span class="grid size-10 place-items-center rounded-full bg-ink text-surface-alt"><i data-lucide="bot" class="size-5"></i></span>
+                <div>
+                  <h1 class="card-title">Asisten Gedung</h1>
+                  <p class="card-desc">Menjawab dari data IoT dan parkir secara realtime.</p>
+                </div>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" data-reset><i data-lucide="rotate-ccw" class="size-3.5"></i>Percakapan baru</button>
+            </div>
+            <div class="min-h-0 flex-1 border-t border-hairline" id="main-chat"></div>
+          </article>
+
+          <aside class="flex flex-col gap-4">
+            <article class="card">
+              <div class="card-header"><h2 class="card-title">Contoh pertanyaan</h2></div>
+              <div class="card-body flex flex-col gap-4" data-examples></div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <h2 class="card-title">Data yang dibaca asisten</h2>
+                <span class="badge badge-outline"><span class="dot bg-ember"></span>Live</span>
+              </div>
+              <dl class="card-body grid grid-cols-2 gap-x-4 gap-y-3" data-context></dl>
+            </article>
+          </aside>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/js/pages/chatbot.js"></script>
+  </body>
+</html>

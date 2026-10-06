@@ -1,0 +1,211 @@
+@import "tailwindcss";
+
+/* Design tokens — sumber: design.md ("clinical blueprint on frosted paper") */
+@theme {
+  --color-canvas: #f5f5f5;
+  --color-paper: #ffffff;
+  --color-surface-alt: #fafafa;
+  --color-ink: #0a0a0a;
+  --color-ink-soft: #171717;
+  --color-mid-gray: #737373;
+  --color-hairline: #e5e5e5;
+  --color-ember: #e7000b;
+
+  --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-caption: 12px;
+  --text-caption--line-height: 1.33;
+  --text-caption--letter-spacing: 0.6px;
+  --text-body: 14px;
+  --text-body--line-height: 1.43;
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 1.5;
+  --text-subheading: 18px;
+  --text-subheading--line-height: 1.56;
+  --text-heading-sm: 24px;
+  --text-heading-sm--line-height: 1.33;
+  --text-heading-sm--letter-spacing: -0.6px;
+  --text-heading: 30px;
+  --text-heading--line-height: 1.2;
+  --text-heading--letter-spacing: -0.75px;
+  --text-heading-lg: 36px;
+  --text-heading-lg--line-height: 1.11;
+  --text-heading-lg--letter-spacing: -0.9px;
+  --text-display: 48px;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -2.4px;
+
+  --radius-card: 24px;
+  --radius-pill: 18px;
+  --radius-nested: 10px;
+  --radius-small: 6px;
+
+  --shadow-card: 0 0 0 1px rgba(23, 23, 23, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+@layer base {
+  html {
+    font-feature-settings: "ss01" on, "cv11" on;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-body text-ink antialiased;
+  }
+
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  [data-lucide] {
+    display: inline-block;
+  }
+}
+
+@layer components {
+  /* Card */
+  .card {
+    @apply rounded-card border border-hairline bg-paper shadow-card;
+  }
+  .card-header {
+    @apply flex flex-wrap items-center justify-between gap-3 px-5 pt-5;
+  }
+  .card-body {
+    @apply p-5;
+  }
+  .card-footer {
+    @apply flex items-center justify-between gap-3 border-t border-hairline px-5 py-3;
+  }
+  .card-title {
+    @apply text-body font-semibold text-ink;
+  }
+  .card-desc {
+    @apply text-body text-mid-gray;
+  }
+
+  /* Buttons — pill 18px */
+  .btn {
+    @apply inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-pill px-3 text-body font-medium whitespace-nowrap transition-colors select-none disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-ink text-surface-alt hover:bg-ink-soft;
+  }
+  .btn-secondary {
+    @apply bg-canvas text-ink hover:bg-hairline;
+  }
+  .btn-outline {
+    @apply border border-hairline bg-transparent text-ink hover:bg-canvas;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-mid-gray hover:bg-canvas hover:text-ink;
+  }
+  .btn-danger {
+    @apply border border-hairline bg-transparent text-ember hover:bg-canvas;
+  }
+  .btn-sm {
+    @apply h-8 px-3 text-[13px];
+  }
+  .btn-icon {
+    @apply size-9 px-0;
+  }
+
+  /* Input */
+  .input {
+    @apply h-9 w-full rounded-pill bg-canvas px-3 text-body text-ink ring-1 ring-transparent outline-none transition placeholder:text-mid-gray focus:bg-paper focus:ring-hairline;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-caption font-medium whitespace-nowrap tracking-normal;
+  }
+  .badge-solid {
+    @apply bg-ink-soft text-surface-alt;
+  }
+  .badge-soft {
+    @apply bg-canvas text-ink-soft;
+  }
+  .badge-outline {
+    @apply border border-hairline text-ink;
+  }
+  .badge-alert {
+    @apply border border-ember/30 text-ember;
+  }
+
+  .label-caps {
+    @apply text-caption font-medium text-mid-gray uppercase;
+  }
+  .stat-value {
+    @apply text-heading-sm font-semibold tracking-[-0.025em] text-ink tabular-nums;
+  }
+
+  /* Segmented control (tab lantai / zona) */
+  .segmented {
+    @apply inline-flex items-center gap-1 rounded-pill bg-canvas p-1;
+  }
+  .segmented > button {
+    @apply h-7 cursor-pointer rounded-pill px-3 text-[13px] font-medium whitespace-nowrap text-mid-gray transition-colors hover:text-ink;
+  }
+  .segmented > button[aria-selected="true"] {
+    @apply bg-paper text-ink shadow-card;
+  }
+
+  /* Sidebar nav */
+  .nav-link {
+    @apply flex h-9 items-center gap-3 rounded-pill px-3 text-body font-medium text-mid-gray transition-colors hover:bg-canvas hover:text-ink;
+  }
+  .nav-link[aria-current="page"] {
+    @apply bg-paper text-ink shadow-card;
+  }
+
+  /* Toggle switch: <button class="switch" role="switch" aria-checked="true"> */
+  .switch {
+    @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full bg-hairline transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .switch::after {
+    content: "";
+    @apply absolute left-0.5 size-4 rounded-full bg-paper shadow-card transition-transform;
+  }
+  .switch[aria-checked="true"] {
+    @apply bg-ink;
+  }
+  .switch[aria-checked="true"]::after {
+    transform: translateX(16px);
+  }
+
+  .tooltip {
+    @apply pointer-events-none absolute z-30 max-w-64 rounded-nested bg-ink-soft px-2.5 py-1.5 text-caption tracking-normal text-surface-alt shadow-card;
+  }
+
+  .dot {
+    @apply inline-block size-2 shrink-0 rounded-full;
+  }
+
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-hairline) transparent;
+  }
+}
+
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+.typing span {
+  animation: blink 1.2s infinite both;
+}
+.typing span:nth-child(2) { animation-delay: 0.15s; }
+.typing span:nth-child(3) { animation-delay: 0.3s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "satudata-pusdatin-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Smart building dashboard: IoT, chatbot, and computer vision monitoring for Gedung Pusdatin.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.2"
+  },
+  "dependencies": {
+    "lucide": "^1.52.0",
+    "three": "^0.186.1"
+  }
+}

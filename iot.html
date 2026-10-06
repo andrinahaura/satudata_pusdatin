@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Monitoring perangkat IoT bangunan cerdas per lantai." />
+    <title>IoT · SatuData Pusdatin</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body>
+    <div class="flex min-h-dvh flex-col">
+      <header id="navbar" class="sticky top-0 z-30 border-b border-hairline bg-surface-alt"></header>
+      <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="label-caps">IoT · Bangunan cerdas</p>
+            <h1 class="mt-1 text-heading font-semibold">Monitoring gedung</h1>
+            <p class="mt-1 text-mid-gray">Status lampu, AC, sensor, CCTV, dan smart lock per lantai. Klik ruangan pada denah untuk detail.</p>
+          </div>
+          <span class="badge badge-outline self-start sm:self-auto"><span class="dot bg-ember"></span><span data-updated>Memuat…</span></span>
+        </section>
+
+        <section class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan gedung"></section>
+
+        <section class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[232px_minmax(0,1fr)]">
+          <article class="card p-4">
+            <h2 class="card-title px-1">Potongan gedung</h2>
+            <p class="card-desc mb-3 px-1">Pilih lantai</p>
+            <div data-floor-stack></div>
+          </article>
+          <article class="card min-w-0">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title" data-floor-title>&nbsp;</h2>
+                <p class="card-desc" data-floor-desc>&nbsp;</p>
+              </div>
+              <div class="flex max-w-full flex-wrap items-center gap-2">
+                <div class="scroll-thin max-w-full overflow-x-auto">
+                  <div class="segmented" role="tablist" aria-label="Filter perangkat" data-type-filter></div>
+                </div>
+                <div data-view-toggle></div>
+              </div>
+            </div>
+            <div class="card-body">
+                <div data-plan-3d></div>
+                <div data-plan-2d></div>
+              </div>
+            <div class="card-footer flex-wrap" data-floor-legend></div>
+          </article>
+        </section>
+
+        <section class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <article class="card" data-room-panel aria-live="polite"></article>
+          <article class="card min-w-0">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title" data-table-title>Perangkat</h2>
+                <p class="card-desc" data-table-desc>&nbsp;</p>
+              </div>
+              <div class="relative w-full sm:w-64">
+                <i data-lucide="search" class="pointer-events-none absolute top-2.5 left-3 size-4 text-mid-gray"></i>
+                <input type="search" class="input pl-9" placeholder="Cari perangkat / ruangan" data-search aria-label="Cari perangkat" />
+              </div>
+            </div>
+            <div class="scroll-thin mt-3 max-h-[520px] overflow-auto">
+              <table class="w-full min-w-[640px] text-left">
+                <thead class="sticky top-0 bg-paper">
+                  <tr class="border-b border-hairline text-caption tracking-normal text-mid-gray">
+                    <th class="px-5 py-2 font-medium">Perangkat</th>
+                    <th class="px-3 py-2 font-medium">Ruangan</th>
+                    <th class="px-3 py-2 font-medium">Status</th>
+                    <th class="px-3 py-2 text-right font-medium">Daya</th>
+                    <th class="px-3 py-2 font-medium">Terakhir aktif</th>
+                    <th class="px-5 py-2 text-right font-medium">Kontrol</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-hairline" data-table-body></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/js/pages/iot.js"></script>
+  </body>
+</html>
