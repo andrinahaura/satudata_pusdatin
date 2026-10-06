@@ -1,11 +1,11 @@
 import { mountLayout } from '../components/layout.js';
-import { createBarChart } from '../components/bar-chart.js';
+import { createTrendChart } from '../components/trend-chart.js';
 import { cameraCardHtml } from '../components/camera-feed.js';
-import { icon, renderIcons } from '../components/icons.js';
+import { renderIcons } from '../components/icons.js';
 import { createParkingMap, parkingLegendHtml } from '../components/parking-map.js';
 import { createParking3D } from '../components/three/parking-3d.js';
 import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-toggle.js';
-import { errorState, meter, segmentedHtml, statTile } from '../components/ui.js';
+import { errorState, segmentedHtml, statTile } from '../components/ui.js';
 import { VEHICLE_TYPES } from '../data/device-types.js';
 import { api } from '../services/api.js';
 import { summarizeParking } from '../services/selectors.js';
@@ -42,21 +42,19 @@ const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 function renderKpis(p) {
   const { today } = state.parking;
   $('[data-kpis]').innerHTML = [
-    statTile({ label: 'Kapasitas', value: p.total, unit: ' slot', sub: `${p.car.total} mobil · ${p.motorcycle.total} motor`, iconName: 'square-parking' }),
-    statTile({ label: 'Terisi', value: p.occupied, sub: 'Kendaraan terdeteksi', iconName: 'car' }),
-    statTile({ label: 'Kosong', value: p.free, sub: `${p.car.free} mobil · ${p.motorcycle.free} motor`, iconName: 'circle-check' }),
-    statTile({ label: 'Okupansi', value: fmtPct(p.rate), sub: 'Seluruh area', iconName: 'activity' }),
-    statTile({ label: 'Masuk hari ini', value: fmtInt(sum(today.in)), sub: 'Deteksi gerbang', iconName: 'log-in' }),
-    statTile({ label: 'Keluar hari ini', value: fmtInt(sum(today.out)), sub: 'Deteksi gerbang', iconName: 'log-out' }),
+    statTile({ label: 'Kapasitas', value: p.total, unit: ' slot', sub: `${p.car.total} mobil · ${p.motorcycle.total} motor` }),
+    statTile({ label: 'Terisi', value: p.occupied }),
+    statTile({ label: 'Kosong', value: p.free, sub: `${p.car.free} mobil · ${p.motorcycle.free} motor` }),
+    statTile({ label: 'Okupansi', value: fmtPct(p.rate) }),
+    statTile({ label: 'Masuk hari ini', value: fmtInt(sum(today.in)) }),
+    statTile({ label: 'Keluar hari ini', value: fmtInt(sum(today.out)) }),
   ].join('');
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(state.parking.updatedAt)}`;
 }
 
 function renderMap(p) {
   const zone = state.parking.zones.find((z) => z.id === state.zoneId) ?? state.parking.zones[0];
-  const zs = p.zones.find((z) => z.id === zone.id);
   $('[data-zone-tabs]').innerHTML = segmentedHtml(state.parking.zones.map((z) => ({ value: z.id, label: z.name })), zone.id, 'data-zone');
-  $('[data-zone-desc]').textContent = `${zone.location} · ${zs.free} kosong dari ${zs.total} slot ${VEHICLE_TYPES[zone.kind].label.toLowerCase()}`;
   $('[data-view-toggle]').innerHTML = viewToggleHtml(state.view);
   $('[data-map-3d]').classList.toggle('hidden', state.view !== '3d');
   $('[data-map-2d]').classList.toggle('hidden', state.view !== '2d');
@@ -65,30 +63,29 @@ function renderMap(p) {
 
 function renderZones(p) {
   $('[data-zones]').innerHTML = p.zones
-    .map((z) => `
-      <div>
-        <div class="mb-1.5 flex items-baseline justify-between gap-2">
-          <span class="flex min-w-0 items-center gap-2">${icon(z.kind === 'car' ? 'car' : 'bike', 'size-4 shrink-0 text-mid-gray')}<span class="truncate font-medium">${esc(z.name)}</span></span>
-          <span class="text-mid-gray tabular-nums"><span class="font-semibold text-ink">${z.free}</span> kosong / ${z.total}</span>
-        </div>
-        ${meter(z.occupied / z.total, `Okupansi ${z.name}`)}
-        <p class="mt-1 text-caption tracking-normal text-mid-gray">${esc(z.location)} · ${fmtPct(z.occupied / z.total)} terisi</p>
-      </div>`)
+    .map((z) => `<tr class="cursor-pointer transition-colors hover:bg-canvas ${z.id === state.zoneId ? 'bg-surface-alt' : ''}" data-zone-row="${z.id}">
+        <td><span class="font-medium">${esc(z.name)}</span><span class="block text-caption tracking-normal text-mid-gray">${esc(z.location)}</span></td>
+        <td class="num">${z.occupied}</td>
+        <td class="num font-medium">${z.free}</td>
+        <td class="num">${fmtPct(z.occupied / z.total)}</td>
+      </tr>`)
     .join('');
+  $('[data-zones-total]').innerHTML = `<tr><td>Total</td><td class="num">${p.occupied}</td><td class="num">${p.free}</td><td class="num">${fmtPct(p.rate)}</td></tr>`;
 
   const parked = { car: 0, motorcycle: 0, truck: 0 };
   state.parking.zones.forEach((z) => z.slots.forEach((s) => s.occupied && (parked[s.vehicleType] += 1)));
   const total = Math.max(1, sum(parked));
   $('[data-vehicle-types]').innerHTML = Object.entries(VEHICLE_TYPES)
-    .map(([k, v]) => `
-      <div class="flex items-center gap-3">
-        ${icon(v.icon, 'size-4 shrink-0 text-mid-gray')}
-        <span class="w-16 shrink-0">${v.label}</span>
-        <div class="flex-1">${meter(parked[k] / total, v.label)}</div>
-        <span class="w-8 text-right font-semibold tabular-nums">${parked[k]}</span>
-      </div>`)
+    .map(([k, v]) => `<tr><td>${v.label}</td><td class="num font-medium">${parked[k]}</td><td class="num text-mid-gray">${fmtPct(parked[k] / total)}</td></tr>`)
     .join('');
 }
+
+$('[data-zones]').addEventListener('click', (e) => {
+  const row = e.target.closest('[data-zone-row]');
+  if (!row) return;
+  state.zoneId = row.dataset.zoneRow;
+  render();
+});
 
 function renderCameras() {
   const cams = state.parking.cameras;
@@ -97,21 +94,25 @@ function renderCameras() {
 }
 
 function renderChart() {
-  const data = state.parking.history.map((h) => ({ label: h.hour.slice(0, 2), value: Math.round(h.occupancy * 100) }));
-  const opts = { data, max: 100, height: 240, format: (v) => `${v}% terisi`, tickFormat: (v) => `${v}%`, highlight: String(new Date().getHours()).padStart(2, '0') };
+  const { history } = state.parking;
+  const labels = history.map((h) => h.hour.slice(0, 2));
+  const values = history.map((h) => Math.round(h.occupancy * 100));
+  const now = labels.indexOf(String(new Date().getHours()).padStart(2, '0'));
+  const peak = Math.max(...values);
+  $('[data-chart-summary]').innerHTML = `<span class="text-ink/80">Puncak</span><span class="font-semibold tabular-nums">${peak}%</span>`;
+  const opts = { labels, series: [{ label: 'Okupansi', values, style: 'current' }], height: 260, format: (v) => `${v}% terisi`, selected: now >= 0 ? now : undefined };
   if (chart) chart.update(opts);
-  else chart = createBarChart($('[data-chart]'), opts);
+  else chart = createTrendChart($('[data-chart]'), opts);
 }
 
 function renderEvents() {
   $('[data-events]').innerHTML = state.parking.events
     .slice(0, 20)
-    .map((ev) => `
-      <tr>
-        <td class="px-5 py-2.5 text-mid-gray tabular-nums">${fmtTime(ev.time)}</td>
-        <td class="px-3 py-2.5"><div class="flex items-center gap-2">${icon(VEHICLE_TYPES[ev.vehicleType].icon, 'size-4 shrink-0 text-mid-gray')}<span class="font-mono text-[13px] font-medium whitespace-nowrap">${esc(ev.plate)}</span></div></td>
-        <td class="px-3 py-2.5"><span class="badge ${ev.direction === 'in' ? 'badge-solid' : 'badge-soft'}">${ev.direction === 'in' ? 'Masuk' : 'Keluar'}</span> <span class="text-caption tracking-normal text-mid-gray">${esc(ev.gate)}</span></td>
-        <td class="px-5 py-2.5 text-right tabular-nums">${Math.round(ev.confidence * 100)}%</td>
+    .map((ev) => `<tr>
+        <td class="text-mid-gray">${fmtTime(ev.time)}</td>
+        <td class="whitespace-nowrap"><span class="font-mono text-[13px] font-medium">${esc(ev.plate)}</span> <span class="text-caption tracking-normal text-mid-gray">${VEHICLE_TYPES[ev.vehicleType].label}</span></td>
+        <td class="whitespace-nowrap"><span class="badge ${ev.direction === 'in' ? 'badge-solid' : 'badge-soft'}">${ev.direction === 'in' ? 'Masuk' : 'Keluar'}</span> <span class="text-caption tracking-normal text-mid-gray">${esc(ev.gate)}</span></td>
+        <td class="num">${Math.round(ev.confidence * 100)}%</td>
       </tr>`)
     .join('');
 }
@@ -133,7 +134,7 @@ async function load() {
     state.parking = await api.getParking();
     render();
   } catch (err) {
-    $('[data-kpis]').innerHTML = `<div class="col-span-full">${errorState(`Gagal memuat data parkir: ${err.message}`)}</div>`;
+    $('[data-kpis]').innerHTML = `<div class="col-span-full bg-paper p-3">${errorState(`Gagal memuat data parkir: ${err.message}`)}</div>`;
   }
 }
 

@@ -4,23 +4,44 @@
 // `action` berupa data (bukan fungsi) supaya bisa dikirim dari server:
 //   { type: 'setDevices', ids: string[], on: boolean } | { type: 'dismiss' }
 import { DEVICE_TYPES, VEHICLE_TYPES } from '../data/device-types.js';
-import { findWasteRooms, getAlerts, indexIot, isWorkspace, summarizeIot, summarizeParking, devicePowerW } from './selectors.js';
+import { energyByFloor, findWasteRooms, getAlerts, indexIot, isWorkspace, summarizeIot, summarizeParking, devicePowerW } from './selectors.js';
+
+// Pintas chatbot unit organisasi PU (dari TEJAS Chatbot PU). `pusdatin` = data gedung dashboard ini.
+export const UNITS = [
+  { id: 'pusdatin', label: 'Gedung Pusdatin' },
+  { id: 'sekjen', label: 'Sekjen' },
+  { id: 'sda', label: 'SDA' },
+  { id: 'bina-marga', label: 'Bina Marga' },
+  { id: 'cipta-karya', label: 'Cipta Karya' },
+  { id: 'prasarana-strategis', label: 'Prasarana Strategis' },
+  { id: 'pembiayaan', label: 'Pembiayaan' },
+  { id: 'bpsdm', label: 'BPSDM' },
+];
+
+export const MODELS = ['GPT-4o Mini', 'GPT-4o'];
+
+// Pertanyaan tentang dokumen yang dilampirkan / basis dokumen unit.
+export const DOCUMENT_SUGGESTIONS = [
+  'Apa isi utama dokumen ini?',
+  'Ringkaskan poin-poin penting',
+  'Apa syarat atau ketentuan yang disebutkan?',
+  'Jelaskan prosedur yang tercantum',
+];
 
 export const DEFAULT_SUGGESTIONS = [
   'Lampu yang belum mati?',
   'Berapa slot parkir yang kosong?',
   'Ruang kosong tapi lampu masih menyala?',
   'Perangkat mana yang offline?',
-  'Suhu ruang server sekarang?',
-  'Konsumsi listrik per lantai',
+  'Pemakaian listrik hari ini?',
+  'Ruang yang belum ada orang?',
 ];
 
 const TYPE_PATTERNS = [
   ['light', /\b(lampu|light)\b/],
   ['ac', /\b(ac|pendingin|air ?con)\b/],
-  ['cctv', /\b(cctv|kamera)\b/],
-  ['lock', /\b(kunci|lock|pintu)\b/],
-  ['sensor', /\bsensor\b/],
+  ['presence', /(sensor kehadiran|sensor gerak|\bhps\b)/],
+  ['sensor', /\b(sensor|remote ir)\b/],
 ];
 const PARKING = /(parkir|parkiran|slot|kendaraan|mobil|motor\b)/;
 
@@ -34,20 +55,27 @@ function normalize(text) {
 }
 
 function matchFloor(q, iot) {
+  if (/\bbasement\b/.test(q)) return iot.building.floors.find((f) => f.level === 0) ?? null;
   const m = q.match(/\b(?:lantai|lt)\s*(\d+)/);
   return m ? iot.building.floors.find((f) => f.level === Number(m[1])) ?? null : null;
 }
 
 function matchRoom(q, iot, floor) {
   const rooms = (floor ? floor.rooms : iot.building.floors.flatMap((f) => f.rooms)).filter((r) => r.type !== 'corridor');
-  const names = (r) => [r.name.toLowerCase(), r.name.toLowerCase().replace(/^ruang /, '')];
-  const hits = rooms.filter((r) => names(r).some((n) => n.length > 3 && q.includes(n)));
-  // Nama generik (Pantry, Toilet) ada di semua lantai: hanya terima jika unik.
-  const unique = [...new Map(hits.map((r) => [r.name, r])).values()];
-  if (!unique.length) return null;
-  unique.sort((a, b) => b.name.length - a.name.length);
-  const best = unique[0];
-  return hits.filter((r) => r.name === best.name).length === 1 ? best : null;
+  // "09 R. Tim Jaringan" cocok dengan "09 r tim jaringan" dan "tim jaringan".
+  const names = (r) => {
+    const n = normalize(r.name);
+    return [n, n.replace(/^\d+ /, ''), n.replace(/^(\d+ )?(r|ruang) /, '')];
+  };
+  // Kecocokan terpanjang menang. Nama generik ("R. Katim", "Toilet Pria") ada di banyak
+  // ruang/lantai: kalau lebih dari satu ruang sama-sama cocok, anggap tidak jelas.
+  const scored = rooms
+    .map((r) => ({ r, len: Math.max(0, ...names(r).filter((n) => n.length > 3 && q.includes(n)).map((n) => n.length)) }))
+    .filter((x) => x.len > 0);
+  if (!scored.length) return null;
+  const best = Math.max(...scored.map((x) => x.len));
+  const top = scored.filter((x) => x.len === best);
+  return top.length === 1 ? top[0].r : null;
 }
 
 function matchType(q) {
@@ -85,8 +113,8 @@ function controlIntent(q, ctx) {
     if (d.type !== type || !d.online || d.on === turnOn || !inScope(d)) return false;
     return !onlyEmpty || idx.rooms.get(d.roomId).occupancy === 0;
   });
-  const verb = type === 'lock' ? (turnOn ? 'mengunci' : 'membuka') : turnOn ? 'menyalakan' : 'mematikan';
-  const imperative = type === 'lock' ? (turnOn ? 'Kunci' : 'Buka') : turnOn ? 'Nyalakan' : 'Matikan';
+  const verb = turnOn ? 'menyalakan' : 'mematikan';
+  const imperative = turnOn ? 'Nyalakan' : 'Matikan';
   const state = turnOn ? meta.offLabel : meta.onLabel;
   const where = onlyEmpty ? `ruang kosong di ${scopeLabel}` : scopeLabel;
 
@@ -163,9 +191,10 @@ function alertIntent(q, { iot, parking }) {
 }
 
 function temperatureIntent(q, { iot, room, floor, scopeLabel }) {
-  const all = (floor ? [floor] : iot.building.floors).flatMap((f) => f.rooms.map((r) => ({ f, r }))).filter(({ r }) => isWorkspace(r) || r.type === 'server');
+  const all = (floor ? [floor] : iot.building.floors).flatMap((f) => f.rooms.map((r) => ({ f, r }))).filter(({ r }) => r.temperature != null);
   if (room) {
-    return { text: `Suhu ${room.name} saat ini ${fmt1(room.temperature)}°C dengan kelembaban ${room.humidity}%. Ada ${room.occupancy} orang di ruangan.` };
+    if (room.temperature == null) return { text: `${room.name} belum punya sensor suhu.` };
+    return { text: `Suhu ${room.name} saat ini ${fmt1(room.temperature)}°C dengan kelembaban ${room.humidity}%. ${occupancyText(room)}` };
   }
   if (/(terpanas|paling panas|panas)/.test(q) || /(terdingin|paling dingin|dingin)/.test(q)) {
     const cold = /(dingin)/.test(q);
@@ -183,29 +212,41 @@ function temperatureIntent(q, { iot, room, floor, scopeLabel }) {
       const s = summarizeIot(iot, f.id);
       return { title: `${f.name} · ${f.label}`, meta: `${fmt1(s.avgTemp)}°C · kelembaban ${Math.round(s.avgHumidity)}%` };
     }),
-    suggestions: ['Ruangan terpanas?', 'Suhu ruang server sekarang?'],
+    suggestions: ['Ruangan terpanas?', 'Suhu 09 R. Tim Jaringan?'],
   };
 }
 
 function energyIntent(q, { iot, floor, scopeLabel }) {
-  const s = summarizeIot(iot, floor?.id);
+  const period = /minggu/.test(q) ? 'mingguan' : /bulan/.test(q) ? 'bulanan' : 'harian';
+  const periodLabel = { harian: 'hari ini', mingguan: 'minggu ini', bulanan: 'bulan ini' }[period];
+  const previousLabel = { harian: 'kemarin', mingguan: 'minggu lalu', bulanan: 'bulan lalu' }[period];
+  const e = energyByFloor(iot, period);
+  const scope = floor ? e.floors.find((f) => f.floor.id === floor.id) : e;
+  const rupiah = (v) => `Rp ${Math.round(v).toLocaleString('id-ID')}`;
+  const change = Math.round(scope.change * 100);
   const items = floor
     ? Object.entries(DEVICE_TYPES).map(([t, m]) => {
         const w = iot.devices.filter((d) => d.type === t && d.floorId === floor.id).reduce((a, d) => a + devicePowerW(d), 0);
-        return { title: m.label, meta: `${fmt1(w / 1000)} kW` };
+        return { title: `Beban ${noun(m.label)} saat ini`, meta: `${fmt1(w / 1000)} kW` };
       })
-    : iot.building.floors.map((f) => ({ title: `${f.name} · ${f.label}`, meta: `${fmt1(summarizeIot(iot, f.id).powerKw)} kW` }));
+    : e.floors.map((f) => ({ title: f.floor.name, meta: `${fmt1(f.kwh)} kWh · ${rupiah(f.rupiah)}${f.anomaly ? ' · di atas target' : ''}` }));
   return {
-    text: `Estimasi beban listrik ${scopeLabel} saat ini ${fmt1(s.powerKw)} kW. AC menyumbang porsi terbesar.`,
+    text: `Pemakaian listrik ${scopeLabel} ${periodLabel} ${fmt1(scope.kwh)} kWh (${rupiah(scope.rupiah)}), ${change === 0 ? 'sama dengan' : `${change < 0 ? 'turun' : 'naik'} ${Math.abs(change)}% dibanding`} ${previousLabel} pada titik yang sama.`,
     items,
-    suggestions: ['Ruang kosong tapi lampu masih menyala?'],
+    link: { label: 'Lihat grafik listrik', href: '/iot.html#listrik' },
+    suggestions: ['Pemakaian listrik bulan ini?', 'Ruang kosong tapi lampu masih menyala?'],
   };
+}
+
+function occupancyText(room) {
+  if (room.occupancy == null) return 'Sensor kehadiran belum terpasang.';
+  return room.occupancy > 0 ? `Ada ${room.occupancy} orang di ruangan.` : 'Tidak ada orang di ruangan.';
 }
 
 function occupancyIntent(q, { iot, floor, scopeLabel }) {
   const floors = floor ? [floor] : iot.building.floors;
-  if (/kosong/.test(q)) {
-    const empty = floors.flatMap((f) => f.rooms.filter((r) => isWorkspace(r) && r.occupancy === 0).map((r) => ({ title: `${f.name} · ${r.name}`, meta: `Kapasitas ${r.capacity} orang` })));
+  if (/(kosong|belum ada orang|tidak ada orang)/.test(q)) {
+    const empty = floors.flatMap((f) => f.rooms.filter((r) => isWorkspace(r) && r.occupancy === 0).map((r) => ({ title: `${f.name} · ${r.name}`, meta: 'Sensor kehadiran: kosong' })));
     return { text: `Ada ${empty.length} ruangan kosong di ${scopeLabel}.`, items: limitItems(empty) };
   }
   const s = summarizeIot(iot, floor?.id);
@@ -235,7 +276,7 @@ function deviceStatusIntent(q, ctx) {
     text: `Ada ${list.length} dari ${scoped.length} ${label} yang ${wantsOff ? '' : 'masih '}${state} di ${scopeLabel}, tersebar di ${roomCount} ruangan.`,
     items: limitItems(groupByRoom(list, idx, (l) => `${l.length} ${label} ${state}`)),
   };
-  if (meta.controllable && !wantsOff && type !== 'lock') {
+  if (meta.controllable && !wantsOff) {
     res.actions = [{ label: `Matikan ${list.length} ${label}`, variant: 'primary', action: { type: 'setDevices', ids: list.map((d) => d.id), on: false } }];
     res.suggestions = ['Ruang kosong tapi lampu masih menyala?'];
   }
@@ -245,8 +286,9 @@ function deviceStatusIntent(q, ctx) {
 function scopeSummary({ iot, room, floor, scopeLabel }) {
   if (room) {
     const devices = iot.devices.filter((d) => d.roomId === room.id);
+    const climate = room.temperature != null ? `${fmt1(room.temperature)}°C, kelembaban ${room.humidity}%. ` : '';
     return {
-      text: `${room.name}: ${fmt1(room.temperature)}°C, kelembaban ${room.humidity}%, ${room.occupancy} orang.`,
+      text: room.equipped ? `${room.name}: ${climate}${occupancyText(room)}` : `${room.name}: sensor belum terpasang.`,
       items: devices.map((d) => ({ title: d.name, meta: d.online ? (d.on ? DEVICE_TYPES[d.type].onLabel : DEVICE_TYPES[d.type].offLabel) : 'offline' })),
     };
   }
@@ -258,8 +300,27 @@ function scopeSummary({ iot, room, floor, scopeLabel }) {
 
 /* ------------------------------- entry ------------------------------- */
 
-export function answer(message, { iot, parking }) {
+const BUILDING_TOPIC = /(lampu|ac\b|suhu|listrik|kwh|perangkat|sensor|ruang|lantai|basement|parkir|kendaraan|offline|matikan|nyalakan|orang|gedung)/;
+
+// Pertanyaan dokumen / unit lain dijawab oleh basis dokumen TEJAS di backend.
+// Mode simulasi tidak membaca dokumen, jadi jawabannya jujur menyebut itu.
+function documentAnswer(message, meta) {
+  const unit = UNITS.find((u) => u.id === meta.unit);
+  const source = meta.attachment ? `dokumen "${meta.attachment.name}"` : `basis dokumen ${unit?.label ?? 'unit'}`;
+  return {
+    text: `Pertanyaan ini dijawab dari ${source} oleh chatbot TEJAS. Mode simulasi belum membaca isi dokumen, jadi jawaban belum tersedia. Untuk kondisi Gedung Pusdatin, pilih pintas "Gedung Pusdatin".`,
+    suggestions: unit?.id === 'pusdatin' ? DEFAULT_SUGGESTIONS.slice(0, 3) : ['Pemakaian listrik hari ini?', 'Lampu yang belum mati?'],
+  };
+}
+
+/**
+ * @param {string} message
+ * @param {{ iot, parking }} state
+ * @param {{ unit?: string, model?: string, attachment?: {name:string} }} [meta]
+ */
+export function answer(message, { iot, parking }, meta = {}) {
   const q = normalize(message);
+  if (meta.attachment || (meta.unit && meta.unit !== 'pusdatin' && !BUILDING_TOPIC.test(q))) return documentAnswer(message, meta);
   const idx = indexIot(iot);
   const floor = matchFloor(q, iot);
   const room = matchRoom(q, iot, floor);
@@ -281,7 +342,7 @@ export function answer(message, { iot, parking }) {
   if (room || floor) return scopeSummary(ctx);
   if (/\b(halo|hai|hi|hello|pagi|siang|sore|malam|bantuan|help|bisa apa)\b/.test(q)) {
     return {
-      text: 'Halo! Saya asisten Gedung Pusdatin. Saya bisa membaca status perangkat IoT, kondisi ruangan, dan ketersediaan parkir, lalu membantu mematikan perangkat yang tidak terpakai.',
+      text: 'Saya membaca status perangkat IoT, kondisi ruang, pemakaian listrik, dan parkir Gedung Pusdatin. Saya juga bisa mematikan lampu atau AC yang tidak terpakai.',
       suggestions: DEFAULT_SUGGESTIONS.slice(0, 4),
     };
   }

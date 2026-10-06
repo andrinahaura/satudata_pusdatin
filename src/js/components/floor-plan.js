@@ -1,20 +1,9 @@
 // Denah lantai interaktif (SVG). Koordinat ruangan & perangkat mengikuti viewBox 1000 x 560
 // yang dikirim backend/mock (room.x/y/w/h, device.x/y).
 import { DEVICE_TYPES } from '../data/device-types.js';
+import { COLORS as C } from '../theme.js';
 import { createTooltip, esc } from '../utils/dom.js';
 import { fmt1 } from '../utils/format.js';
-
-const C = {
-  ink: '#0a0a0a',
-  paper: '#ffffff',
-  canvas: '#f5f5f5',
-  alt: '#fafafa',
-  line: '#d4d4d4',
-  hairline: '#e5e5e5',
-  off: '#a3a3a3',
-  muted: '#737373',
-  ember: '#e7000b',
-};
 
 function deviceState(d) {
   if (!d.online) return 'offline';
@@ -23,7 +12,8 @@ function deviceState(d) {
 
 function markerStyle(state) {
   if (state === 'offline') return `fill="${C.ember}" stroke="${C.paper}" stroke-width="2"`;
-  if (state === 'on') return `fill="${C.ink}" stroke="${C.paper}" stroke-width="2"`;
+  // Menyala = kuning aksen dengan garis navy supaya tetap terlihat di atas putih.
+  if (state === 'on') return `fill="${C.accent}" stroke="${C.ink}" stroke-width="1.5"`;
   return `fill="${C.paper}" stroke="${C.off}" stroke-width="1.5"`;
 }
 
@@ -36,10 +26,8 @@ export function markerShape(type, x, y, attrs) {
       return `<rect x="${x - 9}" y="${y - 5.5}" width="18" height="11" rx="3" ${attrs}/>`;
     case 'sensor':
       return `<rect x="${x - 5.5}" y="${y - 5.5}" width="11" height="11" rx="2" transform="rotate(45 ${x} ${y})" ${attrs}/>`;
-    case 'cctv':
+    case 'presence':
       return `<path d="M${x} ${y - 7} L${x + 7.5} ${y + 6} L${x - 7.5} ${y + 6} Z" stroke-linejoin="round" ${attrs}/>`;
-    case 'lock':
-      return `<rect x="${x - 6}" y="${y - 6}" width="12" height="12" rx="3" ${attrs}/><rect x="${x - 1}" y="${y - 2.5}" width="2" height="5" rx="1" fill="${C.paper}"/>`;
     default:
       return '';
   }
@@ -50,7 +38,7 @@ function roomTile(room, selected) {
   const y = room.y + 3;
   const w = room.w - 6;
   const h = room.h - 6;
-  const interactive = room.type !== 'corridor';
+  const interactive = room.type !== 'core';
   let fill = C.paper;
   if (room.type === 'corridor') fill = C.canvas;
   if (room.type === 'core' || room.type === 'toilet') fill = 'url(#fp-hatch)';
@@ -62,17 +50,22 @@ function roomTile(room, selected) {
     // Simbol lift: kotak dengan silang.
     const cx = x + w / 2;
     const cy = y + h / 2 + 10;
-    extra = `<rect x="${cx - 26}" y="${cy - 26}" width="52" height="52" rx="6" fill="${C.paper}" stroke="${C.line}"/>
-      <path d="M${cx - 26} ${cy - 26} L${cx + 26} ${cy + 26} M${cx + 26} ${cy - 26} L${cx - 26} ${cy + 26}" stroke="${C.line}"/>`;
+    const r = Math.min(26, w / 2 - 6);
+    extra = `<rect x="${cx - r}" y="${cy - r}" width="${r * 2}" height="${r * 2}" rx="6" fill="${C.paper}" stroke="${C.line}"/>
+      <path d="M${cx - r} ${cy - r} L${cx + r} ${cy + r} M${cx + r} ${cy - r} L${cx - r} ${cy + r}" stroke="${C.line}"/>`;
   }
 
+  // Ruang sempit tidak diberi label; nama & status tetap muncul di tooltip.
   let label = '';
-  if (room.type !== 'corridor') {
-    const meta = room.type === 'core'
-      ? 'Sirkulasi vertikal'
-      : `${fmt1(room.temperature)}°C${room.capacity ? ` · ${room.occupancy} orang` : ''}`;
-    label = `<text x="${x + 12}" y="${y + 22}" font-size="13" font-weight="500" fill="${C.ink}">${esc(room.name)}</text>
-      <text x="${x + 12}" y="${y + 39}" font-size="12" fill="${C.muted}">${esc(meta)}</text>`;
+  const fits = (text, size) => text.length * size * 0.55 <= w - 20;
+  if (room.type !== 'corridor' && fits(room.name, 13)) {
+    const meta = roomMeta(room);
+    label = `<text x="${x + 10}" y="${y + 22}" font-size="13" font-weight="500" fill="${C.ink}">${esc(room.name)}</text>
+      ${fits(meta, 12) ? `<text x="${x + 10}" y="${y + 39}" font-size="12" fill="${C.muted}">${esc(meta)}</text>` : ''}`;
+  } else if (room.type !== 'corridor' && roomNumber(room)) {
+    label = `<text x="${x + 10}" y="${y + 22}" font-size="13" font-weight="500" fill="${C.ink}">${roomNumber(room)}</text>`;
+  } else if (room.type === 'corridor') {
+    label = `<text x="${x + 12}" y="${y + h - 8}" font-size="11" fill="${C.muted}">${esc(room.name)}</text>`;
   }
 
   return `<g class="fp-room${interactive ? ' fp-room--interactive' : ''}" data-room-id="${room.id}">
@@ -81,9 +74,22 @@ function roomTile(room, selected) {
   </g>`;
 }
 
+/** Nomor ruang ("21" dari "21 R. Katim"), dipakai sebagai label ruang sempit. */
+export const roomNumber = (room) => room.name.match(/^\d+/)?.[0] ?? null;
+
+/** Ringkasan kondisi ruang untuk label & tooltip. */
+export function roomMeta(room) {
+  if (room.type === 'core') return 'Sirkulasi vertikal';
+  if (!room.equipped) return 'Sensor belum terpasang';
+  const parts = [];
+  if (room.temperature != null) parts.push(`${fmt1(room.temperature)}°C`);
+  if (room.occupancy != null) parts.push(room.occupancy > 0 ? (room.capacity ? `${room.occupancy} orang` : 'Ada orang') : 'Kosong');
+  return parts.join(' · ');
+}
+
 function deviceMarker(d, dimmed) {
   const state = deviceState(d);
-  const glow = d.type === 'light' && state === 'on' ? `<circle cx="${d.x}" cy="${d.y}" r="16" fill="${C.ink}" opacity="0.05"/>` : '';
+  const glow = d.type === 'light' && state === 'on' ? `<circle cx="${d.x}" cy="${d.y}" r="16" fill="${C.accent}" opacity="0.22"/>` : '';
   return `<g class="fp-device" data-device-id="${d.id}" opacity="${dimmed ? 0.12 : 1}">
     ${glow}${markerShape(d.type, d.x, d.y, markerStyle(state))}
     <circle cx="${d.x}" cy="${d.y}" r="13" fill="transparent"/>
@@ -93,7 +99,7 @@ function deviceMarker(d, dimmed) {
 export function floorPlanSvg({ floor, devices, selectedRoomId = null, filter = 'all' }) {
   const rooms = [...floor.rooms].sort((a, b) => (a.type === 'corridor' ? -1 : b.type === 'corridor' ? 1 : 0));
   const list = devices.filter((d) => d.floorId === floor.id);
-  return `<svg viewBox="0 0 1000 560" class="block h-auto w-full min-w-[720px] select-none" role="img" aria-label="Denah ${esc(floor.name)}" font-family="Geist, Inter, system-ui, sans-serif">
+  return `<svg viewBox="0 0 1000 560" class="block h-auto w-full min-w-[720px] select-none" role="img" aria-label="Denah ${esc(floor.name)}" font-family="Inter, system-ui, sans-serif">
     <defs>
       <pattern id="fp-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
         <rect width="8" height="8" fill="${C.alt}"/><line x1="0" y1="0" x2="0" y2="8" stroke="${C.hairline}" stroke-width="2"/>
@@ -144,8 +150,13 @@ export function createFloorPlan(container, { onRoomSelect } = {}) {
   });
 
   scroll.addEventListener('pointermove', (e) => {
+    if (!current) return;
     const dev = e.target.closest('[data-device-id]');
-    if (!dev || !current) return tooltip.hide();
+    if (!dev) {
+      const room = current.floor.rooms.find((r) => r.id === e.target.closest('.fp-room--interactive')?.dataset.roomId);
+      if (!room) return tooltip.hide();
+      return tooltip.show(`<div class="font-medium">${esc(room.name)}</div><div class="opacity-70">${esc(roomMeta(room))}</div>`, e);
+    }
     const d = current.devices.find((x) => x.id === dev.dataset.deviceId);
     const room = current.floor.rooms.find((r) => r.id === d.roomId);
     const meta = DEVICE_TYPES[d.type];

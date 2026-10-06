@@ -8,30 +8,26 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
     <div class="flex min-h-dvh flex-col">
-      <header id="navbar" class="sticky top-0 z-30 border-b border-hairline bg-surface-alt"></header>
-      <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p class="label-caps">Computer vision · Parkir</p>
-            <h1 class="mt-1 text-heading font-semibold">Deteksi kendaraan</h1>
-            <p class="mt-1 text-mid-gray">Jumlah kendaraan dan slot kosong dari analisis kamera CCTV parkiran.</p>
-          </div>
-          <span class="badge badge-outline self-start sm:self-auto"><span class="dot bg-ember"></span><span data-updated>Memuat…</span></span>
+      <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
+      <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
+        <section class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h1 class="text-heading font-semibold">Deteksi kendaraan</h1>
+          <p class="text-mid-gray tabular-nums" data-updated>Memuat…</p>
         </section>
 
-        <section class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan parkir"></section>
+        <section class="stat-strip mt-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan parkir"></section>
 
-        <section class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <article class="card min-w-0">
+        <!-- Peta slot (3D/2D) dan rekap per zona dalam satu kartu. -->
+        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
             <div class="card-header">
               <div>
                 <h2 class="card-title">Peta slot parkir</h2>
-                <p class="card-desc" data-zone-desc>&nbsp;</p>
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <div class="segmented" role="tablist" aria-label="Pilih zona" data-zone-tabs></div>
@@ -39,60 +35,58 @@
               </div>
             </div>
             <div class="card-body">
-                <div data-map-3d></div>
-                <div data-map-2d></div>
-              </div>
-            <div class="card-footer flex-wrap" data-parking-legend></div>
-          </article>
-          <article class="card">
-            <div class="card-header"><h2 class="card-title">Per zona</h2></div>
-            <div class="card-body flex flex-col gap-5" data-zones></div>
-            <div class="border-t border-hairline px-5 pt-4 pb-5">
-              <h3 class="label-caps mb-3">Kendaraan terparkir</h3>
-              <div class="flex flex-col gap-3" data-vehicle-types></div>
+              <div data-map-3d></div>
+              <div data-map-2d></div>
             </div>
-          </article>
+            <div class="card-footer flex-wrap" data-parking-legend></div>
+          </div>
+          <div class="min-w-0">
+            <div class="card-header"><h2 class="card-title">Per zona</h2></div>
+            <table class="data-table mt-3">
+              <thead><tr><th>Zona</th><th class="num">Terisi</th><th class="num">Kosong</th><th class="num">Okupansi</th></tr></thead>
+              <tbody data-zones></tbody>
+              <tfoot data-zones-total></tfoot>
+            </table>
+            <div class="card-header mt-4 border-t border-hairline pt-5"><h2 class="card-title">Kendaraan terparkir</h2></div>
+            <table class="data-table mt-3 mb-2">
+              <thead><tr><th>Jenis</th><th class="num">Jumlah</th><th class="num">Porsi</th></tr></thead>
+              <tbody data-vehicle-types></tbody>
+            </table>
+          </div>
         </section>
 
         <section class="mt-4">
-          <div class="mb-3 flex items-center justify-between">
+          <div class="mb-3 flex items-baseline justify-between gap-2">
             <h2 class="text-subheading font-semibold">Kamera</h2>
-            <span class="text-mid-gray" data-camera-count></span>
+            <span class="text-mid-gray tabular-nums" data-camera-count></span>
           </div>
           <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" data-cameras></div>
         </section>
 
-        <section class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_440px]">
-          <article class="card min-w-0">
+        <!-- Grafik okupansi dan riwayat gerbang: tinggi baris mengikuti grafik, tabel di-scroll. -->
+        <section class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_560px]">
+          <div class="flex min-w-0 flex-col border-b border-hairline lg:border-r lg:border-b-0">
             <div class="card-header">
               <div>
                 <h2 class="card-title">Okupansi parkir per jam</h2>
-                <p class="card-desc">Persentase slot terisi, hari ini</p>
               </div>
+              <span class="inline-flex items-baseline gap-2 rounded-pill border border-ink/15 bg-ink/5 px-3 py-1.5 text-ink" data-chart-summary></span>
             </div>
             <div class="card-body" data-chart></div>
-          </article>
-          <article class="card min-w-0">
+          </div>
+          <div class="flex min-w-0 flex-col">
             <div class="card-header">
               <div>
                 <h2 class="card-title">Riwayat deteksi gerbang</h2>
-                <p class="card-desc">Pengenalan plat nomor (ALPR)</p>
               </div>
             </div>
-            <div class="scroll-thin mt-3 max-h-[300px] overflow-auto">
-              <table class="w-full min-w-[400px] text-left">
-                <thead class="sticky top-0 bg-paper">
-                  <tr class="border-b border-hairline text-caption tracking-normal text-mid-gray">
-                    <th class="px-5 py-2 font-medium">Waktu</th>
-                    <th class="px-3 py-2 font-medium">Plat</th>
-                    <th class="px-3 py-2 font-medium">Arah</th>
-                    <th class="px-5 py-2 text-right font-medium">Akurasi</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-hairline" data-events></tbody>
+            <div class="scroll-thin mt-3 max-h-[300px] overflow-auto lg:h-0 lg:max-h-none lg:min-h-[240px] lg:grow lg:basis-0">
+              <table class="data-table min-w-[520px]">
+                <thead class="sticky top-0 bg-paper"><tr><th>Waktu</th><th>Plat</th><th>Arah</th><th class="num">Akurasi</th></tr></thead>
+                <tbody data-events></tbody>
               </table>
             </div>
-          </article>
+          </div>
         </section>
       </main>
     </div>

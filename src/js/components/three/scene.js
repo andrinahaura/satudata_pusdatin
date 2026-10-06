@@ -3,23 +3,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { COLORS, hex } from '../../theme.js';
 import { createTooltip } from '../../utils/dom.js';
 import { icon, renderIcons } from '../icons.js';
 
-export const PALETTE = {
-  canvas: 0xf5f5f5,
-  paper: 0xffffff,
-  alt: 0xfafafa,
-  hairline: 0xe5e5e5,
-  line: 0xd4d4d4,
-  off: 0xa3a3a3,
-  muted: 0x737373,
-  ink: 0x0a0a0a,
-  inkSoft: 0x171717,
-  ink2: 0x262626,
-  cabin: 0x525252,
-  ember: 0xe7000b,
-};
+export const PALETTE = Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, hex(v)]));
 
 const materialCache = new Map();
 /** Material standar yang di-cache per warna/opacity. */
@@ -45,9 +33,9 @@ export function hatchTexture(repeat = 1) {
   const c = document.createElement('canvas');
   c.width = c.height = 32;
   const g = c.getContext('2d');
-  g.fillStyle = '#fafafa';
+  g.fillStyle = COLORS.alt;
   g.fillRect(0, 0, 32, 32);
-  g.strokeStyle = '#d4d4d4';
+  g.strokeStyle = COLORS.line;
   g.lineWidth = 3;
   for (let i = -32; i < 64; i += 10) {
     g.beginPath();
@@ -98,7 +86,7 @@ export function createScene3D(container, opts) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(32, 1, 1, 6000);
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xd4d4d4, 2.2));
+  scene.add(new THREE.HemisphereLight(0xffffff, PALETTE.line, 2.2));
   const sun = new THREE.DirectionalLight(0xffffff, 1.6);
   sun.position.set(-380, 700, 420);
   sun.castShadow = true;

@@ -3,70 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Monitoring perangkat IoT bangunan cerdas per lantai." />
+    <meta name="description" content="Monitoring perangkat IoT, kondisi ruang, dan listrik Gedung Pusdatin per lantai." />
     <title>IoT · SatuData Pusdatin</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
     <div class="flex min-h-dvh flex-col">
-      <header id="navbar" class="sticky top-0 z-30 border-b border-hairline bg-surface-alt"></header>
-      <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
+      <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
         <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p class="label-caps">IoT · Bangunan cerdas</p>
-            <h1 class="mt-1 text-heading font-semibold">Monitoring gedung</h1>
-            <p class="mt-1 text-mid-gray">Status lampu, AC, sensor, CCTV, dan smart lock per lantai. Klik ruangan pada denah untuk detail.</p>
+            <h1 class="text-heading font-semibold">Monitoring gedung</h1>
           </div>
-          <span class="badge badge-outline self-start sm:self-auto"><span class="dot bg-ember"></span><span data-updated>Memuat…</span></span>
+          <div class="flex items-center gap-2 self-start sm:self-auto">
+            <a href="#listrik" class="btn btn-secondary btn-sm">Listrik</a>
+            <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated>Memuat…</span>
+          </div>
         </section>
 
-        <section class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan gedung"></section>
+        <section class="stat-strip mt-6 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan gedung"></section>
 
-        <section class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[232px_minmax(0,1fr)]">
-          <article class="card p-4">
-            <h2 class="card-title px-1">Potongan gedung</h2>
-            <p class="card-desc mb-3 px-1">Pilih lantai</p>
-            <div data-floor-stack></div>
-          </article>
-          <article class="card min-w-0">
-            <div class="card-header">
-              <div>
-                <h2 class="card-title" data-floor-title>&nbsp;</h2>
-                <p class="card-desc" data-floor-desc>&nbsp;</p>
-              </div>
-              <div class="flex max-w-full flex-wrap items-center gap-2">
-                <div class="scroll-thin max-w-full overflow-x-auto">
-                  <div class="segmented" role="tablist" aria-label="Filter perangkat" data-type-filter></div>
-                </div>
-                <div data-view-toggle></div>
-              </div>
+        <section class="card mt-4 min-w-0">
+          <div class="card-header">
+            <div class="flex flex-wrap items-center gap-3">
+              <h2 class="card-title">Denah</h2>
+              <div class="segmented" role="tablist" aria-label="Pilih lantai" data-floor-tabs></div>
             </div>
-            <div class="card-body">
-                <div data-plan-3d></div>
-                <div data-plan-2d></div>
+            <div class="flex max-w-full flex-wrap items-center gap-2">
+              <div class="scroll-thin max-w-full overflow-x-auto">
+                <div class="segmented" role="tablist" aria-label="Filter perangkat" data-type-filter></div>
               </div>
-            <div class="card-footer flex-wrap" data-floor-legend></div>
-          </article>
+              <div data-view-toggle></div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div data-plan-3d></div>
+            <div data-plan-2d></div>
+          </div>
+          <div class="card-footer flex-wrap" data-floor-legend></div>
         </section>
 
-        <section class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-          <article class="card" data-room-panel aria-live="polite"></article>
-          <article class="card min-w-0">
+        <section class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <div class="border-b border-hairline lg:border-r lg:border-b-0" data-room-panel aria-live="polite"></div>
+          <div class="flex min-w-0 flex-col">
             <div class="card-header">
               <div>
                 <h2 class="card-title" data-table-title>Perangkat</h2>
-                <p class="card-desc" data-table-desc>&nbsp;</p>
               </div>
               <div class="relative w-full sm:w-64">
                 <i data-lucide="search" class="pointer-events-none absolute top-2.5 left-3 size-4 text-mid-gray"></i>
                 <input type="search" class="input pl-9" placeholder="Cari perangkat / ruangan" data-search aria-label="Cari perangkat" />
               </div>
             </div>
-            <div class="scroll-thin mt-3 max-h-[520px] overflow-auto">
+            <!-- Tinggi tabel mengikuti panel ruang di kiri (lg), supaya tidak ada ruang kosong. -->
+            <div class="scroll-thin mt-3 max-h-[520px] overflow-auto lg:h-0 lg:max-h-none lg:min-h-[420px] lg:grow lg:basis-0">
               <table class="w-full min-w-[640px] text-left">
                 <thead class="sticky top-0 bg-paper">
                   <tr class="border-b border-hairline text-caption tracking-normal text-mid-gray">
@@ -79,6 +73,71 @@
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-hairline" data-table-body></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="listrik" class="mt-8 scroll-mt-24" aria-labelledby="listrik-title">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 id="listrik-title" class="text-heading-sm font-semibold">Listrik</h2>
+            </div>
+            <div class="segmented self-start sm:self-auto" role="tablist" aria-label="Pilih periode" data-period-tabs></div>
+          </div>
+
+          <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-energy-kpis aria-label="Ringkasan listrik"></div>
+
+          <article class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_480px]">
+            <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Grafik pemakaian</h3>
+                </div>
+                <div class="segmented" role="tablist" aria-label="Pilih lingkup" data-energy-scope></div>
+              </div>
+              <div class="card-body" data-energy-chart></div>
+              <div class="card-footer" data-energy-legend></div>
+            </div>
+            <div class="min-w-0">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Per lantai</h3>
+                </div>
+              </div>
+              <table class="data-table mt-3">
+                <thead><tr><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">Porsi</th><th class="num" data-prev-head>vs lalu</th></tr></thead>
+                <tbody data-energy-floors></tbody>
+                <tfoot data-energy-floors-total></tfoot>
+              </table>
+            </div>
+          </article>
+
+          <!-- Meter panel distribusi (trafo induk -> output) dan pemakaian per ruang dalam satu kartu. -->
+          <article class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+            <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Panel distribusi</h3>
+                </div>
+              </div>
+              <div class="scroll-thin mt-3 overflow-x-auto">
+                <table class="data-table min-w-[640px]">
+                  <thead><tr><th>Meter</th><th class="num">Beban</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">Tegangan</th><th class="num">Arus</th><th class="num">cos φ</th></tr></thead>
+                  <tbody data-power-panels></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="min-w-0">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Pemakaian per ruang</h3>
+                </div>
+                <div class="segmented" role="tablist" aria-label="Urutan" data-rank-order></div>
+              </div>
+              <table class="data-table mt-3">
+                <thead><tr><th>Ruang</th><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th></tr></thead>
+                <tbody data-rank></tbody>
               </table>
             </div>
           </article>

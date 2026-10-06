@@ -3,46 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Asisten AI untuk menanyakan kondisi gedung." />
+    <meta name="description" content="Chatbot TEJAS: kondisi Gedung Pusdatin dan dokumen unit organisasi PU." />
     <title>Chatbot · SatuData Pusdatin</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
     <div class="flex min-h-dvh flex-col">
-      <header id="navbar" class="sticky top-0 z-30 border-b border-hairline bg-surface-alt"></header>
-      <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <section class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <article class="card flex h-[calc(100dvh-8rem)] min-h-[520px] min-w-0 flex-col lg:h-[calc(100dvh-9rem)]">
-            <div class="card-header pb-4">
-              <div class="flex items-center gap-3">
-                <span class="grid size-10 place-items-center rounded-full bg-ink text-surface-alt"><i data-lucide="bot" class="size-5"></i></span>
-                <div>
-                  <h1 class="card-title">Asisten Gedung</h1>
-                  <p class="card-desc">Menjawab dari data IoT dan parkir secara realtime.</p>
-                </div>
-              </div>
-              <button type="button" class="btn btn-secondary btn-sm" data-reset><i data-lucide="rotate-ccw" class="size-3.5"></i>Percakapan baru</button>
+      <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
+      <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
+        <!-- Chatbot TEJAS di dalam dashboard: riwayat percakapan di kiri, percakapan di kanan. -->
+        <section class="card relative grid h-[calc(100dvh-7rem)] min-h-[560px] grid-cols-1 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)]">
+          <aside data-history-panel class="absolute inset-y-0 left-0 z-20 hidden w-[280px] flex-col border-r border-hairline bg-surface-alt lg:static lg:flex" aria-label="Riwayat percakapan">
+            <div class="flex items-center gap-2 p-4">
+              <button type="button" class="btn btn-primary flex-1" data-new-chat><i data-lucide="plus" class="size-4"></i>Percakapan baru</button>
+              <button type="button" class="btn btn-ghost btn-icon lg:hidden" data-history-close aria-label="Tutup riwayat"><i data-lucide="x" class="size-4"></i></button>
             </div>
-            <div class="min-h-0 flex-1 border-t border-hairline" id="main-chat"></div>
-          </article>
-
-          <aside class="flex flex-col gap-4">
-            <article class="card">
-              <div class="card-header"><h2 class="card-title">Contoh pertanyaan</h2></div>
-              <div class="card-body flex flex-col gap-4" data-examples></div>
-            </article>
-            <article class="card">
-              <div class="card-header">
-                <h2 class="card-title">Data yang dibaca asisten</h2>
-                <span class="badge badge-outline"><span class="dot bg-ember"></span>Live</span>
-              </div>
-              <dl class="card-body grid grid-cols-2 gap-x-4 gap-y-3" data-context></dl>
-            </article>
+            <nav class="scroll-thin min-h-0 flex-1 overflow-y-auto border-t border-hairline px-2 py-3" data-history></nav>
           </aside>
+          <div class="flex min-h-0 min-w-0 flex-col">
+            <div class="flex items-center gap-2 border-b border-hairline px-4 py-2 lg:hidden">
+              <button type="button" class="btn btn-ghost btn-sm" data-history-open aria-expanded="false"><i data-lucide="menu" class="size-4"></i>Riwayat</button>
+            </div>
+            <div class="min-h-0 flex-1" id="main-chat"></div>
+          </div>
         </section>
       </main>
     </div>
