@@ -1,5 +1,7 @@
 // Generator data simulasi. Bentuk objek yang dihasilkan di sini = kontrak data
 // yang diharapkan dari backend (lihat README "Kontrak API").
+// Gedung, ruang, dan jenis perangkat mengikuti kondisi Gedung Pusdatin di Sinatra
+// (BGC untuk ruang & perangkat, ICC untuk meter listrik); angkanya simulasi.
 import { DEVICE_TYPES, NON_WORKSPACE } from './device-types.js';
 
 // PRNG deterministik supaya denah & status sama di setiap halaman/reload.
@@ -10,7 +12,9 @@ function createRng(seed) {
 }
 
 const round1 = (n) => Math.round(n * 10) / 10;
+const round2 = (n) => Math.round(n * 100) / 100;
 const pad2 = (n) => String(n).padStart(2, '0');
+const localDate = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
 /* ------------------------------------------------------------------ */
 /* Denah gedung                                                        */
@@ -22,37 +26,57 @@ const ROW_TOP = { y: 20, h: 230 };
 const CORRIDOR = { y: 250, h: 60 };
 const ROW_BOTTOM = { y: 310, h: 230 };
 
+// [nama, lebar, tipe, sensor terpasang?]. Ruang tanpa sensor tampil "Sensor belum terpasang".
 const FLOORS = [
   {
+    id: 'B',
+    level: 0,
+    name: 'Basement',
+    short: 'B',
+    label: 'Ruang tim, gym & gudang',
+    top: [['07 R. Presentasi', 200, 'meeting', false], ['08 R. Katim', 200, 'office'], ['09 R. Tim Jaringan', 220, 'office'], ['R. Operator Band', 140, 'office', false], ['Band Room', 200, 'hall', false]],
+    corridor: [['Foyer', 960]],
+    bottom: [['Workspace Basement', 340, 'office'], ['05 R. Cipta Karya', 160, 'office', false], ['04 GYM Area', 180, 'hall'], ['03 R. Katim', 100, 'office'], ['02 R. Katim', 100, 'office'], ['Gudang', 80, 'storage', false]],
+  },
+  {
+    id: 'L1',
     level: 1,
-    label: 'Lobby & Layanan Publik',
-    top: [['Lobby', 320, 'lobby'], ['Layanan Publik', 240, 'office'], ['Ruang Tunggu', 160, 'hall'], ['Pos Keamanan', 120, 'office'], ['Toilet', 120, 'toilet']],
-    bottom: [['Ruang Arsip', 200, 'office'], ['Pantry', 140, 'pantry'], ['Lift & Tangga', 140, 'core'], ['Mushola', 160, 'hall'], ['Ruang Rapat 1A', 320, 'meeting']],
+    name: 'Lantai 1',
+    short: 'Lt 1',
+    label: 'Ruang Katim, rapat & layanan',
+    top: [
+      ['20 R. Jafung Madya', 110, 'office'], ['21 R. Katim', 80, 'office'], ['22 R. Katim', 80, 'office'], ['23 R. Katim', 80, 'office'],
+      ['24 R. Katim', 80, 'office'], ['25 R. Katim', 80, 'office'], ['26 R. Katim', 80, 'office'], ['27 R. Katim', 80, 'office'],
+      ['28 R. Tim Keamanan', 100, 'office', false], ['Ruang Makan', 100, 'pantry'], ['Sekretariat DWP Sekjen', 90, 'office', false],
+    ],
+    corridor: [['Koridor Barat', 480], ['Koridor Timur depan', 480, false]],
+    bottom: [
+      ['18 R. Rapat', 100, 'meeting'], ['19 R. Rapat', 90, 'meeting', false], ['17 R. Kabid MTI', 80, 'office'], ['16 R. Kabid DI', 80, 'office'],
+      ['R. Tunggu Kabid', 60, 'lobby', false], ['R. Staff Area', 120, 'office'], ['Lobby', 110, 'lobby'], ['R. Laktasi', 50, 'office'],
+      ['Mushola', 70, 'hall'], ['Wudhu Pria', 40, 'toilet'], ['Wudhu Wanita', 40, 'toilet', false], ['Toilet Wanita', 40, 'toilet', false],
+      ['Toilet Pria', 40, 'toilet', false], ['Bordes', 40, 'core', false],
+    ],
   },
   {
+    id: 'L2',
     level: 2,
-    label: 'Pengelolaan Data',
-    top: [['Ruang Kerja Data 1', 300, 'office'], ['Ruang Kerja Data 2', 260, 'office'], ['Ruang Kabid', 160, 'office'], ['Ruang Rapat 2A', 240, 'meeting']],
-    bottom: [['Ruang Statistik', 280, 'office'], ['Pantry', 120, 'pantry'], ['Lift & Tangga', 140, 'core'], ['Toilet', 120, 'toilet'], ['Ruang Rapat 2B', 300, 'meeting']],
-  },
-  {
-    level: 3,
-    label: 'Infrastruktur TI',
-    top: [['Ruang Server', 280, 'server'], ['NOC', 240, 'office'], ['Ruang UPS', 140, 'server'], ['Gudang TI', 140, 'storage'], ['Ruang Teknisi', 160, 'office']],
-    bottom: [['Lab Pengembangan', 300, 'lab'], ['Ruang Developer', 220, 'office'], ['Lift & Tangga', 140, 'core'], ['Toilet', 120, 'toilet'], ['Ruang Diskusi', 180, 'meeting']],
-  },
-  {
-    level: 4,
-    label: 'Pimpinan',
-    top: [['Ruang Kepala Pusat', 260, 'office'], ['Sekretariat', 160, 'office'], ['Ruang Tamu VIP', 200, 'lobby'], ['Aula', 340, 'hall']],
-    bottom: [['Rapat Pimpinan', 320, 'meeting'], ['Pantry', 120, 'pantry'], ['Lift & Tangga', 140, 'core'], ['Toilet', 120, 'toilet'], ['Ruang Staf', 260, 'office']],
+    name: 'Lantai 2',
+    short: 'Lt 2',
+    label: 'Pimpinan & sekretariat',
+    top: [
+      ['Workspace Lt 2', 300, 'office'], ['37 R. Katim', 90, 'office'], ['38 R. Katim', 90, 'office'], ['39 R. Katim', 90, 'office', false],
+      ['40 R. Katim', 90, 'office', false], ['41 R. Kasubag TU', 100, 'office', false], ['Area Sekretaris', 100, 'office'], ['R. Bendahara', 100, 'office', false],
+    ],
+    corridor: [['Koridor', 480, false], ['Koridor 2', 480]],
+    bottom: [['R. Kepala Pusat', 300, 'office', false], ['Foyer', 180, 'lobby', false], ['R. File', 160, 'storage', false], ['Toilet Wanita', 100, 'toilet', false], ['Toilet Pria', 100, 'toilet', false], ['Janitor', 120, 'storage', false]],
   },
 ];
 
-function layoutRow(specs, { y, h }, floorId, startIndex) {
+function layoutRow(specs, { y, h }, floorId, startIndex, type = null) {
   let x = 20;
-  return specs.map(([name, w, type], i) => {
-    const room = { id: `${floorId}-R${pad2(startIndex + i + 1)}`, floorId, name, type, x, y, w, h };
+  return specs.map((spec, i) => {
+    const [name, w] = spec;
+    const room = { id: `${floorId}-R${pad2(startIndex + i + 1)}`, floorId, name, type: type ?? spec[2], equipped: (type ? spec[2] : spec[3]) !== false, x, y, w, h };
     x += w;
     return room;
   });
@@ -60,11 +84,11 @@ function layoutRow(specs, { y, h }, floorId, startIndex) {
 
 function lightPositions(room, n) {
   if (room.type === 'corridor') {
-    return Array.from({ length: n }, (_, i) => ({ x: room.x + ((i + 0.5) * room.w) / n, y: room.y + room.h / 2 }));
+    return Array.from({ length: n }, (_, i) => ({ x: Math.round(room.x + ((i + 0.5) * room.w) / n), y: room.y + room.h / 2 }));
   }
-  const padX = 34;
+  const padX = Math.min(34, room.w * 0.25);
   const top = 58;
-  const bottom = 40;
+  const bottom = 64;
   const iw = room.w - padX * 2;
   const ih = room.h - top - bottom;
   const cols = Math.max(1, Math.round(Math.sqrt((n * iw) / ih)));
@@ -76,7 +100,7 @@ function lightPositions(room, n) {
 }
 
 function makeDevice(room, type, index, pos, props) {
-  const code = { light: 'LMP', ac: 'AC', sensor: 'SNS', cctv: 'CAM', lock: 'LCK' }[type];
+  const code = { light: 'LMP', ac: 'AC', sensor: 'IR', presence: 'HPS' }[type];
   return {
     id: `${room.id}-${code}${index}`,
     type,
@@ -92,109 +116,303 @@ function makeDevice(room, type, index, pos, props) {
   };
 }
 
+const COOLED = new Set(['office', 'meeting', 'hall', 'lobby', 'pantry']);
+
+function addRoomDevices(room, rand, devices) {
+  if (!room.equipped) return;
+  const occupied = room.occupancy > 0;
+  const inset = Math.min(22, room.w / 4);
+
+  // Saklar lampu
+  const n = room.type === 'corridor' ? Math.round(room.w / 120) : Math.max(1, Math.min(4, Math.round((room.w * room.h) / 14000)));
+  const pOn = room.type === 'corridor' ? 0.85 : occupied ? 0.92 : 0.22;
+  lightPositions(room, n).forEach((pos, i) => devices.push(makeDevice(room, 'light', i + 1, pos, { on: rand() < pOn })));
+
+  // Sensor kehadiran (HPS): menyala = ada orang.
+  const presencePos = room.type === 'corridor' ? { x: room.x + 30, y: room.y + 16 } : { x: room.x + room.w - inset, y: room.y + room.h - 50 };
+  devices.push(makeDevice(room, 'presence', 1, presencePos, { on: occupied }));
+
+  if (!COOLED.has(room.type)) return;
+
+  // Remote IR + sensor suhu & kelembaban
+  devices.push(makeDevice(room, 'sensor', 1, { x: room.x + inset, y: room.y + room.h - 22 }));
+
+  // AC
+  const nAc = room.w >= 200 ? 2 : 1;
+  const pAc = occupied ? 0.88 : 0.25;
+  for (let i = 0; i < nAc; i++) {
+    const pos = { x: room.x + room.w - 24 - i * 30, y: room.y + room.h - 22 };
+    devices.push(makeDevice(room, 'ac', i + 1, pos, { on: rand() < pAc, setpoint: 24 }));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Listrik (meter per lantai, seperti Sinatra ICC)                     */
+/* ------------------------------------------------------------------ */
+
+export const TARIFF = 1727; // Rp per kWh
+
+// Fraksi beban puncak per jam pada hari kerja.
+const LOAD_CURVE = [0.16, 0.15, 0.15, 0.15, 0.16, 0.2, 0.34, 0.6, 0.88, 1, 1, 0.97, 0.84, 0.94, 1, 0.96, 0.86, 0.58, 0.36, 0.28, 0.24, 0.2, 0.18, 0.17];
+const WEEKEND = 0.32;
+// Beban di luar perangkat IoT (stop kontak, server, pompa) per lantai, kW.
+const BASE_KW = { B: 0.4, L1: 4.5, L2: 2.2 };
+const FAN_KW = 0.3;
+
+// Meter di panel distribusi: trafo induk mengalir ke output tiap lantai dan panel kipas.
+const PANELS = [
+  { id: 'TRAFO', name: 'Trafo induk', meter: 'PU 6 · Kelistrikan 1', source: true },
+  { id: 'OUT-L2', name: 'Output Lantai 2', meter: 'PU 2 · Kelistrikan 1', floorId: 'L2' },
+  { id: 'OUT-L1', name: 'Output Lantai 1', meter: 'PU 3 · Kelistrikan 1', floorId: 'L1' },
+  { id: 'OUT-B', name: 'Output Basement', meter: 'PU 4 · Kelistrikan 1', floorId: 'B' },
+  { id: 'OUT-FAN', name: 'Output Panel Kipas', meter: 'PU 6 · Kelistrikan 2', fan: true },
+];
+
+function peakKw(floorId, devices) {
+  const deviceW = devices.filter((d) => d.floorId === floorId).reduce((s, d) => s + DEVICE_TYPES[d.type].watt, 0);
+  return (deviceW * 0.7) / 1000 + BASE_KW[floorId];
+}
+
+const isWeekend = (date) => date.getDay() === 0 || date.getDay() === 6;
+const dayKwh = (peak, date, rand) => LOAD_CURVE.reduce((s, f) => s + f, 0) * peak * (isWeekend(date) ? WEEKEND : 1) * (0.92 + rand() * 0.16);
+const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+
+function hourly(peak, date, rand, untilHour = 24, partial = 1) {
+  const factor = isWeekend(date) ? WEEKEND : 1;
+  return LOAD_CURVE.map((f, h) => {
+    if (h > untilHour) return null;
+    const v = f * peak * factor * (0.9 + rand() * 0.2);
+    return round2(h === untilHour ? v * partial : v);
+  });
+}
+
+function sumSeries(list) {
+  return list.reduce((s, v) => s + (v ?? 0), 0);
+}
+
+export function createEnergyState(devices, now = new Date(), seed = 4410) {
+  const rand = createRng(seed + now.getDate());
+  const h = now.getHours();
+  const partial = now.getMinutes() / 60;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const weekday = (now.getDay() + 6) % 7; // Senin = 0
+  const y = now.getFullYear();
+  const m = now.getMonth();
+
+  const floors = {};
+  for (const def of FLOORS) {
+    const peak = peakKw(def.id, devices);
+    const today = hourly(peak, now, rand, h, partial);
+    const week = Array.from({ length: 7 }, (_, i) => {
+      if (i > weekday) return null;
+      const d = new Date(now);
+      d.setDate(now.getDate() - weekday + i);
+      return i === weekday ? null : round1(dayKwh(peak, d, rand));
+    });
+    const lastWeek = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(now.getDate() - weekday - 7 + i);
+      return round1(dayKwh(peak, d, rand));
+    });
+    const month = Array.from({ length: daysInMonth(y, m) }, (_, i) => (i + 1 >= now.getDate() ? null : round1(dayKwh(peak, new Date(y, m, i + 1), rand))));
+    const lastMonth = Array.from({ length: daysInMonth(y, m - 1) }, (_, i) => round1(dayKwh(peak, new Date(y, m - 1, i + 1), rand)));
+    floors[def.id] = {
+      peakKw: round2(peak),
+      today,
+      yesterday: hourly(peak, yesterday, rand),
+      target: LOAD_CURVE.map((f) => round2(f * peak * 0.95)),
+      week,
+      lastWeek,
+      month,
+      lastMonth,
+    };
+    syncTotals(floors[def.id], now);
+  }
+
+  // Skenario demo: AC Workspace Lt 2 dibiarkan menyala, beban jam berjalan di atas target.
+  const l2 = floors.L2;
+  if (l2.today[h] != null) l2.today[h] = round2(l2.target[h] * 1.32 * Math.max(partial, 0.25));
+  syncTotals(l2, now);
+
+  const fanToday = round2(LOAD_CURVE.slice(0, h + 1).reduce((s, f) => s + f, 0) * FAN_KW);
+  const panels = PANELS.map((p) => ({ ...p, voltage: 0, current: 0, pf: 0, kw: 0, kwhToday: p.fan ? fanToday : 0, online: true }));
+
+  return { tariff: TARIFF, date: localDate(now), floors, panels, updatedAt: now.toISOString() };
+}
+
+// Total hari ini ikut masuk ke seri mingguan & bulanan.
+function syncTotals(floor, now) {
+  const total = round1(sumSeries(floor.today));
+  floor.week[(now.getDay() + 6) % 7] = total;
+  floor.month[now.getDate() - 1] = total;
+}
+
+function stepEnergy(energy, iot, dtSec, rand) {
+  const now = new Date();
+  if (energy.date !== localDate(now)) {
+    Object.assign(energy, createEnergyState(iot.devices, now));
+    return;
+  }
+  const h = now.getHours();
+  const factor = isWeekend(now) ? WEEKEND : 1;
+  let totalKw = 0;
+  for (const panel of energy.panels) {
+    if (panel.source) continue;
+    let kw;
+    if (panel.fan) {
+      kw = FAN_KW * LOAD_CURVE[h];
+      panel.kwhToday = round2(panel.kwhToday + (kw * dtSec) / 3600);
+    } else {
+      const deviceW = iot.devices.filter((d) => d.floorId === panel.floorId && d.on && d.online).reduce((s, d) => s + DEVICE_TYPES[d.type].watt, 0);
+      kw = deviceW / 1000 + BASE_KW[panel.floorId] * LOAD_CURVE[h] * factor;
+      const floor = energy.floors[panel.floorId];
+      floor.today[h] = round2((floor.today[h] ?? 0) + (kw * dtSec) / 3600);
+      syncTotals(floor, now);
+      panel.kwhToday = round2(sumSeries(floor.today));
+    }
+    readMeter(panel, kw, rand);
+    totalKw += kw;
+  }
+  const trafo = energy.panels.find((p) => p.source);
+  trafo.kwhToday = round2(energy.panels.filter((p) => !p.source).reduce((s, p) => s + p.kwhToday, 0));
+  readMeter(trafo, totalKw, rand);
+  energy.updatedAt = now.toISOString();
+}
+
+// Tegangan, arus, dan faktor daya 3 fasa dari beban kW.
+function readMeter(panel, kw, rand) {
+  panel.voltage = round1(404 + (rand() - 0.5) * 8);
+  panel.pf = round2(0.86 + rand() * 0.08);
+  panel.kw = round2(kw);
+  panel.current = round1((kw * 1000) / (Math.sqrt(3) * panel.voltage * panel.pf));
+}
+
+/* ------------------------------------------------------------------ */
+/* Riwayat aktivitas per ruang                                         */
+/* ------------------------------------------------------------------ */
+
+const ACTIVITY_LIMIT = 300;
+
+export function logActivity(iot, roomId, text, time = new Date()) {
+  const room = iot.building.floors.flatMap((f) => f.rooms).find((r) => r.id === roomId);
+  if (!room) return;
+  iot.activity.unshift({ id: `ACT-${time.getTime()}-${Math.round(Math.random() * 1e6)}`, time: time.toISOString(), roomId, floorId: room.floorId, text });
+  iot.activity.length = Math.min(iot.activity.length, ACTIVITY_LIMIT);
+}
+
+function seedActivity(iot, rand, now) {
+  const events = [];
+  const at = (hour, minute) => {
+    const d = new Date(now);
+    d.setHours(hour, minute, 0, 0);
+    return d <= now ? d : null;
+  };
+  for (const room of iot.building.floors.flatMap((f) => f.rooms)) {
+    if (!room.equipped || room.type === 'corridor') continue;
+    const arrive = at(7, Math.floor(rand() * 59));
+    const lightOn = at(7 + Math.floor(rand() * 2), Math.floor(rand() * 59));
+    const acOn = at(8, Math.floor(rand() * 59));
+    const lunch = at(12, Math.floor(rand() * 30));
+    const back = at(13, Math.floor(rand() * 30));
+    const ac = iot.devices.some((d) => d.roomId === room.id && d.type === 'ac');
+    if (arrive) events.push({ time: arrive, room, text: 'Orang terdeteksi' });
+    if (lightOn) events.push({ time: lightOn, room, text: 'Lampu 1 dinyalakan' });
+    if (ac && acOn) events.push({ time: acOn, room, text: 'AC 1 dinyalakan, setpoint 24°C' });
+    if (lunch) events.push({ time: lunch, room, text: 'Tidak ada orang' });
+    if (back) events.push({ time: back, room, text: 'Orang terdeteksi' });
+  }
+  events.sort((a, b) => b.time - a.time);
+  iot.activity = events.slice(0, ACTIVITY_LIMIT).map((e, i) => ({ id: `ACT-${i}`, time: e.time.toISOString(), roomId: e.room.id, floorId: e.room.floorId, text: e.text }));
+}
+
+/* ------------------------------------------------------------------ */
+/* State IoT                                                           */
+/* ------------------------------------------------------------------ */
+
 export function createIotState(seed = 20261005) {
   const rand = createRng(seed);
   const floors = [];
   const devices = [];
 
   for (const def of FLOORS) {
-    const floorId = `L${def.level}`;
-    const top = layoutRow(def.top, ROW_TOP, floorId, 0);
-    const bottom = layoutRow(def.bottom, ROW_BOTTOM, floorId, top.length);
-    const corridor = { id: `${floorId}-KOR`, floorId, name: 'Koridor', type: 'corridor', x: 20, y: CORRIDOR.y, w: 960, h: CORRIDOR.h };
-    const rooms = [...top, corridor, ...bottom];
+    const top = layoutRow(def.top, ROW_TOP, def.id, 0);
+    const corridor = layoutRow(def.corridor, CORRIDOR, def.id, top.length, 'corridor');
+    const bottom = layoutRow(def.bottom, ROW_BOTTOM, def.id, top.length + corridor.length);
+    const rooms = [...top, ...corridor, ...bottom];
 
     for (const room of rooms) {
       const workspace = !NON_WORKSPACE.has(room.type);
-      room.capacity = !workspace ? 0 : room.type === 'server' || room.type === 'storage' ? 2 : Math.max(2, Math.round((room.w * room.h) / 7000));
-      const empty = !workspace || rand() < 0.3;
-      room.occupancy = empty ? 0 : 1 + Math.floor(rand() * room.capacity);
-
-      // Lampu
-      if (room.type !== 'core') {
-        const n = room.type === 'corridor' ? 6 : Math.max(1, Math.min(6, Math.round((room.w * room.h) / 12000)));
-        const pOn = room.type === 'corridor' ? 0.85 : room.occupancy > 0 ? 0.92 : 0.22;
-        lightPositions(room, n).forEach((pos, i) => devices.push(makeDevice(room, 'light', i + 1, pos, { on: rand() < pOn })));
-      }
-
-      // AC
-      if (workspace || room.type === 'server') {
-        const n = room.w >= 280 ? 2 : 1;
-        const pOn = room.type === 'server' ? 1 : room.occupancy > 0 ? 0.88 : 0.25;
-        for (let i = 0; i < n; i++) {
-          const pos = { x: room.x + room.w - 24 - i * 30, y: room.y + room.h - 22 };
-          devices.push(makeDevice(room, 'ac', i + 1, pos, { on: rand() < pOn, setpoint: room.type === 'server' ? 20 : 24 }));
-        }
-      }
-
-      // Sensor lingkungan (suhu, kelembaban, okupansi)
-      if (room.type !== 'core' && room.type !== 'corridor') {
-        devices.push(makeDevice(room, 'sensor', 1, { x: room.x + 22, y: room.y + room.h - 22 }));
-      }
-
-      // CCTV
-      if (room.type === 'corridor') {
-        [140, 500, 860].forEach((x, i) => devices.push(makeDevice(room, 'cctv', i + 1, { x, y: room.y + 14 })));
-      } else if (room.type === 'lobby' || room.type === 'server') {
-        devices.push(makeDevice(room, 'cctv', 1, { x: room.x + room.w - 22, y: room.y + 22 }));
-      }
-
-      // Smart lock
-      if (room.type === 'server' || room.name === 'Ruang Kepala Pusat' || room.name === 'Ruang Arsip') {
-        // Pintu ada di sisi koridor.
-        const pos = room.y === ROW_TOP.y ? { x: room.x + room.w / 2, y: room.y + room.h - 22 } : { x: room.x + room.w - 22, y: room.y + 22 };
-        devices.push(makeDevice(room, 'lock', 1, pos, { on: rand() < 0.85 }));
-      }
+      room.capacity = workspace ? Math.max(2, Math.round((room.w * room.h) / 7000)) : 0;
+      // Tanpa sensor kehadiran, jumlah orang tidak diketahui (null).
+      room.occupancy = !room.equipped ? null : !workspace ? 0 : rand() < 0.3 ? 0 : 1 + Math.floor(rand() * room.capacity);
+      if (room.equipped && room.type === 'corridor') room.occupancy = rand() < 0.6 ? 1 : 0;
+      addRoomDevices(room, rand, devices);
     }
 
-    floors.push({ id: floorId, level: def.level, name: `Lantai ${def.level}`, label: def.label, rooms });
+    floors.push({ id: def.id, level: def.level, name: def.name, short: def.short, label: def.label, rooms });
   }
 
-  // Kondisi lingkungan awal per ruangan, mengikuti status AC.
-  for (const floor of floors) {
-    for (const room of floor.rooms) {
-      const acOn = devices.some((d) => d.roomId === room.id && d.type === 'ac' && d.on);
-      const base = room.type === 'server' ? (acOn ? 20.5 : 27) : acOn ? 23.5 : 27;
-      room.temperature = round1(base + rand() * 1.8);
-      room.humidity = Math.round(50 + rand() * 15);
-    }
+  // Suhu & kelembaban hanya ada di ruang dengan sensor suhu (remote IR).
+  for (const room of floors.flatMap((f) => f.rooms)) {
+    const sensor = devices.some((d) => d.roomId === room.id && d.type === 'sensor');
+    const acOn = devices.some((d) => d.roomId === room.id && d.type === 'ac' && d.on);
+    room.temperature = sensor ? round1((acOn ? 23.5 : 27) + rand() * 1.8) : null;
+    room.humidity = sensor ? Math.round(50 + rand() * 15) : null;
   }
 
-  // Skenario demo: beberapa perangkat offline & Ruang UPS kepanasan.
+  // Skenario demo: beberapa perangkat offline, Workspace Lt 2 kosong tapi AC menyala.
+  const room = (floorId, name) => floors.find((f) => f.id === floorId).rooms.find((r) => r.name === name);
   const pick = (pred) => devices.find(pred);
   for (const d of [
-    pick((d) => d.floorId === 'L2' && d.type === 'light' && d.roomId.endsWith('R02')),
-    pick((d) => d.floorId === 'L3' && d.type === 'cctv'),
-    // AC Ruang UPS rusak sehingga suhunya naik (memicu peringatan suhu).
-    pick((d) => d.type === 'ac' && d.roomId === floors[2].rooms.find((r) => r.name === 'Ruang UPS')?.id),
+    pick((d) => d.floorId === 'L1' && d.type === 'light' && d.roomId === room('L1', '22 R. Katim').id),
+    pick((d) => d.type === 'ac' && d.roomId === room('B', '09 R. Tim Jaringan').id),
+    pick((d) => d.type === 'presence' && d.roomId === room('L1', 'Mushola').id),
   ]) {
     if (d) Object.assign(d, { online: false, on: false, lastSeen: new Date(Date.now() - 42 * 60000).toISOString() });
   }
-  const ups = floors[2].rooms.find((r) => r.name === 'Ruang UPS');
-  if (ups) ups.temperature = 28.6;
+  const jaringan = room('B', '09 R. Tim Jaringan');
+  jaringan.temperature = 29.4;
+  const wsL2 = room('L2', 'Workspace Lt 2');
+  wsL2.occupancy = 0;
+  for (const d of devices.filter((x) => x.roomId === wsL2.id)) d.on = d.type !== 'presence';
 
-  return {
+  const iot = {
     building: { id: 'pusdatin', name: 'Gedung Pusdatin', floors },
     devices,
+    activity: [],
+    energy: null,
     updatedAt: new Date().toISOString(),
   };
+  const now = new Date();
+  iot.energy = createEnergyState(devices, now);
+  seedActivity(iot, rand, now);
+  stepEnergy(iot.energy, iot, 0, rand);
+  return iot;
 }
 
 // Simulasi perubahan realtime (dipanggil tiap interval oleh mock backend).
-export function stepIot(state, rand = Math.random) {
+export function stepIot(state, rand = Math.random, dtSec = 5) {
   const acOnByRoom = new Set(state.devices.filter((d) => d.type === 'ac' && d.on && d.online).map((d) => d.roomId));
   for (const floor of state.building.floors) {
     for (const room of floor.rooms) {
-      const target = acOnByRoom.has(room.id) ? (room.type === 'server' ? 20.5 : 24) : 27.5;
-      room.temperature = round1(room.temperature + (target - room.temperature) * 0.08 + (rand() - 0.5) * 0.3);
-      room.humidity = Math.min(75, Math.max(40, room.humidity + Math.round((rand() - 0.5) * 2)));
-      if (room.capacity && rand() < 0.08) {
+      if (room.temperature != null) {
+        const target = acOnByRoom.has(room.id) ? 24 : 27.5;
+        room.temperature = round1(room.temperature + (target - room.temperature) * 0.08 + (rand() - 0.5) * 0.3);
+        room.humidity = Math.min(75, Math.max(40, room.humidity + Math.round((rand() - 0.5) * 2)));
+      }
+      if (room.capacity && room.occupancy != null && rand() < 0.08) {
+        const before = room.occupancy;
         room.occupancy = Math.min(room.capacity, Math.max(0, room.occupancy + (rand() < 0.5 ? -1 : 1)));
+        const presence = state.devices.find((d) => d.roomId === room.id && d.type === 'presence' && d.online);
+        if (presence) presence.on = room.occupancy > 0;
+        if (presence && (before > 0) !== (room.occupancy > 0)) logActivity(state, room.id, room.occupancy > 0 ? 'Orang terdeteksi' : 'Tidak ada orang');
       }
     }
   }
   const now = new Date().toISOString();
   for (const d of state.devices) if (d.online) d.lastSeen = now;
+  stepEnergy(state.energy, state, dtSec, rand);
   state.updatedAt = now;
 }
 

@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Monitoring perangkat IoT bangunan cerdas per lantai." />
+    <meta name="description" content="Monitoring perangkat IoT, kondisi ruang, dan listrik Gedung Pusdatin per lantai." />
     <title>IoT · SatuData Pusdatin</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
@@ -17,22 +17,24 @@
       <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p class="label-caps">IoT · Bangunan cerdas</p>
-            <h1 class="mt-1 text-heading font-semibold">Monitoring gedung</h1>
-            <p class="mt-1 text-mid-gray">Status lampu, AC, sensor, CCTV, dan smart lock per lantai. Klik ruangan pada denah untuk detail.</p>
+            <h1 class="text-heading font-semibold">Monitoring gedung</h1>
+            <p class="mt-1 text-mid-gray">Lampu, AC, sensor suhu, sensor kehadiran, dan listrik per lantai. Klik ruangan pada denah untuk detail.</p>
           </div>
-          <span class="badge badge-outline self-start sm:self-auto"><span class="dot bg-ember"></span><span data-updated>Memuat…</span></span>
+          <div class="flex items-center gap-2 self-start sm:self-auto">
+            <a href="#listrik" class="btn btn-secondary btn-sm">Listrik</a>
+            <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated>Memuat…</span>
+          </div>
         </section>
 
-        <section class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan gedung"></section>
+        <section class="stat-strip mt-6 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan gedung"></section>
 
-        <section class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[232px_minmax(0,1fr)]">
-          <article class="card p-4">
-            <h2 class="card-title px-1">Potongan gedung</h2>
-            <p class="card-desc mb-3 px-1">Pilih lantai</p>
-            <div data-floor-stack></div>
-          </article>
-          <article class="card min-w-0">
+        <section class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[232px_minmax(0,1fr)]">
+          <div class="flex flex-col border-b border-hairline p-4 lg:border-r lg:border-b-0">
+            <h2 class="card-title mb-3 px-1">Lantai</h2>
+
+            <div class="flex-1" data-floor-stack></div>
+          </div>
+          <div class="min-w-0">
             <div class="card-header">
               <div>
                 <h2 class="card-title" data-floor-title>&nbsp;</h2>
@@ -50,12 +52,12 @@
                 <div data-plan-2d></div>
               </div>
             <div class="card-footer flex-wrap" data-floor-legend></div>
-          </article>
+          </div>
         </section>
 
-        <section class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-          <article class="card" data-room-panel aria-live="polite"></article>
-          <article class="card min-w-0">
+        <section class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <div class="border-b border-hairline lg:border-r lg:border-b-0" data-room-panel aria-live="polite"></div>
+          <div class="flex min-w-0 flex-col">
             <div class="card-header">
               <div>
                 <h2 class="card-title" data-table-title>Perangkat</h2>
@@ -66,7 +68,8 @@
                 <input type="search" class="input pl-9" placeholder="Cari perangkat / ruangan" data-search aria-label="Cari perangkat" />
               </div>
             </div>
-            <div class="scroll-thin mt-3 max-h-[520px] overflow-auto">
+            <!-- Tinggi tabel mengikuti panel ruang di kiri (lg), supaya tidak ada ruang kosong. -->
+            <div class="scroll-thin mt-3 max-h-[520px] overflow-auto lg:h-0 lg:max-h-none lg:min-h-[420px] lg:grow lg:basis-0">
               <table class="w-full min-w-[640px] text-left">
                 <thead class="sticky top-0 bg-paper">
                   <tr class="border-b border-hairline text-caption tracking-normal text-mid-gray">
@@ -80,6 +83,69 @@
                 </thead>
                 <tbody class="divide-y divide-hairline" data-table-body></tbody>
               </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="listrik" class="mt-8 scroll-mt-24" aria-labelledby="listrik-title">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 id="listrik-title" class="text-heading-sm font-semibold">Listrik</h2>
+              <p class="mt-1 text-mid-gray">Persentase dibanding periode lalu sampai jam yang sama.</p>
+            </div>
+            <div class="segmented self-start sm:self-auto" role="tablist" aria-label="Pilih periode" data-period-tabs></div>
+          </div>
+
+          <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-energy-kpis aria-label="Ringkasan listrik"></div>
+
+          <article class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div class="min-w-0 border-b border-hairline lg:border-r lg:border-b-0">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Grafik pemakaian</h3>
+                  <p class="card-desc" data-energy-chart-desc>&nbsp;</p>
+                </div>
+                <div class="segmented" role="tablist" aria-label="Pilih lingkup" data-energy-scope></div>
+              </div>
+              <div class="card-body" data-energy-chart></div>
+              <div class="card-footer" data-energy-legend></div>
+            </div>
+            <div class="flex min-w-0 flex-col">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Perbandingan lantai</h3>
+                  <p class="card-desc" data-segment-desc>&nbsp;</p>
+                </div>
+              </div>
+              <div class="card-body flex flex-1 flex-col justify-around gap-5" data-energy-floors></div>
+            </div>
+          </article>
+
+          <article class="card mt-4 min-w-0">
+            <div class="card-header">
+              <h3 class="card-title">Distribusi listrik</h3>
+            </div>
+            <div class="card-body" data-power-flow></div>
+          </article>
+
+          <article class="card mt-4 grid min-w-0 grid-cols-1 overflow-hidden md:grid-cols-2">
+            <div class="min-w-0 border-b border-hairline md:border-r md:border-b-0">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Pemakaian tertinggi</h3>
+                  <p class="card-desc" data-rank-desc>&nbsp;</p>
+                </div>
+              </div>
+              <ol class="mt-3 divide-y divide-hairline border-t border-hairline" data-rank-top></ol>
+            </div>
+            <div class="min-w-0">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Pemakaian terendah</h3>
+                  <p class="card-desc" data-rank-desc-low>&nbsp;</p>
+                </div>
+              </div>
+              <ol class="mt-3 divide-y divide-hairline border-t border-hairline" data-rank-low></ol>
             </div>
           </article>
         </section>

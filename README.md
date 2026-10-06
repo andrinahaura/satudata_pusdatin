@@ -7,8 +7,8 @@ Tema visual mengikuti [`design.md`](design.md).
 
 | Menu | Halaman | Isi |
 |------|---------|-----|
-| Home | `index.html` | Ringkasan KPI, denah lantai, widget Tanya AI, parkir, deteksi terbaru, peringatan |
-| IoT | `iot.html` | Potongan gedung per lantai, denah 3D/2D interaktif, detail ruangan, kontrol perangkat |
+| Home | `index.html` | Ringkasan KPI, denah lantai, widget chatbot, listrik hari ini & per lantai, parkir, deteksi terbaru, peringatan |
+| IoT | `iot.html` | Potongan gedung per lantai, denah 3D/2D, detail ruang (sensor, listrik, riwayat aktivitas), kontrol perangkat, listrik (grafik, perbandingan lantai, distribusi, peringkat ruang) |
 | Chatbot | `chatbot.html` | Chat penuh dengan asisten gedung, contoh pertanyaan, data konteks live |
 | Computer Vision | `vision.html` | Peta parkir 3D/2D, kamera + bounding box, okupansi per jam, riwayat ALPR |
 
@@ -26,7 +26,7 @@ Tanpa backend, dashboard berjalan dengan **data simulasi** (`VITE_USE_MOCK=true`
 dan parkir berubah tiap 5 detik, dan aksi seperti "matikan lampu" benar-benar mengubah state mock
 (tersimpan di `sessionStorage` per tab).
 
-Shortcut: `⌘K` / `Ctrl+K` membuka kotak "Tanya AI" dari halaman mana pun.
+Shortcut: `⌘K` / `Ctrl+K` membuka kotak tanya chatbot dari halaman mana pun.
 
 Kontrol tampilan 3D: seret untuk memutar, klik kanan + seret untuk menggeser, `⌘/Ctrl` + scroll
 (atau pinch trackpad) untuk zoom. Tombol di pojok kanan: perbesar, perkecil, tampak atas, reset.
@@ -42,7 +42,7 @@ src/
   js/
     config.js              # baca variabel .env
     pages/                 # entry script per halaman
-    components/            # layout, denah 2D, peta parkir 2D, chart, chat, kamera, ui kecil
+    components/            # layout, denah 2D, peta parkir 2D, bar/line chart, distribusi listrik, chat, kamera, ui kecil
       three/               # scene 3D bersama, denah lantai 3D, peta parkir 3D (Three.js)
     services/
       api.js               # SATU-SATUNYA pintu data (mock atau HTTP/WebSocket)
@@ -81,27 +81,59 @@ Bentuk JSON persis sama dengan objek yang dibuat `src/js/data/mock.js`. Semua wa
     "id": "pusdatin",
     "name": "Gedung Pusdatin",
     "floors": [{
-      "id": "L1", "level": 1, "name": "Lantai 1", "label": "Lobby & Layanan Publik",
+      "id": "L1", "level": 1, "name": "Lantai 1", "short": "Lt 1", "label": "Ruang Katim, rapat & layanan",
       "rooms": [{
-        "id": "L1-R01", "floorId": "L1", "name": "Lobby",
-        "type": "lobby",            // office | meeting | lobby | hall | server | storage | lab | pantry | toilet | core | corridor
-        "x": 20, "y": 20, "w": 320, "h": 230,   // posisi di denah, viewBox 1000 x 560
-        "capacity": 10, "occupancy": 4,         // dari sensor okupansi
-        "temperature": 24.1, "humidity": 58     // dari sensor lingkungan
+        "id": "L1-R01", "floorId": "L1", "name": "20 R. Jafung Madya",
+        "type": "office",           // office | meeting | lobby | hall | storage | pantry | toilet | core | corridor
+        "equipped": true,           // false = "Sensor belum terpasang", tanpa perangkat
+        "x": 20, "y": 20, "w": 110, "h": 230,   // posisi di denah, viewBox 1000 x 560
+        "capacity": 4, "occupancy": 2,          // dari sensor kehadiran; null bila belum terpasang
+        "temperature": 24.1, "humidity": 58     // dari sensor suhu (remote IR); null bila tidak ada
       }]
     }]
   },
   "devices": [{
-    "id": "L1-R01-LMP1", "type": "light",     // light | ac | sensor | cctv | lock
+    "id": "L1-R01-LMP1", "type": "light",     // light | ac | sensor (remote IR + suhu) | presence (sensor kehadiran)
     "name": "Lampu 1", "floorId": "L1", "roomId": "L1-R01",
     "x": 120, "y": 90,                         // posisi marker di denah
-    "on": true,                                // lampu/AC menyala, lock terkunci, sensor/CCTV aktif
+    "on": true,                                // lampu/AC menyala, sensor aktif, sensor kehadiran mendeteksi orang
     "online": true,
     "lastSeen": "2026-10-05T03:00:00.000Z"
   }],
+  "activity": [{                               // riwayat aktivitas per ruang, terbaru di depan
+    "id": "ACT-1", "time": "2026-10-05T01:12:00.000Z", "roomId": "L1-R01", "floorId": "L1", "text": "Lampu 1 dinyalakan"
+  }],
+  "energy": {                                  // meter listrik per lantai (kWh), seperti panel ICC
+    "tariff": 1727,                            // Rp per kWh
+    "date": "2026-10-05",
+    "floors": {
+      "L1": {
+        "peakKw": 14.4,
+        "today": [3.9, 4.0, null],             // 24 nilai per jam; null = jam belum lewat
+        "yesterday": [4.1, 3.8],               // 24 nilai
+        "target": [3.7, 3.5],                  // 24 nilai, batas pemakaian per jam
+        "week": [184.3, 69.8, null],           // Senin..Minggu minggu ini
+        "lastWeek": [190.2],                   // 7 nilai
+        "month": [175.1, null],                // per tanggal bulan ini
+        "lastMonth": [180.4]                   // per tanggal bulan lalu
+      }
+    },
+    "panels": [{                               // meter di panel distribusi
+      "id": "TRAFO", "name": "Trafo induk", "meter": "PU 6 · Kelistrikan 1", "source": true,
+      "voltage": 404.7, "current": 35.8, "pf": 0.9, "kw": 22.6, "kwhToday": 128.5, "online": true
+    }, {
+      "id": "OUT-L1", "name": "Output Lantai 1", "meter": "PU 3 · Kelistrikan 1", "floorId": "L1",
+      "voltage": 404.4, "current": 18.4, "pf": 0.89, "kw": 11.5, "kwhToday": 69.8, "online": true
+    }],
+    "updatedAt": "2026-10-05T03:00:00.000Z"
+  },
   "updatedAt": "2026-10-05T03:00:00.000Z"
 }
 ```
+
+Ruang, jenis perangkat, dan meter listrik mengikuti kondisi gedung di Sinatra (BGC dan ICC).
+Angkanya simulasi. Ringkasan listrik, peringkat ruang, dan pemakaian per ruang dihitung di
+`src/js/services/selectors.js` dari objek `energy` ini.
 
 Koordinat denah bisa digambar sekali (dari CAD/denah asli) lalu disimpan di database.
 

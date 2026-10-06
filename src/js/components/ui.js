@@ -2,14 +2,11 @@
 import { esc } from '../utils/dom.js';
 import { icon } from './icons.js';
 
-/** Stat tile: label caps, angka besar, keterangan. */
-export function statTile({ label, value, unit = '', sub = '', iconName }) {
+/** Stat tile: label caps, angka besar, keterangan. Wadah: .stat-strip */
+export function statTile({ label, value, unit = '', sub = '' }) {
   return `
-    <div class="card flex flex-col gap-1 p-5">
-      <div class="flex items-center justify-between gap-2">
-        <span class="label-caps truncate">${esc(label)}</span>
-        ${iconName ? icon(iconName, 'size-4 shrink-0 text-mid-gray') : ''}
-      </div>
+    <div class="flex flex-col gap-1 bg-paper p-5">
+      <span class="label-caps truncate">${esc(label)}</span>
       <div class="stat-value">${esc(value)}<span class="ml-0.5 text-body font-medium text-mid-gray">${esc(unit)}</span></div>
       <p class="truncate text-caption tracking-normal text-mid-gray">${esc(sub)}</p>
     </div>`;
@@ -31,16 +28,15 @@ const SEVERITY = {
 
 export function alertListHtml(alerts, limit = 6) {
   if (!alerts.length) {
-    return `<div class="flex items-center gap-2 rounded-nested bg-canvas px-3 py-3 text-mid-gray">${icon('circle-check', 'size-4')}Tidak ada peringatan aktif.</div>`;
+    return '<p class="rounded-nested bg-canvas px-3 py-3 text-mid-gray">Tidak ada peringatan aktif.</p>';
   }
   const rows = alerts
     .slice(0, limit)
     .map((a) => {
       const sev = SEVERITY[a.severity];
       return `<li>
-        <a href="${esc(a.href)}" class="flex items-start gap-3 rounded-nested px-2 py-2.5 transition-colors hover:bg-canvas">
-          <span class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full border border-hairline ${a.severity === 'critical' ? 'text-ember' : 'text-ink'}">${icon(a.icon, 'size-4')}</span>
-          <span class="min-w-0 flex-1">
+        <a href="${esc(a.href)}" class="block rounded-nested px-2 py-2.5 transition-colors hover:bg-canvas">
+          <span class="block min-w-0">
             <span class="flex items-center justify-between gap-2"><span class="truncate font-medium">${esc(a.title)}</span><span class="badge ${sev.badge}">${sev.label}</span></span>
             <span class="block truncate text-caption tracking-normal text-mid-gray">${esc(a.meta)}</span>
           </span>

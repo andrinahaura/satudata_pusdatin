@@ -1,9 +1,10 @@
 // Backend palsu yang berjalan di browser. Menyimpan state di sessionStorage
 // supaya perubahan (mis. mematikan lampu) terlihat konsisten antar halaman.
-import { createIotState, createParkingState, stepIot, stepParking } from '../data/mock.js';
+import { DEVICE_TYPES } from '../data/device-types.js';
+import { createIotState, createParkingState, logActivity, stepIot, stepParking } from '../data/mock.js';
 import { answer } from './chat-engine.js';
 
-const STORAGE_KEY = 'sdp:mock-state:v1';
+const STORAGE_KEY = 'sdp:mock-state:v2';
 const listeners = new Set();
 let timer = null;
 
@@ -49,9 +50,10 @@ export async function setDevices(ids, on) {
   const wanted = new Set(ids);
   let updated = 0;
   for (const d of state.iot.devices) {
-    if (wanted.has(d.id) && d.online && d.on !== on) {
+    if (wanted.has(d.id) && d.online && d.on !== on && DEVICE_TYPES[d.type].controllable) {
       d.on = on;
       updated += 1;
+      logActivity(state.iot, d.roomId, `${d.name} ${on ? 'dinyalakan' : 'dimatikan'} dari dashboard`);
     }
   }
   state.iot.updatedAt = new Date().toISOString();
@@ -69,7 +71,7 @@ export function subscribe(handler, interval) {
   listeners.add(handler);
   if (!timer) {
     timer = setInterval(() => {
-      stepIot(state.iot);
+      stepIot(state.iot, Math.random, interval / 1000);
       if (Math.random() < 0.7) stepParking(state.parking);
       save();
       emit();

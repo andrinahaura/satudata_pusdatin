@@ -4,12 +4,17 @@ import { floorStackHtml } from '../components/floor-stack.js';
 import { createFloorPlan3D } from '../components/three/floor-plan-3d.js';
 import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-toggle.js';
 import { icon, renderIcons } from '../components/icons.js';
-import { errorState, segmentedHtml, statTile } from '../components/ui.js';
+import { createLineChart, lineLegendHtml, miniLineChartSvg } from '../components/line-chart.js';
+import { powerFlowHtml } from '../components/power-flow.js';
+import { errorState, meter, segmentedHtml, statTile } from '../components/ui.js';
 import { DEVICE_TYPES } from '../data/device-types.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
-import { devicePowerW, devicesInRoom, findWasteRooms, indexIot, summarizeIot } from '../services/selectors.js';
+import {
+  devicePowerW, devicesInRoom, ENERGY_PERIODS, energyByFloor, energySeries, findWasteRooms, indexIot,
+  roomActivity, roomEnergy, roomRanking, summarizeIot,
+} from '../services/selectors.js';
 import { $, esc, getParam, setParams } from '../utils/dom.js';
-import { fmt1, fmtRelative, fmtTime } from '../utils/format.js';
+import { fmt1, fmtInt, fmtRelative, fmtTime } from '../utils/format.js';
 
 mountLayout({ page: 'iot' });
 
@@ -21,7 +26,13 @@ const state = {
   search: '',
   pending: new Set(),
   view: getViewMode(),
+  period: 'harian',
+  energyScope: 'all',
 };
+
+const rupiah = (v) => `Rp ${fmtInt(Math.round(v))}`;
+const pct = (ratio) => `${ratio > 0 ? '+' : ratio < 0 ? '−' : ''}${Math.abs(Math.round(ratio * 100))}%`;
+const periodMeta = () => ENERGY_PERIODS.find((p) => p.value === state.period);
 
 $('[data-floor-legend]').innerHTML = floorPlanLegend();
 
@@ -120,13 +131,14 @@ function currentFloor() {
 
 function renderKpis() {
   const s = summarizeIot(state.iot);
+  const e = energyByFloor(state.iot, 'harian');
   $('[data-kpis]').innerHTML = [
-    statTile({ label: 'Perangkat online', value: `${s.online}/${s.totalDevices}`, sub: s.offline ? `${s.offline} offline` : 'Semua terhubung', iconName: 'activity' }),
-    statTile({ label: 'Lampu menyala', value: s.byType.light.on, sub: `dari ${s.byType.light.total}`, iconName: 'lightbulb' }),
-    statTile({ label: 'AC menyala', value: s.byType.ac.on, sub: `dari ${s.byType.ac.total}`, iconName: 'air-vent' }),
-    statTile({ label: 'Suhu rata-rata', value: fmt1(s.avgTemp), unit: '°C', sub: `Kelembaban ${Math.round(s.avgHumidity)}%`, iconName: 'thermometer' }),
-    statTile({ label: 'Beban listrik', value: fmt1(s.powerKw), unit: 'kW', sub: 'Estimasi realtime', iconName: 'zap' }),
-    statTile({ label: 'Penghuni', value: s.people, sub: `${s.occupiedRooms}/${s.workspaceRooms} ruang terpakai`, iconName: 'users' }),
+    statTile({ label: 'Perangkat online', value: `${s.online}/${s.totalDevices}`, sub: s.offline ? `${s.offline} offline` : 'Semua terhubung' }),
+    statTile({ label: 'Lampu menyala', value: s.byType.light.on, sub: `dari ${s.byType.light.total} saklar` }),
+    statTile({ label: 'AC menyala', value: s.byType.ac.on, sub: `dari ${s.byType.ac.total} unit` }),
+    statTile({ label: 'Suhu rata-rata', value: fmt1(s.avgTemp), unit: '°C', sub: `Kelembaban ${Math.round(s.avgHumidity)}%` }),
+    statTile({ label: 'Ruang ada orang', value: s.occupiedRooms, unit: ` / ${s.workspaceRooms}`, sub: `${s.rooms - s.equippedRooms} ruang belum bersensor` }),
+    statTile({ label: 'Listrik hari ini', value: fmt1(e.kwh), unit: ' kWh', sub: rupiah(e.rupiah) }),
   ].join('');
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(state.iot.updatedAt)}`;
 }
@@ -144,7 +156,7 @@ function renderPlan(floor) {
 
 function statusBadge(d) {
   const meta = DEVICE_TYPES[d.type];
-  if (!d.online) return `<span class="badge badge-alert">${icon('wifi-off', 'size-3')}Offline</span>`;
+  if (!d.online) return '<span class="badge badge-alert">Offline</span>';
   return d.on ? `<span class="badge badge-solid">${meta.onLabel}</span>` : `<span class="badge badge-soft">${meta.offLabel}</span>`;
 }
 
@@ -158,7 +170,7 @@ function control(d) {
 function bulkButton(devices, on, label, variant = 'btn-outline') {
   const targets = devices.filter((d) => d.online && d.on !== on && DEVICE_TYPES[d.type].controllable);
   if (!targets.length) return '';
-  return `<button type="button" class="btn btn-sm ${variant}" data-bulk="${targets.map((d) => d.id).join(',')}" data-on="${on}">${icon('power', 'size-3.5')}${label} (${targets.length})</button>`;
+  return `<button type="button" class="btn btn-sm ${variant}" data-bulk="${targets.map((d) => d.id).join(',')}" data-on="${on}">${label} (${targets.length})</button>`;
 }
 
 function renderRoomPanel(floor) {
@@ -169,15 +181,17 @@ function renderRoomPanel(floor) {
     const s = summarizeIot(state.iot, floor.id);
     const devices = state.iot.devices.filter((d) => d.floorId === floor.id);
     const waste = findWasteRooms(state.iot).filter((w) => w.floor.id === floor.id);
+    const floorEnergy = energyByFloor(state.iot, 'harian').floors.find((f) => f.floor.id === floor.id);
     panel.innerHTML = `
-      <div class="card-header"><div><h2 class="card-title">Ringkasan ${esc(floor.name)}</h2><p class="card-desc">Klik ruangan di denah untuk detail.</p></div></div>
+      <div class="card-header"><h2 class="card-title">Ringkasan ${esc(floor.name)}</h2></div>
       <div class="card-body">
         <dl class="grid grid-cols-2 gap-x-4 gap-y-4">
-          ${Object.entries(DEVICE_TYPES).map(([k, m]) => `<div><dt class="text-caption tracking-normal text-mid-gray">${m.label} ${m.onLabel}</dt><dd class="text-subheading font-semibold tabular-nums">${s.byType[k].on}<span class="text-body font-normal text-mid-gray"> / ${s.byType[k].total}</span></dd></div>`).join('')}
+          ${Object.entries(DEVICE_TYPES).map(([k, m]) => `<div><dt class="text-caption tracking-normal text-mid-gray">${k === 'presence' ? 'Ruang ada orang' : `${m.label} ${m.onLabel}`}</dt><dd class="text-subheading font-semibold tabular-nums">${s.byType[k].on}<span class="text-body font-normal text-mid-gray"> / ${s.byType[k].total}</span></dd></div>`).join('')}
           <div><dt class="text-caption tracking-normal text-mid-gray">Penghuni</dt><dd class="text-subheading font-semibold tabular-nums">${s.people}</dd></div>
+          <div><dt class="text-caption tracking-normal text-mid-gray">Listrik hari ini</dt><dd class="text-subheading font-semibold tabular-nums">${fmt1(floorEnergy.kwh)}<span class="text-body font-normal text-mid-gray"> kWh</span></dd></div>
         </dl>
         ${waste.length ? `<div class="mt-5 rounded-nested border border-hairline p-3">
-            <p class="flex items-center gap-2 font-medium">${icon('zap', 'size-4')}${waste.length} ruang kosong masih menyala</p>
+            <p class="font-medium">${waste.length} ruang kosong masih menyala</p>
             <p class="mt-1 text-caption tracking-normal text-mid-gray">${waste.map((w) => esc(w.room.name)).join(', ')}</p>
             <div class="mt-3">${bulkButton(waste.flatMap((w) => w.devices), false, 'Matikan', 'btn-primary')}</div>
           </div>` : ''}
@@ -192,6 +206,10 @@ function renderRoomPanel(floor) {
   const devices = devicesInRoom(state.iot, room.id);
   const power = devices.reduce((a, d) => a + devicePowerW(d), 0);
   const stat = (label, value) => `<div class="rounded-nested bg-canvas p-3"><dt class="text-caption tracking-normal text-mid-gray">${label}</dt><dd class="mt-0.5 text-subheading font-semibold tabular-nums">${value}</dd></div>`;
+  const presence = room.occupancy == null ? '–' : room.occupancy > 0 ? (room.capacity ? `${room.occupancy} orang` : 'Ada orang') : 'Kosong';
+  const energy = devices.length ? roomEnergy(state.iot, room.id) : null;
+  const activity = roomActivity(state.iot, room.id, 8);
+  const controllable = devices.filter((d) => DEVICE_TYPES[d.type].controllable);
   panel.innerHTML = `
     <div class="card-header">
       <div class="min-w-0">
@@ -202,24 +220,41 @@ function renderRoomPanel(floor) {
     </div>
     <div class="card-body">
       <dl class="grid grid-cols-2 gap-2">
-        ${stat('Suhu', `${fmt1(room.temperature)}°C`)}
-        ${stat('Kelembaban', `${room.humidity}%`)}
-        ${stat('Penghuni', room.capacity ? `${room.occupancy}/${room.capacity}` : '–')}
+        ${stat('Suhu', room.temperature != null ? `${fmt1(room.temperature)}°C` : '–')}
+        ${stat('Kelembaban', room.humidity != null ? `${room.humidity}%` : '–')}
+        ${stat('Kehadiran', presence)}
         ${stat('Daya', `${power} W`)}
       </dl>
+      ${!room.equipped ? '<p class="mt-4 rounded-nested border border-hairline px-3 py-2.5 text-mid-gray">Sensor belum terpasang di ruang ini.</p>' : ''}
+      ${energy ? `
+        <h3 class="label-caps mt-5 mb-2">Pemakaian listrik</h3>
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-1">
+          <div><dt class="text-caption tracking-normal text-mid-gray">Hari ini</dt><dd class="font-semibold tabular-nums">${fmt1(energy.today)} kWh <span class="font-normal text-mid-gray">${rupiah(energy.todayRupiah)}</span></dd></div>
+          <div><dt class="text-caption tracking-normal text-mid-gray">Kemarin</dt><dd class="font-semibold tabular-nums">${fmt1(energy.yesterday)} kWh <span class="font-normal text-mid-gray">${rupiah(energy.yesterdayRupiah)}</span></dd></div>
+        </dl>
+        <div class="mt-3">${miniLineChartSvg({ series: [
+          { style: 'target', values: energy.series.target },
+          { style: 'previous', values: energy.series.previous },
+          { style: 'current', values: energy.series.current },
+        ] })}</div>
+        <div class="mt-2">${lineLegendHtml([{ label: 'Hari ini', style: 'current' }, { label: 'Kemarin', style: 'previous' }, { label: 'Target', style: 'target' }])}</div>` : ''}
       <h3 class="label-caps mt-5 mb-1">Perangkat (${devices.length})</h3>
       <ul class="divide-y divide-hairline">
         ${devices.map((d) => `
           <li class="flex items-center gap-3 py-2.5">
-            <span class="grid size-8 shrink-0 place-items-center rounded-full border border-hairline ${d.online ? '' : 'text-ember'}">${icon(DEVICE_TYPES[d.type].icon, 'size-4')}</span>
             <span class="min-w-0 flex-1"><span class="block truncate font-medium">${esc(d.name)}</span><span class="block">${statusBadge(d)}</span></span>
             ${control(d)}
-          </li>`).join('') || '<li class="py-3 text-mid-gray">Tidak ada perangkat.</li>'}
+          </li>`).join('') || '<li class="py-3 text-mid-gray">Belum ada perangkat terdaftar.</li>'}
       </ul>
       <div class="mt-4 flex flex-wrap gap-2">
-        ${bulkButton(devices.filter((d) => d.type !== 'lock'), false, 'Matikan semua')}
-        ${bulkButton(devices.filter((d) => d.type !== 'lock'), true, 'Nyalakan semua')}
+        ${bulkButton(controllable, false, 'Matikan semua')}
+        ${bulkButton(controllable, true, 'Nyalakan semua')}
       </div>
+      ${room.equipped ? `
+        <h3 class="label-caps mt-6 mb-1">Riwayat aktivitas hari ini</h3>
+        <ol class="divide-y divide-hairline">
+          ${activity.map((a) => `<li class="flex gap-3 py-2"><span class="w-11 shrink-0 text-mid-gray tabular-nums">${fmtTime(a.time)}</span><span class="min-w-0">${esc(a.text)}</span></li>`).join('') || '<li class="py-2 text-mid-gray">Belum ada aktivitas.</li>'}
+        </ol>` : ''}
     </div>`;
 }
 
@@ -243,7 +278,7 @@ function renderTable() {
         const room = rooms.get(d.roomId);
         const selected = d.roomId === state.roomId;
         return `<tr class="${selected ? 'bg-surface-alt' : ''}">
-          <td class="px-5 py-2.5"><div class="flex items-center gap-2.5">${icon(DEVICE_TYPES[d.type].icon, `size-4 shrink-0 ${d.online ? 'text-mid-gray' : 'text-ember'}`)}<div><div class="font-medium">${esc(d.name)}</div><div class="font-mono text-[11px] text-mid-gray">${esc(d.id)}</div></div></div></td>
+          <td class="px-5 py-2.5"><div class="font-medium">${esc(d.name)}</div><div class="font-mono tabular-nums text-[11px] text-mid-gray">${esc(d.id)}</div></td>
           <td class="px-3 py-2.5">${esc(room.name)}</td>
           <td class="px-3 py-2.5">${statusBadge(d)}</td>
           <td class="px-3 py-2.5 text-right tabular-nums">${devicePowerW(d)} W</td>
@@ -255,6 +290,94 @@ function renderTable() {
   renderIcons($('[data-table-body]'));
 }
 
+/* -------------------------------- listrik -------------------------------- */
+
+let energyChart = null;
+
+function renderEnergy() {
+  const period = periodMeta();
+  const e = energyByFloor(state.iot, state.period);
+  const trafo = state.iot.energy.panels.find((p) => p.source);
+  $('[data-period-tabs]').innerHTML = segmentedHtml(ENERGY_PERIODS, state.period, 'data-period');
+
+  const diff = e.rupiah - e.previousToDate * e.tariff;
+  $('[data-energy-kpis]').innerHTML = [
+    statTile({ label: `Pemakaian ${period.current.toLowerCase()}`, value: fmt1(e.kwh), unit: ' kWh', sub: `${pct(e.change)} vs ${period.previous.toLowerCase()}` }),
+    statTile({ label: 'Biaya', value: rupiah(e.rupiah), sub: `Tarif ${rupiah(e.tariff)}/kWh` }),
+    statTile({ label: diff <= 0 ? 'Penghematan' : 'Kenaikan biaya', value: rupiah(Math.abs(diff)), sub: `Dibanding ${period.previous.toLowerCase()}` }),
+    statTile({ label: 'Beban saat ini', value: fmt1(trafo.kw), unit: ' kW', sub: `Trafo induk · ${fmt1(trafo.current)} A` }),
+  ].join('');
+
+  const scopes = [{ value: 'all', label: 'Gedung' }, ...state.iot.building.floors.map((f) => ({ value: f.id, label: f.short }))];
+  $('[data-energy-scope]').innerHTML = segmentedHtml(scopes, state.energyScope, 'data-energy-scope-id');
+  const scopeFloor = state.iot.building.floors.find((f) => f.id === state.energyScope);
+  const series = energySeries(state.iot, state.period, scopeFloor?.id ?? null);
+  const lines = [
+    series.target && { label: 'Target', values: series.target, style: 'target' },
+    { label: period.previous, values: series.previous, style: 'previous' },
+    { label: period.current, values: series.current, style: 'current' },
+  ].filter(Boolean);
+  $('[data-energy-chart-desc]').textContent = `${scopeFloor?.name ?? 'Seluruh gedung'} · kWh per ${state.period === 'harian' ? 'jam' : 'hari'}`;
+  const chartOpts = { labels: series.labels, series: lines, height: 240, format: (v) => `${fmt1(v)} kWh`, tickFormat: (v) => fmt1(v) };
+  if (energyChart) energyChart.update(chartOpts);
+  else energyChart = createLineChart($('[data-energy-chart]'), chartOpts);
+  $('[data-energy-legend]').innerHTML = lineLegendHtml([...lines].reverse());
+
+  $('[data-segment-desc]').textContent = `${period.current} · porsi dari ${fmt1(e.kwh)} kWh`;
+  $('[data-energy-floors]').innerHTML = e.floors
+    .map((f) => `<div>
+        <div class="mb-1.5 flex items-baseline justify-between gap-2">
+          <span class="flex items-center gap-2 font-medium">${esc(f.floor.name)}${f.anomaly && state.period === 'harian' ? '<span class="badge badge-alert">Di atas target</span>' : ''}</span>
+          <span class="tabular-nums"><span class="font-medium">${fmt1(f.kwh)}</span> <span class="text-mid-gray">kWh</span></span>
+        </div>
+        ${meter(f.share, `Porsi ${f.floor.name}`)}
+        <p class="mt-1.5 flex justify-between gap-2 text-caption tracking-normal text-mid-gray tabular-nums"><span>${rupiah(f.rupiah)} · ${Math.round(f.share * 100)}%</span><span>${pct(f.change)} vs ${period.previous.toLowerCase()}</span></p>
+      </div>`)
+    .join('');
+
+  $('[data-power-flow]').innerHTML = powerFlowHtml(state.iot.energy);
+
+  const ranking = roomRanking(state.iot, state.period);
+  const rankRow = (r, i) => `<li>
+      <a href="?floor=${r.floor.id}&room=${r.room.id}" class="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-canvas" data-rank-room="${r.room.id}" data-rank-floor="${r.floor.id}">
+        <span class="w-5 shrink-0 text-mid-gray tabular-nums">${i}</span>
+        <span class="min-w-0 flex-1"><span class="block truncate font-medium">${esc(r.room.name)}</span><span class="block text-caption tracking-normal text-mid-gray">${esc(r.floor.name)}</span></span>
+        <span class="text-right tabular-nums"><span class="block font-medium">${fmt1(r.kwh)} kWh</span><span class="block text-caption tracking-normal text-mid-gray">${rupiah(r.rupiah)}</span></span>
+      </a>
+    </li>`;
+  $('[data-rank-desc]').textContent = `${period.current} · seluruh lantai`;
+  $('[data-rank-desc-low]').textContent = `${period.current} · ruang dengan perangkat`;
+  $('[data-rank-top]').innerHTML = ranking.slice(0, 5).map((r, i) => rankRow(r, i + 1)).join('');
+  $('[data-rank-low]').innerHTML = ranking.slice(-5).reverse().map((r, i) => rankRow(r, ranking.length - i)).join('');
+}
+
+$('[data-period-tabs]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-period]');
+  if (!btn) return;
+  state.period = btn.dataset.period;
+  renderEnergy();
+});
+
+$('[data-energy-scope]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-energy-scope-id]');
+  if (!btn) return;
+  state.energyScope = btn.dataset.energyScopeId;
+  renderEnergy();
+});
+
+document.querySelectorAll('[data-rank-top], [data-rank-low]').forEach((list) =>
+  list.addEventListener('click', (e) => {
+    const link = e.target.closest('[data-rank-room]');
+    if (!link) return;
+    e.preventDefault();
+    state.floorId = link.dataset.rankFloor;
+    state.roomId = link.dataset.rankRoom;
+    setParams({ floor: state.floorId, room: state.roomId });
+    render();
+    $('[data-room-panel]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }),
+);
+
 function render() {
   if (!state.iot) return;
   const floor = currentFloor();
@@ -264,6 +387,7 @@ function render() {
   renderPlan(floor);
   renderRoomPanel(floor);
   renderTable();
+  renderEnergy();
   renderIcons($('main'));
 }
 

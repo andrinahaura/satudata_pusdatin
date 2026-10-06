@@ -57,7 +57,7 @@ export function createBarChart(container, opts) {
         </g>`;
       })
       .join('');
-    host.innerHTML = `<svg width="${width}" height="${height}" class="block" font-family="Geist, Inter, system-ui, sans-serif" role="img">${grid}${bars}</svg>`;
+    host.innerHTML = `<svg width="${width}" height="${height}" class="block" font-family="Inter, system-ui, sans-serif" role="img">${grid}${bars}</svg>`;
   }
 
   host.addEventListener('pointermove', (e) => {

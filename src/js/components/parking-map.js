@@ -58,7 +58,7 @@ export function parkingZoneSvg(zone) {
     })
     .join('');
 
-  return `<svg viewBox="0 0 ${width} ${height}" class="block h-auto w-full" style="min-width:${Math.min(width, 640)}px" font-family="Geist, Inter, system-ui, sans-serif" role="img" aria-label="Peta slot ${esc(zone.name)}">
+  return `<svg viewBox="0 0 ${width} ${height}" class="block h-auto w-full" style="min-width:${Math.min(width, 640)}px" font-family="Inter, system-ui, sans-serif" role="img" aria-label="Peta slot ${esc(zone.name)}">
     <defs>
       <pattern id="pk-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
         <rect width="6" height="6" fill="${C.alt}"/><line x1="0" y1="0" x2="0" y2="6" stroke="${C.line}" stroke-width="2"/>

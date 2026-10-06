@@ -1,7 +1,7 @@
 import { mountLayout } from '../components/layout.js';
 import { createBarChart } from '../components/bar-chart.js';
 import { cameraCardHtml } from '../components/camera-feed.js';
-import { icon, renderIcons } from '../components/icons.js';
+import { renderIcons } from '../components/icons.js';
 import { createParkingMap, parkingLegendHtml } from '../components/parking-map.js';
 import { createParking3D } from '../components/three/parking-3d.js';
 import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-toggle.js';
@@ -42,12 +42,12 @@ const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 function renderKpis(p) {
   const { today } = state.parking;
   $('[data-kpis]').innerHTML = [
-    statTile({ label: 'Kapasitas', value: p.total, unit: ' slot', sub: `${p.car.total} mobil · ${p.motorcycle.total} motor`, iconName: 'square-parking' }),
-    statTile({ label: 'Terisi', value: p.occupied, sub: 'Kendaraan terdeteksi', iconName: 'car' }),
-    statTile({ label: 'Kosong', value: p.free, sub: `${p.car.free} mobil · ${p.motorcycle.free} motor`, iconName: 'circle-check' }),
-    statTile({ label: 'Okupansi', value: fmtPct(p.rate), sub: 'Seluruh area', iconName: 'activity' }),
-    statTile({ label: 'Masuk hari ini', value: fmtInt(sum(today.in)), sub: 'Deteksi gerbang', iconName: 'log-in' }),
-    statTile({ label: 'Keluar hari ini', value: fmtInt(sum(today.out)), sub: 'Deteksi gerbang', iconName: 'log-out' }),
+    statTile({ label: 'Kapasitas', value: p.total, unit: ' slot', sub: `${p.car.total} mobil · ${p.motorcycle.total} motor` }),
+    statTile({ label: 'Terisi', value: p.occupied, sub: 'Kendaraan terdeteksi' }),
+    statTile({ label: 'Kosong', value: p.free, sub: `${p.car.free} mobil · ${p.motorcycle.free} motor` }),
+    statTile({ label: 'Okupansi', value: fmtPct(p.rate), sub: 'Seluruh area' }),
+    statTile({ label: 'Masuk hari ini', value: fmtInt(sum(today.in)), sub: 'Deteksi gerbang' }),
+    statTile({ label: 'Keluar hari ini', value: fmtInt(sum(today.out)), sub: 'Deteksi gerbang' }),
   ].join('');
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(state.parking.updatedAt)}`;
 }
@@ -68,7 +68,7 @@ function renderZones(p) {
     .map((z) => `
       <div>
         <div class="mb-1.5 flex items-baseline justify-between gap-2">
-          <span class="flex min-w-0 items-center gap-2">${icon(z.kind === 'car' ? 'car' : 'bike', 'size-4 shrink-0 text-mid-gray')}<span class="truncate font-medium">${esc(z.name)}</span></span>
+          <span class="min-w-0 truncate font-medium">${esc(z.name)}</span>
           <span class="text-mid-gray tabular-nums"><span class="font-semibold text-ink">${z.free}</span> kosong / ${z.total}</span>
         </div>
         ${meter(z.occupied / z.total, `Okupansi ${z.name}`)}
@@ -82,7 +82,6 @@ function renderZones(p) {
   $('[data-vehicle-types]').innerHTML = Object.entries(VEHICLE_TYPES)
     .map(([k, v]) => `
       <div class="flex items-center gap-3">
-        ${icon(v.icon, 'size-4 shrink-0 text-mid-gray')}
         <span class="w-16 shrink-0">${v.label}</span>
         <div class="flex-1">${meter(parked[k] / total, v.label)}</div>
         <span class="w-8 text-right font-semibold tabular-nums">${parked[k]}</span>
@@ -109,7 +108,7 @@ function renderEvents() {
     .map((ev) => `
       <tr>
         <td class="px-5 py-2.5 text-mid-gray tabular-nums">${fmtTime(ev.time)}</td>
-        <td class="px-3 py-2.5"><div class="flex items-center gap-2">${icon(VEHICLE_TYPES[ev.vehicleType].icon, 'size-4 shrink-0 text-mid-gray')}<span class="font-mono text-[13px] font-medium whitespace-nowrap">${esc(ev.plate)}</span></div></td>
+        <td class="px-3 py-2.5"><span class="font-mono tabular-nums text-[13px] font-medium whitespace-nowrap">${esc(ev.plate)}</span> <span class="text-caption tracking-normal text-mid-gray">${VEHICLE_TYPES[ev.vehicleType].label}</span></td>
         <td class="px-3 py-2.5"><span class="badge ${ev.direction === 'in' ? 'badge-solid' : 'badge-soft'}">${ev.direction === 'in' ? 'Masuk' : 'Keluar'}</span> <span class="text-caption tracking-normal text-mid-gray">${esc(ev.gate)}</span></td>
         <td class="px-5 py-2.5 text-right tabular-nums">${Math.round(ev.confidence * 100)}%</td>
       </tr>`)
@@ -133,7 +132,7 @@ async function load() {
     state.parking = await api.getParking();
     render();
   } catch (err) {
-    $('[data-kpis]').innerHTML = `<div class="col-span-full">${errorState(`Gagal memuat data parkir: ${err.message}`)}</div>`;
+    $('[data-kpis]').innerHTML = `<div class="col-span-full bg-paper p-3">${errorState(`Gagal memuat data parkir: ${err.message}`)}</div>`;
   }
 }
 

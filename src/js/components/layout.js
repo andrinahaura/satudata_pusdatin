@@ -1,27 +1,17 @@
-import { config } from '../config.js';
-import { esc } from '../utils/dom.js';
 import { icon, renderIcons } from './icons.js';
 
 export const NAV = [
-  { id: 'home', label: 'Home', href: '/', icon: 'layout-dashboard' },
-  { id: 'iot', label: 'IoT', href: '/iot.html', icon: 'building' },
-  { id: 'chatbot', label: 'Chatbot', href: '/chatbot.html', icon: 'message-square-text' },
-  { id: 'vision', label: 'Computer Vision', href: '/vision.html', icon: 'scan-eye' },
+  { id: 'home', label: 'Home', href: '/' },
+  { id: 'iot', label: 'IoT', href: '/iot.html' },
+  { id: 'chatbot', label: 'Chatbot', href: '/chatbot.html' },
+  { id: 'vision', label: 'Computer Vision', href: '/vision.html' },
 ];
 
-function sourceInfo() {
-  return config.useMock
-    ? { title: 'Mode simulasi', desc: 'Data mock di browser. Atur VITE_USE_MOCK di .env.' }
-    : { title: 'Terhubung ke API', desc: config.apiBaseUrl };
-}
-
 function navbarHtml(active) {
-  const link = (n) => `<a href="${n.href}" class="nav-link" ${n.id === active ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label}</span></a>`;
-  const source = sourceInfo();
+  const link = (n) => `<a href="${n.href}" class="nav-link" ${n.id === active ? 'aria-current="page"' : ''}>${n.label}</a>`;
   return `
     <div class="mx-auto flex h-16 w-full max-w-[1280px] items-center gap-4 px-4 sm:px-6 lg:px-8">
       <a href="/" class="flex shrink-0 items-center gap-3">
-        <span class="grid size-9 place-items-center rounded-nested bg-ink text-surface-alt">${icon('building', 'size-[18px]')}</span>
         <span class="leading-tight max-sm:hidden">
           <span class="block text-body font-semibold">SatuData</span>
           <span class="block text-caption tracking-normal text-mid-gray">Pusdatin Smart Building</span>
@@ -34,13 +24,11 @@ function navbarHtml(active) {
 
       <div class="ml-auto flex items-center gap-2">
         <button type="button" class="input flex w-44 cursor-pointer items-center gap-2 text-left text-mid-gray max-md:hidden xl:w-56" data-palette-open>
-          ${icon('sparkles', 'size-4')}<span class="flex-1">Tanya AI…</span>
-          <kbd class="rounded-small border border-hairline bg-paper px-1.5 font-mono text-[11px]">⌘K</kbd>
+          ${icon('search', 'size-4')}<span class="flex-1">Tanya chatbot…</span>
+          <kbd class="rounded-small border border-hairline bg-paper px-1.5 font-mono tabular-nums text-[11px]">⌘K</kbd>
         </button>
-        <button type="button" class="btn btn-ghost btn-icon md:hidden" data-palette-open aria-label="Tanya AI">${icon('sparkles')}</button>
-        <span class="badge badge-outline max-xl:hidden" title="${esc(source.desc)}"><span class="dot ${config.useMock ? 'bg-mid-gray' : 'bg-ink'}"></span>${source.title}</span>
+        <button type="button" class="btn btn-ghost btn-icon md:hidden" data-palette-open aria-label="Tanya chatbot">${icon('search')}</button>
         <span class="hidden text-body text-mid-gray tabular-nums sm:inline" data-clock></span>
-        <span class="grid size-9 place-items-center rounded-full border border-hairline bg-paper text-mid-gray max-sm:hidden" title="Operator">${icon('user')}</span>
         <button type="button" class="btn btn-ghost btn-icon -mr-2 lg:hidden" data-menu-toggle aria-expanded="false" aria-controls="mobile-menu" aria-label="Buka menu">${icon('menu')}</button>
       </div>
     </div>
@@ -48,19 +36,18 @@ function navbarHtml(active) {
     <div id="mobile-menu" class="hidden border-t border-hairline lg:hidden">
       <nav class="mx-auto flex max-w-[1280px] flex-col gap-1 px-4 py-3 sm:px-6" aria-label="Menu utama">
         ${NAV.map(link).join('')}
-        <p class="mt-2 flex items-center gap-2 px-3 text-caption tracking-normal text-mid-gray"><span class="dot ${config.useMock ? 'bg-mid-gray' : 'bg-ink'}"></span>${source.title} · ${esc(source.desc)}</p>
       </nav>
     </div>`;
 }
 
 function paletteHtml() {
   return `
-    <div class="fixed inset-0 z-50 hidden items-start justify-center bg-ink/30 px-4 pt-[15vh]" data-palette role="dialog" aria-modal="true" aria-label="Tanya AI">
+    <div class="fixed inset-0 z-50 hidden items-start justify-center bg-ink/30 px-4 pt-[15vh]" data-palette role="dialog" aria-modal="true" aria-label="Tanya chatbot">
       <form class="card w-full max-w-lg p-2" data-palette-form>
         <div class="flex items-center gap-2 px-2">
-          ${icon('sparkles', 'size-4 text-mid-gray')}
-          <input name="q" class="h-11 flex-1 bg-transparent text-body-lg outline-none placeholder:text-mid-gray" placeholder="Tanya apa saja tentang gedung…" autocomplete="off" />
-          <kbd class="rounded-small border border-hairline px-1.5 font-mono text-[11px] text-mid-gray">Esc</kbd>
+          ${icon('search', 'size-4 text-mid-gray')}
+          <input name="q" class="h-11 flex-1 bg-transparent text-body-lg outline-none placeholder:text-mid-gray" placeholder="Contoh: lampu yang belum mati?" autocomplete="off" />
+          <kbd class="rounded-small border border-hairline px-1.5 font-mono tabular-nums text-[11px] text-mid-gray">Esc</kbd>
         </div>
         <div class="flex flex-wrap gap-2 border-t border-hairline px-2 pt-2 pb-1">
           ${['Lampu yang belum mati?', 'Parkir kosong?', 'Perangkat offline?'].map((s) => `<button type="button" class="btn btn-outline btn-sm" data-palette-suggest>${s}</button>`).join('')}

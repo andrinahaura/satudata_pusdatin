@@ -9,7 +9,7 @@ import { icon, renderIcons } from './icons.js';
 const STORAGE_KEY = 'sdp:chat:v1';
 const WELCOME = {
   role: 'assistant',
-  text: 'Halo! Tanyakan apa saja tentang kondisi gedung: lampu, AC, suhu, listrik, perangkat bermasalah, atau parkir.',
+  text: 'Tanyakan kondisi gedung: lampu, AC, suhu, listrik, perangkat bermasalah, atau parkir.',
   suggestions: DEFAULT_SUGGESTIONS.slice(0, 4),
 };
 
@@ -29,10 +29,6 @@ function saveHistory(messages) {
   }
 }
 
-function avatar() {
-  return `<span class="grid size-7 shrink-0 place-items-center rounded-full bg-ink text-surface-alt">${icon('bot', 'size-3.5')}</span>`;
-}
-
 function assistantHtml(m, index) {
   const items = m.items?.length
     ? `<ul class="mt-2 divide-y divide-hairline overflow-hidden rounded-nested border border-hairline bg-paper">
@@ -43,10 +39,9 @@ function assistantHtml(m, index) {
     ? `<div class="mt-3 flex flex-wrap gap-2">${m.actions.map((a, ai) => `<button type="button" class="btn btn-sm ${a.variant === 'primary' ? 'btn-primary' : 'btn-secondary'}" data-msg="${index}" data-action="${ai}">${esc(a.label)}</button>`).join('')}</div>`
     : '';
   const resolved = m.resolved ? `<p class="mt-2 text-caption tracking-normal text-mid-gray">${esc(m.resolved)}</p>` : '';
-  const link = m.link ? `<a href="${esc(m.link.href)}" class="mt-2 inline-flex items-center gap-1 text-[13px] font-medium underline-offset-4 hover:underline">${esc(m.link.label)}${icon('arrow-up-right', 'size-3.5')}</a>` : '';
-  return `<div class="flex gap-2.5">
-    ${avatar()}
-    <div class="min-w-0 flex-1">
+  const link = m.link ? `<a href="${esc(m.link.href)}" class="mt-2 inline-block text-[13px] font-medium underline underline-offset-4">${esc(m.link.label)} →</a>` : '';
+  return `<div class="flex">
+    <div class="min-w-0 max-w-[85%]">
       <div class="rounded-[18px] rounded-tl-small bg-canvas px-3.5 py-2.5">
         <p class="whitespace-pre-line">${esc(m.text)}</p>
         ${items}${actions}${resolved}${link}
@@ -64,7 +59,7 @@ function userHtml(m) {
   </div>`;
 }
 
-const typingHtml = `<div class="flex gap-2.5" data-typing>${avatar()}<div class="typing flex items-center gap-1 rounded-[18px] rounded-tl-small bg-canvas px-4 py-3">${'<span class="size-1.5 rounded-full bg-mid-gray"></span>'.repeat(3)}</div></div>`;
+const typingHtml = `<div class="flex" data-typing><div class="typing flex items-center gap-1 rounded-[18px] rounded-tl-small bg-canvas px-4 py-3">${'<span class="size-1.5 rounded-full bg-mid-gray"></span>'.repeat(3)}</div></div>`;
 
 /**
  * @param {HTMLElement} root

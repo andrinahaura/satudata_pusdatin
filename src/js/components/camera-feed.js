@@ -2,7 +2,6 @@
 // Jika backend mengirim camera.streamUrl (MJPEG/HLS snapshot), gambar asli ditampilkan
 // di bawah overlay; jika tidak, dipakai latar placeholder.
 import { esc } from '../utils/dom.js';
-import { icon } from './icons.js';
 
 function sceneSvg() {
   // Garis marka parkir sebagai ilustrasi frame.
@@ -32,16 +31,15 @@ export function cameraCardHtml(cam) {
         ${media}
         ${boxesHtml(cam.detections)}
         <div class="absolute top-3 left-3 flex items-center gap-1.5">
-          <span class="badge bg-surface-alt text-ink"><span class="dot ${cam.online ? 'bg-ember' : 'bg-mid-gray'}"></span>${cam.online ? 'LIVE' : 'OFFLINE'}</span>
+          <span class="badge bg-surface-alt text-ink"><span class="dot ${cam.online ? 'bg-ink' : 'bg-mid-gray'}"></span>${cam.online ? 'Rekam' : 'Offline'}</span>
         </div>
-        <span class="absolute top-3 right-3 font-mono text-[11px] text-surface-alt/70">${esc(cam.id)}</span>
+        <span class="absolute top-3 right-3 font-mono tabular-nums text-[11px] text-surface-alt/70">${esc(cam.id)}</span>
       </div>
       <div class="flex items-center justify-between gap-2 px-4 py-3">
         <div class="min-w-0">
           <p class="truncate font-medium">${esc(cam.name)}</p>
           <p class="truncate text-caption tracking-normal text-mid-gray">${esc(summary)}</p>
         </div>
-        ${icon('cctv', 'size-4 shrink-0 text-mid-gray')}
       </div>
     </article>`;
 }

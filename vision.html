@@ -8,7 +8,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
@@ -17,14 +17,13 @@
       <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p class="label-caps">Computer vision · Parkir</p>
-            <h1 class="mt-1 text-heading font-semibold">Deteksi kendaraan</h1>
-            <p class="mt-1 text-mid-gray">Jumlah kendaraan dan slot kosong dari analisis kamera CCTV parkiran.</p>
+            <h1 class="text-heading font-semibold">Deteksi kendaraan</h1>
+            <p class="mt-1 text-mid-gray">Hasil analisis kamera CCTV parkiran.</p>
           </div>
-          <span class="badge badge-outline self-start sm:self-auto"><span class="dot bg-ember"></span><span data-updated>Memuat…</span></span>
+          <span class="self-start text-caption tracking-normal text-mid-gray tabular-nums sm:self-auto" data-updated>Memuat…</span>
         </section>
 
-        <section class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan parkir"></section>
+        <section class="stat-strip mt-6 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan parkir"></section>
 
         <section class="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article class="card min-w-0">

@@ -1,18 +1,9 @@
 // Hanya ikon yang dipakai yang di-import, supaya bundle kecil.
+// Ikon dipakai untuk fungsi (tombol ikon, kolom cari, pesan error), bukan hiasan.
 // Tambah ikon baru: import dari 'lucide' lalu masukkan ke objek ICONS.
-import {
-  createIcons, Activity, AirVent, ArrowRight, ArrowUpRight, Bike, Bot, Box, Building, Car, Cctv,
-  CircleCheck, Clock, Droplets, Info, LayoutDashboard, Layers, Lightbulb, LockKeyhole, LogIn, LogOut, Map as MapIcon, Menu,
-  MessageSquareText, Minus, Plus, Power, RotateCcw, ScanEye, Search, SendHorizontal, Sparkles, Square, SquareParking,
-  Thermometer, ThermometerSun, TriangleAlert, Truck, User, Users, WifiOff, X, Zap,
-} from 'lucide';
+import { createIcons, Menu, Minus, Plus, RotateCcw, Search, SendHorizontal, Square, TriangleAlert, X } from 'lucide';
 
-const ICONS = {
-  Activity, AirVent, ArrowRight, ArrowUpRight, Bike, Bot, Box, Building, Car, Cctv,
-  CircleCheck, Clock, Droplets, Info, LayoutDashboard, Layers, Lightbulb, LockKeyhole, LogIn, LogOut, Map: MapIcon, Menu,
-  MessageSquareText, Minus, Plus, Power, RotateCcw, ScanEye, Search, SendHorizontal, Sparkles, Square, SquareParking,
-  Thermometer, ThermometerSun, TriangleAlert, Truck, User, Users, WifiOff, X, Zap,
-};
+const ICONS = { Menu, Minus, Plus, RotateCcw, Search, SendHorizontal, Square, TriangleAlert, X };
 
 /** Ganti semua <i data-lucide="nama"> di dalam root menjadi SVG. */
 export function renderIcons(root = document) {

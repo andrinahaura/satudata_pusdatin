@@ -8,7 +8,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
@@ -17,17 +17,16 @@
       <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p class="label-caps" data-today>&nbsp;</p>
-            <h1 class="mt-1 text-heading font-semibold" data-greeting>Selamat datang</h1>
-            <p class="mt-1 text-mid-gray">Kondisi gedung, parkir, dan asisten AI dalam satu layar.</p>
+            <h1 class="text-heading font-semibold">Ringkasan gedung</h1>
+            <p class="mt-1 text-mid-gray" data-today>&nbsp;</p>
           </div>
           <div class="flex gap-2">
-            <a href="/iot.html" class="btn btn-secondary"><i data-lucide="layers" class="size-4"></i>Denah lengkap</a>
-            <a href="/chatbot.html" class="btn btn-primary"><i data-lucide="sparkles" class="size-4"></i>Tanya AI</a>
+            <a href="/iot.html" class="btn btn-secondary">Denah lengkap</a>
+            <a href="/chatbot.html" class="btn btn-primary">Buka chatbot</a>
           </div>
         </section>
 
-        <section class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan"></section>
+        <section class="stat-strip mt-6 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan"></section>
 
         <section class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
           <article class="card min-w-0 xl:col-span-2">
@@ -45,27 +44,50 @@
           <article class="card flex h-[560px] min-w-0 flex-col xl:h-0 xl:min-h-full">
             <div class="card-header pb-3">
               <div>
-                <h2 class="card-title flex items-center gap-2"><i data-lucide="sparkles" class="size-4"></i>Tanya AI</h2>
-                <p class="card-desc">Tanya langsung kondisi gedung.</p>
+                <h2 class="card-title">Chatbot</h2>
               </div>
-              <a href="/chatbot.html" class="btn btn-ghost btn-sm">Buka<i data-lucide="arrow-up-right" class="size-3.5"></i></a>
+              <a href="/chatbot.html" class="btn btn-ghost btn-sm">Buka</a>
             </div>
             <div class="min-h-0 flex-1 border-t border-hairline" id="home-chat"></div>
           </article>
         </section>
 
+        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title">Listrik hari ini</h2>
+                <p class="card-desc" data-energy-desc>&nbsp;</p>
+              </div>
+              <a href="/iot.html#listrik" class="btn btn-ghost btn-sm">Detail</a>
+            </div>
+            <div class="card-body">
+              <div class="flex flex-wrap items-end gap-x-6 gap-y-1" data-energy-total></div>
+              <div class="mt-4" data-energy-chart></div>
+            </div>
+            <div class="card-footer" data-energy-legend></div>
+          </div>
+          <div class="flex min-w-0 flex-col">
+            <div class="card-header">
+              <h2 class="card-title">Per lantai</h2>
+              <span class="text-caption tracking-normal text-mid-gray" data-flow-load></span>
+            </div>
+            <div class="card-body flex flex-1 flex-col justify-around gap-4" data-energy-floors></div>
+          </div>
+        </section>
+
         <section class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <article class="card">
+          <article class="card flex flex-col">
             <div class="card-header">
               <h2 class="card-title">Ketersediaan parkir</h2>
-              <a href="/vision.html" class="btn btn-ghost btn-sm">Detail<i data-lucide="arrow-up-right" class="size-3.5"></i></a>
+              <a href="/vision.html" class="btn btn-ghost btn-sm">Detail</a>
             </div>
-            <div class="card-body" data-parking></div>
+            <div class="card-body flex flex-1 flex-col" data-parking></div>
           </article>
           <article class="card">
             <div class="card-header">
               <h2 class="card-title">Deteksi kendaraan terbaru</h2>
-              <span class="badge badge-outline"><span class="dot bg-ember"></span>Live</span>
+              <a href="/vision.html" class="btn btn-ghost btn-sm">Riwayat</a>
             </div>
             <div class="card-body" data-events></div>
           </article>

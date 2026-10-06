@@ -3,7 +3,7 @@
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { DEVICE_TYPES } from '../../data/device-types.js';
 import { esc } from '../../utils/dom.js';
-import { fmt1 } from '../../utils/format.js';
+import { roomMeta, roomNumber } from '../floor-plan.js';
 import { createScene3D, disposeGroup, hatchTexture, mat, PALETTE } from './scene.js';
 
 const WALL_H = 30;
@@ -13,7 +13,7 @@ const CORRIDOR_EDGES = new Set([250, 310]);
 const X = (px) => px - 500;
 const Z = (py) => py - 280;
 
-const DEVICE_Y = { light: 22, ac: 24, sensor: 8, cctv: 26, lock: 10 };
+const DEVICE_Y = { light: 22, ac: 24, sensor: 8, presence: 10 };
 
 function stateMaterial(d, dimmed) {
   const opacity = dimmed ? 0.12 : 1;
@@ -30,8 +30,7 @@ export function createFloorPlan3D(container, { onRoomSelect } = {}) {
     glow: new THREE.CircleGeometry(18, 32),
     ac: new THREE.BoxGeometry(18, 7, 8),
     sensor: new THREE.OctahedronGeometry(5.5),
-    cctv: new THREE.ConeGeometry(5, 11, 18),
-    lock: new THREE.BoxGeometry(10, 14, 3),
+    presence: new THREE.ConeGeometry(5, 11, 18),
   };
   const hatch = hatchTexture(6);
   const tileMats = {
@@ -102,13 +101,14 @@ export function createFloorPlan3D(container, { onRoomSelect } = {}) {
       const tile = new THREE.Mesh(new THREE.BoxGeometry(room.w - 4, 1, room.h - 4), tileMaterial(room));
       tile.position.set(X(room.x + room.w / 2), 0.5, Z(room.y + room.h / 2));
       tile.receiveShadow = true;
-      tile.userData.roomId = room.type === 'corridor' ? null : room.id;
+      tile.userData.roomId = room.type === 'core' ? null : room.id;
       tiles.set(room.id, { tile, room });
       roomsGroup.add(tile);
 
       if (room.type === 'corridor') {
-        segment(room.x, room.y, room.x, room.y + room.h);
-        segment(room.x + room.w, room.y, room.x + room.w, room.y + room.h);
+        // Koridor bisa terbagi beberapa segmen; dinding hanya di ujung gedung.
+        if (room.x === 20) segment(room.x, room.y, room.x, room.y + room.h);
+        if (room.x + room.w === 980) segment(room.x + room.w, room.y, room.x + room.w, room.y + room.h);
         continue;
       }
       const { x, y, w, h } = room;
@@ -120,12 +120,15 @@ export function createFloorPlan3D(container, { onRoomSelect } = {}) {
 
       if (room.type === 'core') {
         // Shaft lift.
-        const shaft = new THREE.Mesh(new THREE.BoxGeometry(52, WALL_H + 14, 52), mat(PALETTE.hairline));
+        const size = Math.min(52, w - 10);
+        const shaft = new THREE.Mesh(new THREE.BoxGeometry(size, WALL_H + 14, size), mat(PALETTE.hairline));
         shaft.position.set(X(x + w / 2), (WALL_H + 14) / 2, Z(y + h / 2 + 10));
         shaft.castShadow = true;
         roomsGroup.add(shaft);
       }
 
+      // Ruang sempit cukup diberi nomor; nama & status terbaca lewat tooltip.
+      if (w < 140 && !roomNumber(room)) continue;
       const el = document.createElement('div');
       el.style.cssText = 'width:0;height:0';
       el.innerHTML = '<div class="absolute top-0 left-0 rounded-small bg-paper/90 px-1.5 py-0.5 text-[12px] leading-tight whitespace-nowrap shadow-card"></div>';
@@ -140,8 +143,9 @@ export function createFloorPlan3D(container, { onRoomSelect } = {}) {
     for (const room of floor.rooms) {
       const el = labelEls.get(room.id);
       if (!el) continue;
-      const meta = room.type === 'core' ? 'Lift & tangga' : `${fmt1(room.temperature)}°C${room.capacity ? ` · ${room.occupancy} orang` : ''}`;
-      el.innerHTML = `<div class="font-medium text-ink">${esc(room.name)}</div><div class="text-mid-gray">${esc(meta)}</div>`;
+      el.innerHTML = room.w < 140
+        ? `<div class="font-medium text-ink">${esc(roomNumber(room))}</div>`
+        : `<div class="font-medium text-ink">${esc(room.name)}</div><div class="text-mid-gray">${esc(roomMeta(room))}</div>`;
       el.classList.toggle('ring-1', room.id === current.selectedRoomId);
       el.classList.toggle('ring-ink', room.id === current.selectedRoomId);
     }
@@ -182,7 +186,11 @@ export function createFloorPlan3D(container, { onRoomSelect } = {}) {
       refreshTiles();
       render();
     }
-    if (!deviceId) return tooltip.hide();
+    if (!deviceId) {
+      const room = current.floor.rooms.find((r) => r.id === roomId);
+      if (!room) return tooltip.hide();
+      return tooltip.show(`<div class="font-medium">${esc(room.name)}</div><div class="opacity-70">${esc(roomMeta(room))}</div>`, e);
+    }
     const d = current.devices.find((x) => x.id === deviceId);
     const room = current.floor.rooms.find((r) => r.id === d.roomId);
     const meta = DEVICE_TYPES[d.type];

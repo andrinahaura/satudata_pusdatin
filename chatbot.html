@@ -8,7 +8,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
@@ -18,14 +18,11 @@
         <section class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <article class="card flex h-[calc(100dvh-8rem)] min-h-[520px] min-w-0 flex-col lg:h-[calc(100dvh-9rem)]">
             <div class="card-header pb-4">
-              <div class="flex items-center gap-3">
-                <span class="grid size-10 place-items-center rounded-full bg-ink text-surface-alt"><i data-lucide="bot" class="size-5"></i></span>
-                <div>
-                  <h1 class="card-title">Asisten Gedung</h1>
-                  <p class="card-desc">Menjawab dari data IoT dan parkir secara realtime.</p>
-                </div>
+              <div>
+                <h1 class="card-title">Chatbot gedung</h1>
+                <p class="card-desc">Membaca data IoT, listrik, dan parkir.</p>
               </div>
-              <button type="button" class="btn btn-secondary btn-sm" data-reset><i data-lucide="rotate-ccw" class="size-3.5"></i>Percakapan baru</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-reset>Percakapan baru</button>
             </div>
             <div class="min-h-0 flex-1 border-t border-hairline" id="main-chat"></div>
           </article>
@@ -38,7 +35,6 @@
             <article class="card">
               <div class="card-header">
                 <h2 class="card-title">Data yang dibaca asisten</h2>
-                <span class="badge badge-outline"><span class="dot bg-ember"></span>Live</span>
               </div>
               <dl class="card-body grid grid-cols-2 gap-x-4 gap-y-3" data-context></dl>
             </article>
