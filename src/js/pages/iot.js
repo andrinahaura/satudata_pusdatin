@@ -5,7 +5,7 @@ import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-tog
 import { icon, renderIcons } from '../components/icons.js';
 import { lineLegendHtml, miniLineChartSvg } from '../components/line-chart.js';
 import { createTrendChart } from '../components/trend-chart.js';
-import { errorState, segmentedHtml, statTile } from '../components/ui.js';
+import { errorState, floorTargetCell, segmentedHtml, statTile } from '../components/ui.js';
 import { DEVICE_TYPES } from '../data/device-types.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
@@ -318,7 +318,7 @@ function renderEnergy() {
   $('[data-prev-head]').textContent = `vs ${period.previous.toLowerCase()}`;
   $('[data-energy-floors]').innerHTML = e.floors
     .map((f) => `<tr>
-        <td><span class="font-medium">${esc(f.floor.name)}</span>${f.anomaly && state.period === 'harian' ? ' <span class="badge badge-alert">Di atas target</span>' : ''}</td>
+        <td>${state.period === 'harian' ? floorTargetCell(f, { fmt: fmt1 }) : `<span class="font-medium">${esc(f.floor.name)}</span>`}</td>
         <td class="num">${fmt1(f.kwh)}</td>
         <td class="num">${rupiah(f.rupiah)}</td>
         <td class="num">${Math.round(f.share * 100)}%</td>

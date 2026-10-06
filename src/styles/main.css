@@ -226,6 +226,12 @@
   .data-table tfoot tr {
     @apply border-t border-hairline font-semibold;
   }
+  /* Tabel yang mengisi tinggi wadah: sisa tinggi dibagi rata ke baris isi,
+     header dan total tetap rapat. */
+  .data-table-fill thead tr,
+  .data-table-fill tfoot tr {
+    height: 1px;
+  }
   .data-table .num {
     @apply text-right whitespace-nowrap;
   }

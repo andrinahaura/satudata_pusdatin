@@ -105,9 +105,19 @@ function renderChart() {
   else chart = createTrendChart($('[data-chart]'), opts);
 }
 
+// Jumlah baris riwayat yang muat utuh di kartu (tinggi kartu mengikuti grafik di sebelahnya).
+const EVENT_ROW_H = 44;
+const HEAD_H = 34;
+function eventRowsThatFit() {
+  // Layar sempit: kartu ditumpuk dan tidak punya tinggi tetap, tampilkan 6 baris.
+  if (!window.matchMedia('(min-width: 1024px)').matches) return 6;
+  const h = $('[data-events-box]').clientHeight - 8; // pb-2
+  return Math.max(3, Math.floor((h - HEAD_H) / EVENT_ROW_H));
+}
+
 function renderEvents() {
   $('[data-events]').innerHTML = state.parking.events
-    .slice(0, 20)
+    .slice(0, eventRowsThatFit())
     .map((ev) => `<tr>
         <td class="text-mid-gray">${fmtTime(ev.time)}</td>
         <td class="whitespace-nowrap"><span class="font-mono text-[13px] font-medium">${esc(ev.plate)}</span> <span class="text-caption tracking-normal text-mid-gray">${VEHICLE_TYPES[ev.vehicleType].label}</span></td>
@@ -116,6 +126,15 @@ function renderEvents() {
       </tr>`)
     .join('');
 }
+
+let lastBoxHeight = 0;
+new ResizeObserver(() => {
+  const h = $('[data-events-box]').clientHeight;
+  if (state.parking && Math.abs(h - lastBoxHeight) > 2) {
+    lastBoxHeight = h;
+    renderEvents();
+  }
+}).observe($('[data-events-box]'));
 
 function render() {
   if (!state.parking) return;

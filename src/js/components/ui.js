@@ -12,6 +12,18 @@ export function statTile({ label, value, unit = '', sub = '' }) {
     </div>`;
 }
 
+/**
+ * Sel nama lantai + baris status target listrik jam berjalan, untuk tabel "Per lantai".
+ * f = baris dari energyByFloor(). Status ditulis dengan kata, bukan hanya warna.
+ */
+export function floorTargetCell(f, { href = null, fmt = String } = {}) {
+  const name = href ? `<a href="${esc(href)}" class="font-medium hover:underline">${esc(f.floor.name)}</a>` : `<span class="font-medium">${esc(f.floor.name)}</span>`;
+  const status = f.anomaly
+    ? `<span class="font-medium text-ember" title="Jam ini ${fmt(f.currentHour)} kWh, target ${fmt(f.targetHour)} kWh">Di atas target +${Math.round((f.currentHour / f.targetHour - 1) * 100)}%</span>`
+    : 'Sesuai target';
+  return `${name}<span class="block text-[13px] whitespace-nowrap text-mid-gray">${status}</span>`;
+}
+
 export function segmentedHtml(options, selected, attr) {
   return options
     .map((o) => `<button type="button" role="tab" ${attr}="${esc(o.value)}" aria-selected="${o.value === selected}">${esc(o.label)}</button>`)
