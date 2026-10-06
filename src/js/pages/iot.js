@@ -1,12 +1,11 @@
 import { mountLayout } from '../components/layout.js';
 import { createFloorPlan, floorPlanLegend } from '../components/floor-plan.js';
-import { floorStackHtml } from '../components/floor-stack.js';
 import { createFloorPlan3D } from '../components/three/floor-plan-3d.js';
 import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-toggle.js';
 import { icon, renderIcons } from '../components/icons.js';
-import { createLineChart, lineLegendHtml, miniLineChartSvg } from '../components/line-chart.js';
-import { powerFlowHtml } from '../components/power-flow.js';
-import { errorState, meter, segmentedHtml, statTile } from '../components/ui.js';
+import { lineLegendHtml, miniLineChartSvg } from '../components/line-chart.js';
+import { createTrendChart } from '../components/trend-chart.js';
+import { errorState, segmentedHtml, statTile } from '../components/ui.js';
 import { DEVICE_TYPES } from '../data/device-types.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
@@ -28,6 +27,7 @@ const state = {
   view: getViewMode(),
   period: 'harian',
   energyScope: 'all',
+  rankOrder: 'top',
 };
 
 const rupiah = (v) => `Rp ${fmtInt(Math.round(v))}`;
@@ -63,10 +63,10 @@ $('[data-view-toggle]').addEventListener('click', (e) => {
 
 /* ----------------------------- event wiring ----------------------------- */
 
-$('[data-floor-stack]').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-floor-id]');
+$('[data-floor-tabs]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-floor]');
   if (!btn) return;
-  state.floorId = btn.dataset.floorId;
+  state.floorId = btn.dataset.floor;
   state.roomId = null;
   setParams({ floor: state.floorId, room: null });
   render();
@@ -133,21 +133,18 @@ function renderKpis() {
   const s = summarizeIot(state.iot);
   const e = energyByFloor(state.iot, 'harian');
   $('[data-kpis]').innerHTML = [
-    statTile({ label: 'Perangkat online', value: `${s.online}/${s.totalDevices}`, sub: s.offline ? `${s.offline} offline` : 'Semua terhubung' }),
-    statTile({ label: 'Lampu menyala', value: s.byType.light.on, sub: `dari ${s.byType.light.total} saklar` }),
-    statTile({ label: 'AC menyala', value: s.byType.ac.on, sub: `dari ${s.byType.ac.total} unit` }),
+    statTile({ label: 'Perangkat online', value: s.online, unit: ` / ${s.totalDevices}`, sub: s.offline ? `${s.offline} offline` : '' }),
+    statTile({ label: 'Lampu menyala', value: s.byType.light.on, unit: ` / ${s.byType.light.total}` }),
+    statTile({ label: 'AC menyala', value: s.byType.ac.on, unit: ` / ${s.byType.ac.total}` }),
     statTile({ label: 'Suhu rata-rata', value: fmt1(s.avgTemp), unit: '°C', sub: `Kelembaban ${Math.round(s.avgHumidity)}%` }),
-    statTile({ label: 'Ruang ada orang', value: s.occupiedRooms, unit: ` / ${s.workspaceRooms}`, sub: `${s.rooms - s.equippedRooms} ruang belum bersensor` }),
+    statTile({ label: 'Ruang ada orang', value: s.occupiedRooms, unit: ` / ${s.workspaceRooms}` }),
     statTile({ label: 'Listrik hari ini', value: fmt1(e.kwh), unit: ' kWh', sub: rupiah(e.rupiah) }),
   ].join('');
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(state.iot.updatedAt)}`;
 }
 
 function renderPlan(floor) {
-  const s = summarizeIot(state.iot, floor.id);
-  $('[data-floor-stack]').innerHTML = floorStackHtml(state.iot, floor.id);
-  $('[data-floor-title]').textContent = `${floor.name} · ${floor.label}`;
-  $('[data-floor-desc]').textContent = `${s.totalDevices} perangkat · ${s.byType.light.on} lampu & ${s.byType.ac.on} AC menyala · ${fmt1(s.powerKw)} kW`;
+  $('[data-floor-tabs]').innerHTML = segmentedHtml(state.iot.building.floors.map((f) => ({ value: f.id, label: f.short })), floor.id, 'data-floor');
   const filters = [{ value: 'all', label: 'Semua' }, ...Object.entries(DEVICE_TYPES).map(([k, m]) => ({ value: k, label: m.label }))];
   $('[data-type-filter]').innerHTML = segmentedHtml(filters, state.filter, 'data-type');
   renderViewToggle();
@@ -212,10 +209,7 @@ function renderRoomPanel(floor) {
   const controllable = devices.filter((d) => DEVICE_TYPES[d.type].controllable);
   panel.innerHTML = `
     <div class="card-header">
-      <div class="min-w-0">
-        <p class="label-caps">${esc(floor.name)}</p>
-        <h2 class="truncate text-subheading font-semibold">${esc(room.name)}</h2>
-      </div>
+      <h2 class="min-w-0 truncate text-subheading font-semibold">${esc(room.name)}</h2>
       <button type="button" class="btn btn-ghost btn-icon" data-room-close aria-label="Tutup detail ruangan">${icon('x')}</button>
     </div>
     <div class="card-body">
@@ -227,7 +221,7 @@ function renderRoomPanel(floor) {
       </dl>
       ${!room.equipped ? '<p class="mt-4 rounded-nested border border-hairline px-3 py-2.5 text-mid-gray">Sensor belum terpasang di ruang ini.</p>' : ''}
       ${energy ? `
-        <h3 class="label-caps mt-5 mb-2">Pemakaian listrik</h3>
+        <h3 class="mt-5 mb-2 font-semibold">Pemakaian listrik</h3>
         <dl class="grid grid-cols-2 gap-x-4 gap-y-1">
           <div><dt class="text-caption tracking-normal text-mid-gray">Hari ini</dt><dd class="font-semibold tabular-nums">${fmt1(energy.today)} kWh <span class="font-normal text-mid-gray">${rupiah(energy.todayRupiah)}</span></dd></div>
           <div><dt class="text-caption tracking-normal text-mid-gray">Kemarin</dt><dd class="font-semibold tabular-nums">${fmt1(energy.yesterday)} kWh <span class="font-normal text-mid-gray">${rupiah(energy.yesterdayRupiah)}</span></dd></div>
@@ -238,7 +232,7 @@ function renderRoomPanel(floor) {
           { style: 'current', values: energy.series.current },
         ] })}</div>
         <div class="mt-2">${lineLegendHtml([{ label: 'Hari ini', style: 'current' }, { label: 'Kemarin', style: 'previous' }, { label: 'Target', style: 'target' }])}</div>` : ''}
-      <h3 class="label-caps mt-5 mb-1">Perangkat (${devices.length})</h3>
+      <h3 class="mt-5 mb-1 font-semibold">Perangkat <span class="font-normal text-mid-gray">${devices.length}</span></h3>
       <ul class="divide-y divide-hairline">
         ${devices.map((d) => `
           <li class="flex items-center gap-3 py-2.5">
@@ -251,7 +245,7 @@ function renderRoomPanel(floor) {
         ${bulkButton(controllable, true, 'Nyalakan semua')}
       </div>
       ${room.equipped ? `
-        <h3 class="label-caps mt-6 mb-1">Riwayat aktivitas hari ini</h3>
+        <h3 class="mt-6 mb-1 font-semibold">Riwayat aktivitas hari ini</h3>
         <ol class="divide-y divide-hairline">
           ${activity.map((a) => `<li class="flex gap-3 py-2"><span class="w-11 shrink-0 text-mid-gray tabular-nums">${fmtTime(a.time)}</span><span class="min-w-0">${esc(a.text)}</span></li>`).join('') || '<li class="py-2 text-mid-gray">Belum ada aktivitas.</li>'}
         </ol>` : ''}
@@ -270,8 +264,7 @@ function renderTable() {
   });
   // Perangkat di ruangan terpilih tampil paling atas.
   if (state.roomId) list.sort((a, b) => (b.roomId === state.roomId) - (a.roomId === state.roomId));
-  $('[data-table-title]').textContent = `Perangkat ${floor.name}`;
-  $('[data-table-desc]').textContent = `${list.length} perangkat${state.filter !== 'all' ? ` · ${DEVICE_TYPES[state.filter].label}` : ''}`;
+  $('[data-table-title]').innerHTML = `Perangkat ${esc(floor.name)} <span class="font-normal text-mid-gray">${list.length}</span>`;
   $('[data-table-body]').innerHTML =
     list
       .map((d) => {
@@ -303,9 +296,9 @@ function renderEnergy() {
   const diff = e.rupiah - e.previousToDate * e.tariff;
   $('[data-energy-kpis]').innerHTML = [
     statTile({ label: `Pemakaian ${period.current.toLowerCase()}`, value: fmt1(e.kwh), unit: ' kWh', sub: `${pct(e.change)} vs ${period.previous.toLowerCase()}` }),
-    statTile({ label: 'Biaya', value: rupiah(e.rupiah), sub: `Tarif ${rupiah(e.tariff)}/kWh` }),
-    statTile({ label: diff <= 0 ? 'Penghematan' : 'Kenaikan biaya', value: rupiah(Math.abs(diff)), sub: `Dibanding ${period.previous.toLowerCase()}` }),
-    statTile({ label: 'Beban saat ini', value: fmt1(trafo.kw), unit: ' kW', sub: `Trafo induk · ${fmt1(trafo.current)} A` }),
+    statTile({ label: 'Biaya', value: rupiah(e.rupiah) }),
+    statTile({ label: diff <= 0 ? `Hemat vs ${period.previous.toLowerCase()}` : `Naik vs ${period.previous.toLowerCase()}`, value: rupiah(Math.abs(diff)) }),
+    statTile({ label: 'Beban saat ini', value: fmt1(trafo.kw), unit: ' kW' }),
   ].join('');
 
   const scopes = [{ value: 'all', label: 'Gedung' }, ...state.iot.building.floors.map((f) => ({ value: f.id, label: f.short }))];
@@ -317,39 +310,56 @@ function renderEnergy() {
     { label: period.previous, values: series.previous, style: 'previous' },
     { label: period.current, values: series.current, style: 'current' },
   ].filter(Boolean);
-  $('[data-energy-chart-desc]').textContent = `${scopeFloor?.name ?? 'Seluruh gedung'} · kWh per ${state.period === 'harian' ? 'jam' : 'hari'}`;
-  const chartOpts = { labels: series.labels, series: lines, height: 240, format: (v) => `${fmt1(v)} kWh`, tickFormat: (v) => fmt1(v) };
+  const chartOpts = { labels: series.labels, series: lines, height: 260, format: (v) => `${fmt1(v)} kWh` };
   if (energyChart) energyChart.update(chartOpts);
-  else energyChart = createLineChart($('[data-energy-chart]'), chartOpts);
+  else energyChart = createTrendChart($('[data-energy-chart]'), chartOpts);
   $('[data-energy-legend]').innerHTML = lineLegendHtml([...lines].reverse());
 
-  $('[data-segment-desc]').textContent = `${period.current} · porsi dari ${fmt1(e.kwh)} kWh`;
+  $('[data-prev-head]').textContent = `vs ${period.previous.toLowerCase()}`;
   $('[data-energy-floors]').innerHTML = e.floors
-    .map((f) => `<div>
-        <div class="mb-1.5 flex items-baseline justify-between gap-2">
-          <span class="flex items-center gap-2 font-medium">${esc(f.floor.name)}${f.anomaly && state.period === 'harian' ? '<span class="badge badge-alert">Di atas target</span>' : ''}</span>
-          <span class="tabular-nums"><span class="font-medium">${fmt1(f.kwh)}</span> <span class="text-mid-gray">kWh</span></span>
-        </div>
-        ${meter(f.share, `Porsi ${f.floor.name}`)}
-        <p class="mt-1.5 flex justify-between gap-2 text-caption tracking-normal text-mid-gray tabular-nums"><span>${rupiah(f.rupiah)} · ${Math.round(f.share * 100)}%</span><span>${pct(f.change)} vs ${period.previous.toLowerCase()}</span></p>
-      </div>`)
+    .map((f) => `<tr>
+        <td><span class="font-medium">${esc(f.floor.name)}</span>${f.anomaly && state.period === 'harian' ? ' <span class="badge badge-alert">Di atas target</span>' : ''}</td>
+        <td class="num">${fmt1(f.kwh)}</td>
+        <td class="num">${rupiah(f.rupiah)}</td>
+        <td class="num">${Math.round(f.share * 100)}%</td>
+        <td class="num text-mid-gray">${pct(f.change)}</td>
+      </tr>`)
     .join('');
 
-  $('[data-power-flow]').innerHTML = powerFlowHtml(state.iot.energy);
+  $('[data-energy-floors-total]').innerHTML = `<tr><td>Total</td><td class="num">${fmt1(e.kwh)}</td><td class="num">${rupiah(e.rupiah)}</td><td class="num">100%</td><td class="num">${pct(e.change)}</td></tr>`;
+
+  const fmt2 = (n) => n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  $('[data-power-panels]').innerHTML = state.iot.energy.panels
+    .map((p) => `<tr class="${p.source ? 'bg-surface-alt' : ''}">
+        <td><span class="font-medium ${p.source ? '' : 'pl-3'}">${esc(p.name)}</span> <span class="text-caption tracking-normal text-mid-gray">${esc(p.meter)}</span>${p.online ? '' : ' <span class="badge badge-alert">Offline</span>'}</td>
+        <td class="num">${fmt1(p.kw)} kW</td>
+        <td class="num">${fmt1(p.kwhToday)}</td>
+        <td class="num">${rupiah(p.kwhToday * state.iot.energy.tariff)}</td>
+        <td class="num">${fmt1(p.voltage)} V</td>
+        <td class="num">${fmt1(p.current)} A</td>
+        <td class="num">${fmt2(p.pf)}</td>
+      </tr>`)
+    .join('');
 
   const ranking = roomRanking(state.iot, state.period);
-  const rankRow = (r, i) => `<li>
-      <a href="?floor=${r.floor.id}&room=${r.room.id}" class="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-canvas" data-rank-room="${r.room.id}" data-rank-floor="${r.floor.id}">
-        <span class="w-5 shrink-0 text-mid-gray tabular-nums">${i}</span>
-        <span class="min-w-0 flex-1"><span class="block truncate font-medium">${esc(r.room.name)}</span><span class="block text-caption tracking-normal text-mid-gray">${esc(r.floor.name)}</span></span>
-        <span class="text-right tabular-nums"><span class="block font-medium">${fmt1(r.kwh)} kWh</span><span class="block text-caption tracking-normal text-mid-gray">${rupiah(r.rupiah)}</span></span>
-      </a>
-    </li>`;
-  $('[data-rank-desc]').textContent = `${period.current} · seluruh lantai`;
-  $('[data-rank-desc-low]').textContent = `${period.current} · ruang dengan perangkat`;
-  $('[data-rank-top]').innerHTML = ranking.slice(0, 5).map((r, i) => rankRow(r, i + 1)).join('');
-  $('[data-rank-low]').innerHTML = ranking.slice(-5).reverse().map((r, i) => rankRow(r, ranking.length - i)).join('');
+  const rows = state.rankOrder === 'top' ? ranking.slice(0, 5) : ranking.slice(-5).reverse();
+  $('[data-rank-order]').innerHTML = segmentedHtml([{ value: 'top', label: 'Tertinggi' }, { value: 'low', label: 'Terendah' }], state.rankOrder, 'data-rank-order-id');
+  $('[data-rank]').innerHTML = rows
+    .map((r) => `<tr class="cursor-pointer transition-colors hover:bg-canvas" data-rank-room="${r.room.id}" data-rank-floor="${r.floor.id}">
+        <td class="font-medium">${esc(r.room.name)}</td>
+        <td class="text-mid-gray">${esc(r.floor.short)}</td>
+        <td class="num">${fmt1(r.kwh)}</td>
+        <td class="num">${rupiah(r.rupiah)}</td>
+      </tr>`)
+    .join('');
 }
+
+$('[data-rank-order]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-rank-order-id]');
+  if (!btn) return;
+  state.rankOrder = btn.dataset.rankOrderId;
+  renderEnergy();
+});
 
 $('[data-period-tabs]').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-period]');
@@ -365,11 +375,10 @@ $('[data-energy-scope]').addEventListener('click', (e) => {
   renderEnergy();
 });
 
-document.querySelectorAll('[data-rank-top], [data-rank-low]').forEach((list) =>
+[$('[data-rank]')].forEach((list) =>
   list.addEventListener('click', (e) => {
     const link = e.target.closest('[data-rank-room]');
     if (!link) return;
-    e.preventDefault();
     state.floorId = link.dataset.rankFloor;
     state.roomId = link.dataset.rankRoom;
     setParams({ floor: state.floorId, room: state.roomId });

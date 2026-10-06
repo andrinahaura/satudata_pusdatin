@@ -6,6 +6,28 @@
 import { DEVICE_TYPES, VEHICLE_TYPES } from '../data/device-types.js';
 import { energyByFloor, findWasteRooms, getAlerts, indexIot, isWorkspace, summarizeIot, summarizeParking, devicePowerW } from './selectors.js';
 
+// Pintas chatbot unit organisasi PU (dari TEJAS Chatbot PU). `pusdatin` = data gedung dashboard ini.
+export const UNITS = [
+  { id: 'pusdatin', label: 'Gedung Pusdatin' },
+  { id: 'sekjen', label: 'Sekjen' },
+  { id: 'sda', label: 'SDA' },
+  { id: 'bina-marga', label: 'Bina Marga' },
+  { id: 'cipta-karya', label: 'Cipta Karya' },
+  { id: 'prasarana-strategis', label: 'Prasarana Strategis' },
+  { id: 'pembiayaan', label: 'Pembiayaan' },
+  { id: 'bpsdm', label: 'BPSDM' },
+];
+
+export const MODELS = ['GPT-4o Mini', 'GPT-4o'];
+
+// Pertanyaan tentang dokumen yang dilampirkan / basis dokumen unit.
+export const DOCUMENT_SUGGESTIONS = [
+  'Apa isi utama dokumen ini?',
+  'Ringkaskan poin-poin penting',
+  'Apa syarat atau ketentuan yang disebutkan?',
+  'Jelaskan prosedur yang tercantum',
+];
+
 export const DEFAULT_SUGGESTIONS = [
   'Lampu yang belum mati?',
   'Berapa slot parkir yang kosong?',
@@ -209,7 +231,7 @@ function energyIntent(q, { iot, floor, scopeLabel }) {
       })
     : e.floors.map((f) => ({ title: f.floor.name, meta: `${fmt1(f.kwh)} kWh · ${rupiah(f.rupiah)}${f.anomaly ? ' · di atas target' : ''}` }));
   return {
-    text: `Pemakaian listrik ${scopeLabel} ${periodLabel} ${fmt1(scope.kwh)} kWh (${rupiah(scope.rupiah)}), ${change <= 0 ? 'turun' : 'naik'} ${Math.abs(change)}% dibanding ${previousLabel} pada titik yang sama.`,
+    text: `Pemakaian listrik ${scopeLabel} ${periodLabel} ${fmt1(scope.kwh)} kWh (${rupiah(scope.rupiah)}), ${change === 0 ? 'sama dengan' : `${change < 0 ? 'turun' : 'naik'} ${Math.abs(change)}% dibanding`} ${previousLabel} pada titik yang sama.`,
     items,
     link: { label: 'Lihat grafik listrik', href: '/iot.html#listrik' },
     suggestions: ['Pemakaian listrik bulan ini?', 'Ruang kosong tapi lampu masih menyala?'],
@@ -278,8 +300,27 @@ function scopeSummary({ iot, room, floor, scopeLabel }) {
 
 /* ------------------------------- entry ------------------------------- */
 
-export function answer(message, { iot, parking }) {
+const BUILDING_TOPIC = /(lampu|ac\b|suhu|listrik|kwh|perangkat|sensor|ruang|lantai|basement|parkir|kendaraan|offline|matikan|nyalakan|orang|gedung)/;
+
+// Pertanyaan dokumen / unit lain dijawab oleh basis dokumen TEJAS di backend.
+// Mode simulasi tidak membaca dokumen, jadi jawabannya jujur menyebut itu.
+function documentAnswer(message, meta) {
+  const unit = UNITS.find((u) => u.id === meta.unit);
+  const source = meta.attachment ? `dokumen "${meta.attachment.name}"` : `basis dokumen ${unit?.label ?? 'unit'}`;
+  return {
+    text: `Pertanyaan ini dijawab dari ${source} oleh chatbot TEJAS. Mode simulasi belum membaca isi dokumen, jadi jawaban belum tersedia. Untuk kondisi Gedung Pusdatin, pilih pintas "Gedung Pusdatin".`,
+    suggestions: unit?.id === 'pusdatin' ? DEFAULT_SUGGESTIONS.slice(0, 3) : ['Pemakaian listrik hari ini?', 'Lampu yang belum mati?'],
+  };
+}
+
+/**
+ * @param {string} message
+ * @param {{ iot, parking }} state
+ * @param {{ unit?: string, model?: string, attachment?: {name:string} }} [meta]
+ */
+export function answer(message, { iot, parking }, meta = {}) {
   const q = normalize(message);
+  if (meta.attachment || (meta.unit && meta.unit !== 'pusdatin' && !BUILDING_TOPIC.test(q))) return documentAnswer(message, meta);
   const idx = indexIot(iot);
   const floor = matchFloor(q, iot);
   const room = matchRoom(q, iot, floor);

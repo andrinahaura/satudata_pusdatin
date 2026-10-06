@@ -7,9 +7,9 @@ Tema visual mengikuti [`design.md`](design.md).
 
 | Menu | Halaman | Isi |
 |------|---------|-----|
-| Home | `index.html` | Ringkasan KPI, denah lantai, widget chatbot, listrik hari ini & per lantai, parkir, deteksi terbaru, peringatan |
-| IoT | `iot.html` | Potongan gedung per lantai, denah 3D/2D, detail ruang (sensor, listrik, riwayat aktivitas), kontrol perangkat, listrik (grafik, perbandingan lantai, distribusi, peringkat ruang) |
-| Chatbot | `chatbot.html` | Chat penuh dengan asisten gedung, contoh pertanyaan, data konteks live |
+| Home | `index.html` | Ringkasan KPI, denah lantai + peringatan, listrik hari ini + tabel per lantai, parkir per zona + deteksi terbaru |
+| IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang (sensor, listrik, riwayat aktivitas), kontrol perangkat, listrik (grafik, tabel per lantai, panel distribusi, pemakaian per ruang) |
+| Chatbot | `chatbot.html` | Chatbot TEJAS di dalam dashboard: riwayat percakapan, pintas unit organisasi PU, lampiran dokumen, pilihan model, dikte suara, data gedung |
 | Computer Vision | `vision.html` | Peta parkir 3D/2D, kamera + bounding box, okupansi per jam, riwayat ALPR |
 
 ## Menjalankan
@@ -26,8 +26,6 @@ Tanpa backend, dashboard berjalan dengan **data simulasi** (`VITE_USE_MOCK=true`
 dan parkir berubah tiap 5 detik, dan aksi seperti "matikan lampu" benar-benar mengubah state mock
 (tersimpan di `sessionStorage` per tab).
 
-Shortcut: `⌘K` / `Ctrl+K` membuka kotak tanya chatbot dari halaman mana pun.
-
 Kontrol tampilan 3D: seret untuk memutar, klik kanan + seret untuk menggeser, `⌘/Ctrl` + scroll
 (atau pinch trackpad) untuk zoom. Tombol di pojok kanan: perbesar, perkecil, tampak atas, reset.
 Pilihan 3D/2D disimpan per browser.
@@ -42,7 +40,7 @@ src/
   js/
     config.js              # baca variabel .env
     pages/                 # entry script per halaman
-    components/            # layout, denah 2D, peta parkir 2D, bar/line chart, distribusi listrik, chat, kamera, ui kecil
+    components/            # layout, denah 2D, peta parkir 2D, grafik tren (trend-chart.js), chat, kamera, ui kecil
       three/               # scene 3D bersama, denah lantai 3D, peta parkir 3D (Three.js)
     services/
       api.js               # SATU-SATUNYA pintu data (mock atau HTTP/WebSocket)
@@ -166,7 +164,22 @@ Request `{ "ids": ["L1-R01-LMP1"], "on": false }`, response `{ "updated": 1 }`.
 
 ### `POST /chat`
 
-Request `{ "message": "lampu yang belum mati?", "history": [{ "role": "user", "text": "..." }] }`.
+Request:
+
+```jsonc
+{
+  "message": "lampu yang belum mati?",
+  "history": [{ "role": "user", "text": "..." }],
+  "unit": "pusdatin",          // pintas unit: pusdatin | sekjen | sda | bina-marga | cipta-karya | prasarana-strategis | pembiayaan | bpsdm
+  "model": "GPT-4o Mini",      // pilihan model di kotak tanya
+  "attachment": { "name": "SOP.pdf", "size": 120400, "type": "application/pdf" }   // opsional
+}
+```
+
+`unit` selain `pusdatin` dan `attachment` diarahkan ke basis dokumen TEJAS. Saat ini dashboard hanya
+mengirim metadata lampiran; unggah isi file perlu endpoint terpisah (mis. `POST /chat/files`).
+Riwayat percakapan disimpan di browser (`src/js/services/chat-store.js`, localStorage) dan bisa
+dipindah ke backend dengan fungsi yang sama.
 
 Response:
 

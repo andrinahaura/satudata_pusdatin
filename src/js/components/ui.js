@@ -8,44 +8,8 @@ export function statTile({ label, value, unit = '', sub = '' }) {
     <div class="flex flex-col gap-1 bg-paper p-5">
       <span class="label-caps truncate">${esc(label)}</span>
       <div class="stat-value">${esc(value)}<span class="ml-0.5 text-body font-medium text-mid-gray">${esc(unit)}</span></div>
-      <p class="truncate text-caption tracking-normal text-mid-gray">${esc(sub)}</p>
+      ${sub ? `<p class="truncate text-caption tracking-normal text-mid-gray">${esc(sub)}</p>` : ''}
     </div>`;
-}
-
-/** Bar progres tipis untuk rasio 0..1. */
-export function meter(ratio, label = '') {
-  const pct = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
-  return `<div class="h-1.5 overflow-hidden rounded-full bg-canvas" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="${esc(label)}">
-    <div class="h-full rounded-full bg-ink transition-[width] duration-500" style="width:${pct}%"></div>
-  </div>`;
-}
-
-const SEVERITY = {
-  critical: { badge: 'badge-alert', label: 'Kritis' },
-  warning: { badge: 'badge-outline', label: 'Perhatian' },
-  info: { badge: 'badge-soft', label: 'Info' },
-};
-
-export function alertListHtml(alerts, limit = 6) {
-  if (!alerts.length) {
-    return '<p class="rounded-nested bg-canvas px-3 py-3 text-mid-gray">Tidak ada peringatan aktif.</p>';
-  }
-  const rows = alerts
-    .slice(0, limit)
-    .map((a) => {
-      const sev = SEVERITY[a.severity];
-      return `<li>
-        <a href="${esc(a.href)}" class="block rounded-nested px-2 py-2.5 transition-colors hover:bg-canvas">
-          <span class="block min-w-0">
-            <span class="flex items-center justify-between gap-2"><span class="truncate font-medium">${esc(a.title)}</span><span class="badge ${sev.badge}">${sev.label}</span></span>
-            <span class="block truncate text-caption tracking-normal text-mid-gray">${esc(a.meta)}</span>
-          </span>
-        </a>
-      </li>`;
-    })
-    .join('');
-  const more = alerts.length > limit ? `<p class="px-2 pt-2 text-caption tracking-normal text-mid-gray">+${alerts.length - limit} peringatan lainnya</p>` : '';
-  return `<ul class="-mx-2">${rows}</ul>${more}`;
 }
 
 export function segmentedHtml(options, selected, attr) {

@@ -9,16 +9,21 @@ shadcn/ui is a monochromatic design-system workshop: pure white canvas, soft war
 
 ## Tokens — Colors
 
+> Brand palette (2026-10): colors come from the Kementerian Pekerjaan Umum logo — navy `#203368` and yellow `#FDB714`. Structure, type, radius and spacing below are unchanged. Neutrals are tinted toward the navy.
+
 | Name | Value | Token | Role |
 |------|-------|-------|------|
-| Canvas | `#f5f5f5` | `--color-canvas` | Page background, muted surface fills, secondary buttons |
-| Paper | `#ffffff` | `--color-paper` | Card surfaces, popover backgrounds, primary button fills |
-| Surface Alt | `#fafafa` | `--color-surface-alt` | Sidebar background, subtle card variant, input resting state |
-| Ink | `#0a0a0a` | `--color-ink` | Primary text, headings, button labels, icon strokes |
-| Ink Soft | `#171717` | `--color-ink-soft` | Filled button backgrounds, secondary text on light surfaces |
-| Mid Gray | `#737373` | `--color-mid-gray` | Muted body text, placeholder text, helper labels, icon fills at rest |
-| Hairline | `#e5e5e5` | `--color-hairline` | Borders, input outlines, card edges, badge outlines |
-| Ember | `#e7000b` | `--color-ember` | Red decorative accent for icons, marks, and small graphic details. Use as a supporting accent, not as a status color |
+| Canvas | `#f3f5f9` | `--color-canvas` | Page background, muted surface fills, secondary buttons |
+| Paper | `#ffffff` | `--color-paper` | Card surfaces, popover backgrounds |
+| Surface Alt | `#f8f9fc` | `--color-surface-alt` | Navbar background, subtle card variant, input resting state |
+| Ink (PU navy) | `#203368` | `--color-ink` | Primary text, headings, primary buttons, active states, chart main series |
+| Ink Soft | `#172650` | `--color-ink-soft` | Hover on filled buttons, dark surfaces (camera placeholder) |
+| Mid Gray | `#5e6a85` | `--color-mid-gray` | Muted body text, placeholder text, helper labels |
+| Hairline | `#e1e5ee` | `--color-hairline` | Borders, input outlines, card edges, badge outlines |
+| Line | `#cbd2e0` | `--color-line` | Stronger outlines (plan walls, empty slots) |
+| Accent (PU yellow) | `#fdb714` | `--color-accent` | Primary buttons, active menu, switches, "on" state of devices, highlighted bar, target line. Text on it is navy; never use it as text on white |
+| Accent Soft | `#fff3d1` | `--color-accent-soft` | Tinted background behind accent marks |
+| Ember | `#e7000b` | `--color-ember` | Errors and offline states only |
 
 ## Tokens — Typography
 
@@ -82,7 +87,7 @@ shadcn/ui is a monochromatic design-system workshop: pure white canvas, soft war
 
 ### Layout
 
-- **Page max-width:** 1280px
+- **Page max-width:** 1680px (side padding 16–24px; dashboard uses the width)
 - **Section gap:** 48-80px
 - **Card padding:** 20px
 - **Element gap:** 8px
@@ -165,12 +170,13 @@ Text or icon in #e7000b against the monochromatic palette. The red is the only c
 - Use #0a0a0a on #ffffff for filled buttons — the dark inversion is the only primary action treatment.
 - Maintain 18px radius on all buttons, inputs, and badges for perfect pill geometry; use 24px radius only on cards.
 - Set display headlines at 48px/600 with -0.0500em tracking — Geist's geometric weight at this size with aggressive tightening produces the engineered headline voice.
-- Reserve #e7000b exclusively for destructive states; never use it for decoration, branding, or non-error emphasis.
+- Reserve #e7000b exclusively for error/offline states; never use it for decoration, branding, or non-error emphasis.
+- Balance PU navy #203368 and PU yellow #FDB714 like the logo: navy navbar, text, charts and selected tabs; yellow for primary buttons (navy text), the active menu item, switches and "on/active" states.
 - Stack card shadows as 1px hairline + 1px + 2px offset — the combined effect is a barely-perceptible elevation that reads as 'card' without drama.
 - Use #f5f5f5 for secondary surfaces and inputs; use #fafafa for sidebar and subtle card variants — the three-tone surface stack (canvas → soft → paper) creates layering without borders.
 
 ### Don't
-- Do not introduce chromatic brand colors beyond #e7000b — the monochromatic palette is the system.
+- Do not introduce colors beyond PU navy, PU yellow and the navy-tinted neutrals (plus #e7000b for errors).
 - Do not use border-radius values other than 18px (interactive) or 24px (containers); avoid square corners on any element.
 - Do not skip the 1px hairline border on cards — the shadow alone does not define the card edge in this system.
 - Do not set body text below 14px or above #737373 lightness — the type scale is deliberately compact.
@@ -200,13 +206,13 @@ Minimal imagery — the system is almost entirely UI. No hero photography, no il
 ## Agent Prompt Guide
 
 **Quick Color Reference**
-- Canvas/background: #f5f5f5
+- Canvas/background: #f3f5f9
 - Card/surface: #ffffff
-- Primary text: #0a0a0a
-- Muted text: #737373
-- Border: #e5e5e5
-- primary action: #171717 (filled action)
-- Destructive: #e7000b
+- Primary text & primary action: #203368 (PU navy)
+- Accent: #fdb714 (PU yellow)
+- Muted text: #5e6a85
+- Border: #e1e5ee
+- Destructive / error: #e7000b
 
 **Example Component Prompts**
 1. Create a dashboard stat card: white (#ffffff) background, 24px radius, 1px solid #e5e5e5 border, shadow 0 0 0 1px rgba(23,23,23,0.05) + 0 1px 3px rgba(0,0,0,0.1) + 0 1px 2px -1px rgba(0,0,0,0.1), 20px padding. Label in 12px uppercase #737373, value in 36px Geist weight 600 #0a0a0a with -0.025em tracking.
@@ -289,7 +295,7 @@ shadcn/ui is built on three principles visible in every token: (1) achromatic by
   --spacing-48: 48px;
 
   /* Layout */
-  --page-max-width: 1280px;
+  --page-max-width: 1680px;
   --section-gap: 48-80px;
   --card-padding: 20px;
   --element-gap: 8px;

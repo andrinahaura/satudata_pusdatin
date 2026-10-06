@@ -13,12 +13,11 @@
   </head>
   <body>
     <div class="flex min-h-dvh flex-col">
-      <header id="navbar" class="sticky top-0 z-30 border-b border-hairline bg-surface-alt"></header>
-      <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
+      <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
         <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 class="text-heading font-semibold">Monitoring gedung</h1>
-            <p class="mt-1 text-mid-gray">Lampu, AC, sensor suhu, sensor kehadiran, dan listrik per lantai. Klik ruangan pada denah untuk detail.</p>
           </div>
           <div class="flex items-center gap-2 self-start sm:self-auto">
             <a href="#listrik" class="btn btn-secondary btn-sm">Listrik</a>
@@ -28,31 +27,24 @@
 
         <section class="stat-strip mt-6 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan gedung"></section>
 
-        <section class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[232px_minmax(0,1fr)]">
-          <div class="flex flex-col border-b border-hairline p-4 lg:border-r lg:border-b-0">
-            <h2 class="card-title mb-3 px-1">Lantai</h2>
-
-            <div class="flex-1" data-floor-stack></div>
-          </div>
-          <div class="min-w-0">
-            <div class="card-header">
-              <div>
-                <h2 class="card-title" data-floor-title>&nbsp;</h2>
-                <p class="card-desc" data-floor-desc>&nbsp;</p>
-              </div>
-              <div class="flex max-w-full flex-wrap items-center gap-2">
-                <div class="scroll-thin max-w-full overflow-x-auto">
-                  <div class="segmented" role="tablist" aria-label="Filter perangkat" data-type-filter></div>
-                </div>
-                <div data-view-toggle></div>
-              </div>
+        <section class="card mt-4 min-w-0">
+          <div class="card-header">
+            <div class="flex flex-wrap items-center gap-3">
+              <h2 class="card-title">Denah</h2>
+              <div class="segmented" role="tablist" aria-label="Pilih lantai" data-floor-tabs></div>
             </div>
-            <div class="card-body">
-                <div data-plan-3d></div>
-                <div data-plan-2d></div>
+            <div class="flex max-w-full flex-wrap items-center gap-2">
+              <div class="scroll-thin max-w-full overflow-x-auto">
+                <div class="segmented" role="tablist" aria-label="Filter perangkat" data-type-filter></div>
               </div>
-            <div class="card-footer flex-wrap" data-floor-legend></div>
+              <div data-view-toggle></div>
+            </div>
           </div>
+          <div class="card-body">
+            <div data-plan-3d></div>
+            <div data-plan-2d></div>
+          </div>
+          <div class="card-footer flex-wrap" data-floor-legend></div>
         </section>
 
         <section class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
@@ -61,7 +53,6 @@
             <div class="card-header">
               <div>
                 <h2 class="card-title" data-table-title>Perangkat</h2>
-                <p class="card-desc" data-table-desc>&nbsp;</p>
               </div>
               <div class="relative w-full sm:w-64">
                 <i data-lucide="search" class="pointer-events-none absolute top-2.5 left-3 size-4 text-mid-gray"></i>
@@ -91,61 +82,63 @@
           <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 id="listrik-title" class="text-heading-sm font-semibold">Listrik</h2>
-              <p class="mt-1 text-mid-gray">Persentase dibanding periode lalu sampai jam yang sama.</p>
             </div>
             <div class="segmented self-start sm:self-auto" role="tablist" aria-label="Pilih periode" data-period-tabs></div>
           </div>
 
           <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-energy-kpis aria-label="Ringkasan listrik"></div>
 
-          <article class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div class="min-w-0 border-b border-hairline lg:border-r lg:border-b-0">
+          <article class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_480px]">
+            <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
               <div class="card-header">
                 <div>
                   <h3 class="card-title">Grafik pemakaian</h3>
-                  <p class="card-desc" data-energy-chart-desc>&nbsp;</p>
                 </div>
                 <div class="segmented" role="tablist" aria-label="Pilih lingkup" data-energy-scope></div>
               </div>
               <div class="card-body" data-energy-chart></div>
               <div class="card-footer" data-energy-legend></div>
             </div>
-            <div class="flex min-w-0 flex-col">
+            <div class="min-w-0">
               <div class="card-header">
                 <div>
-                  <h3 class="card-title">Perbandingan lantai</h3>
-                  <p class="card-desc" data-segment-desc>&nbsp;</p>
+                  <h3 class="card-title">Per lantai</h3>
                 </div>
               </div>
-              <div class="card-body flex flex-1 flex-col justify-around gap-5" data-energy-floors></div>
+              <table class="data-table mt-3">
+                <thead><tr><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">Porsi</th><th class="num" data-prev-head>vs lalu</th></tr></thead>
+                <tbody data-energy-floors></tbody>
+                <tfoot data-energy-floors-total></tfoot>
+              </table>
             </div>
           </article>
 
-          <article class="card mt-4 min-w-0">
-            <div class="card-header">
-              <h3 class="card-title">Distribusi listrik</h3>
-            </div>
-            <div class="card-body" data-power-flow></div>
-          </article>
-
-          <article class="card mt-4 grid min-w-0 grid-cols-1 overflow-hidden md:grid-cols-2">
-            <div class="min-w-0 border-b border-hairline md:border-r md:border-b-0">
+          <!-- Meter panel distribusi (trafo induk -> output) dan pemakaian per ruang dalam satu kartu. -->
+          <article class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+            <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
               <div class="card-header">
                 <div>
-                  <h3 class="card-title">Pemakaian tertinggi</h3>
-                  <p class="card-desc" data-rank-desc>&nbsp;</p>
+                  <h3 class="card-title">Panel distribusi</h3>
                 </div>
               </div>
-              <ol class="mt-3 divide-y divide-hairline border-t border-hairline" data-rank-top></ol>
+              <div class="scroll-thin mt-3 overflow-x-auto">
+                <table class="data-table min-w-[640px]">
+                  <thead><tr><th>Meter</th><th class="num">Beban</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">Tegangan</th><th class="num">Arus</th><th class="num">cos φ</th></tr></thead>
+                  <tbody data-power-panels></tbody>
+                </table>
+              </div>
             </div>
             <div class="min-w-0">
               <div class="card-header">
                 <div>
-                  <h3 class="card-title">Pemakaian terendah</h3>
-                  <p class="card-desc" data-rank-desc-low>&nbsp;</p>
+                  <h3 class="card-title">Pemakaian per ruang</h3>
                 </div>
+                <div class="segmented" role="tablist" aria-label="Urutan" data-rank-order></div>
               </div>
-              <ol class="mt-3 divide-y divide-hairline border-t border-hairline" data-rank-low></ol>
+              <table class="data-table mt-3">
+                <thead><tr><th>Ruang</th><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th></tr></thead>
+                <tbody data-rank></tbody>
+              </table>
             </div>
           </article>
         </section>

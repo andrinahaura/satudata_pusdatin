@@ -18,7 +18,7 @@ const DEVICE_Y = { light: 22, ac: 24, sensor: 8, presence: 10 };
 function stateMaterial(d, dimmed) {
   const opacity = dimmed ? 0.12 : 1;
   if (!d.online) return mat(PALETTE.ember, { opacity, roughness: 0.5 });
-  return d.on ? mat(PALETTE.inkSoft, { opacity, roughness: 0.4 }) : mat(PALETTE.line, { opacity });
+  return d.on ? mat(PALETTE.accent, { opacity, roughness: 0.4 }) : mat(PALETTE.line, { opacity });
 }
 
 export function createFloorPlan3D(container, { onRoomSelect } = {}) {
@@ -36,7 +36,7 @@ export function createFloorPlan3D(container, { onRoomSelect } = {}) {
   const tileMats = {
     room: mat(PALETTE.paper),
     corridor: mat(PALETTE.canvas),
-    hover: mat(0xf0f0f0),
+    hover: mat(PALETTE.canvas),
     selected: mat(PALETTE.hairline),
     service: new THREE.MeshStandardMaterial({ map: hatch, roughness: 0.9 }),
   };
@@ -162,7 +162,7 @@ export function createFloorPlan3D(container, { onRoomSelect } = {}) {
       mesh.userData.deviceId = d.id;
       devicesGroup.add(mesh);
       if (d.type === 'light' && d.on && d.online && !dimmed) {
-        const glow = new THREE.Mesh(geo.glow, mat(PALETTE.ink, { opacity: 0.06 }));
+        const glow = new THREE.Mesh(geo.glow, mat(PALETTE.accent, { opacity: 0.2 }));
         glow.rotation.x = -Math.PI / 2;
         glow.position.set(X(d.x), 1.2, Z(d.y));
         devicesGroup.add(glow);

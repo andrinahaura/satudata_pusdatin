@@ -62,9 +62,9 @@ export async function setDevices(ids, on) {
   return { updated };
 }
 
-export async function ask(message) {
+export async function ask(message, meta) {
   await latency(500 + Math.random() * 400);
-  return answer(message, state);
+  return answer(message, state, meta);
 }
 
 export function subscribe(handler, interval) {

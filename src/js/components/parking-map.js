@@ -1,10 +1,9 @@
 // Peta slot parkir per zona (SVG). Slot terisi = blok gelap, kosong = garis tipis,
 // slot khusus = arsir. Identitas tidak hanya dari warna: ada nomor & pola.
 import { VEHICLE_TYPES } from '../data/device-types.js';
+import { COLORS as C } from '../theme.js';
 import { createTooltip, esc } from '../utils/dom.js';
 import { fmtTime } from '../utils/format.js';
-
-const C = { ink: '#171717', paper: '#ffffff', line: '#d4d4d4', muted: '#737373', canvas: '#f5f5f5', alt: '#fafafa' };
 
 function slotGeometry(zone) {
   const car = zone.kind === 'car';

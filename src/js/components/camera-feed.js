@@ -1,13 +1,14 @@
 // Kartu kamera CCTV dengan overlay bounding box hasil deteksi.
 // Jika backend mengirim camera.streamUrl (MJPEG/HLS snapshot), gambar asli ditampilkan
 // di bawah overlay; jika tidak, dipakai latar placeholder.
+import { COLORS } from '../theme.js';
 import { esc } from '../utils/dom.js';
 
 function sceneSvg() {
   // Garis marka parkir sebagai ilustrasi frame.
   return `<svg viewBox="0 0 100 56" preserveAspectRatio="none" class="absolute inset-0 size-full" aria-hidden="true">
-    <path d="M0 48 L100 40 M0 18 L100 14" stroke="#262626" stroke-width="0.4" fill="none"/>
-    ${Array.from({ length: 7 }, (_, i) => `<path d="M${i * 16 + 2} 48 L${i * 16 + 8} 18" stroke="#262626" stroke-width="0.4"/>`).join('')}
+    <path d="M0 48 L100 40 M0 18 L100 14" stroke="${COLORS.ink2}" stroke-width="0.4" fill="none"/>
+    ${Array.from({ length: 7 }, (_, i) => `<path d="M${i * 16 + 2} 48 L${i * 16 + 8} 18" stroke="${COLORS.ink2}" stroke-width="0.4"/>`).join('')}
   </svg>`;
 }
 
@@ -31,7 +32,7 @@ export function cameraCardHtml(cam) {
         ${media}
         ${boxesHtml(cam.detections)}
         <div class="absolute top-3 left-3 flex items-center gap-1.5">
-          <span class="badge bg-surface-alt text-ink"><span class="dot ${cam.online ? 'bg-ink' : 'bg-mid-gray'}"></span>${cam.online ? 'Rekam' : 'Offline'}</span>
+          <span class="badge bg-surface-alt text-ink"><span class="dot ${cam.online ? 'bg-accent' : 'bg-mid-gray'}"></span>${cam.online ? 'Rekam' : 'Offline'}</span>
         </div>
         <span class="absolute top-3 right-3 font-mono tabular-nums text-[11px] text-surface-alt/70">${esc(cam.id)}</span>
       </div>

@@ -1,20 +1,9 @@
 // Denah lantai interaktif (SVG). Koordinat ruangan & perangkat mengikuti viewBox 1000 x 560
 // yang dikirim backend/mock (room.x/y/w/h, device.x/y).
 import { DEVICE_TYPES } from '../data/device-types.js';
+import { COLORS as C } from '../theme.js';
 import { createTooltip, esc } from '../utils/dom.js';
 import { fmt1 } from '../utils/format.js';
-
-const C = {
-  ink: '#0a0a0a',
-  paper: '#ffffff',
-  canvas: '#f5f5f5',
-  alt: '#fafafa',
-  line: '#d4d4d4',
-  hairline: '#e5e5e5',
-  off: '#a3a3a3',
-  muted: '#737373',
-  ember: '#e7000b',
-};
 
 function deviceState(d) {
   if (!d.online) return 'offline';
@@ -23,7 +12,8 @@ function deviceState(d) {
 
 function markerStyle(state) {
   if (state === 'offline') return `fill="${C.ember}" stroke="${C.paper}" stroke-width="2"`;
-  if (state === 'on') return `fill="${C.ink}" stroke="${C.paper}" stroke-width="2"`;
+  // Menyala = kuning aksen dengan garis navy supaya tetap terlihat di atas putih.
+  if (state === 'on') return `fill="${C.accent}" stroke="${C.ink}" stroke-width="1.5"`;
   return `fill="${C.paper}" stroke="${C.off}" stroke-width="1.5"`;
 }
 
@@ -99,7 +89,7 @@ export function roomMeta(room) {
 
 function deviceMarker(d, dimmed) {
   const state = deviceState(d);
-  const glow = d.type === 'light' && state === 'on' ? `<circle cx="${d.x}" cy="${d.y}" r="16" fill="${C.ink}" opacity="0.05"/>` : '';
+  const glow = d.type === 'light' && state === 'on' ? `<circle cx="${d.x}" cy="${d.y}" r="16" fill="${C.accent}" opacity="0.22"/>` : '';
   return `<g class="fp-device" data-device-id="${d.id}" opacity="${dimmed ? 0.12 : 1}">
     ${glow}${markerShape(d.type, d.x, d.y, markerStyle(state))}
     <circle cx="${d.x}" cy="${d.y}" r="13" fill="transparent"/>

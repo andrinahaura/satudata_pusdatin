@@ -1,73 +1,88 @@
-import { mountLayout } from '../components/layout.js';
 import { createChat } from '../components/chat.js';
 import { renderIcons } from '../components/icons.js';
-import { api, DEVICES_CHANGED } from '../services/api.js';
-import { summarizeIot, summarizeParking } from '../services/selectors.js';
+import { mountLayout } from '../components/layout.js';
+import {
+  activeConversation, CHATS_CHANGED, deleteConversation, listConversations, setActiveConversation, startNewConversation,
+} from '../services/chat-store.js';
 import { $, esc, getParam, setParams } from '../utils/dom.js';
-import { fmt1, fmtTime } from '../utils/format.js';
 
 mountLayout({ page: 'chatbot' });
 
-const EXAMPLES = [
-  { title: 'Perangkat IoT', items: ['Lampu yang belum mati?', 'AC lantai 2 yang menyala?', 'Perangkat mana yang offline?'] },
-  { title: 'Kenyamanan & energi', items: ['Ruangan terpanas?', 'Pemakaian listrik hari ini?', 'Konsumsi listrik per lantai'] },
-  { title: 'Parkir', items: ['Berapa slot parkir yang kosong?', 'Slot parkir motor yang kosong?', 'Kendaraan masuk hari ini?'] },
-  { title: 'Aksi', items: ['Ruang kosong tapi lampu masih menyala?', 'Matikan lampu lantai 2', 'Matikan AC di ruang kosong'] },
-];
+const chat = createChat(document.getElementById('main-chat'), { variant: 'full', autoFocus: true });
 
-const chat = createChat(document.getElementById('main-chat'), { autoFocus: true, placeholder: 'Tanya tentang gedung… contoh: lampu yang belum mati?' });
+const panel = $('[data-history-panel]');
+const openButton = $('[data-history-open]');
 
-$('[data-reset]').addEventListener('click', () => chat.reset());
+const dayFmt = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+const monthFmt = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' });
 
-$('[data-examples]').innerHTML = EXAMPLES.map((g) => `
-  <div>
-    <h3 class="label-caps mb-2">${esc(g.title)}</h3>
-    <div class="flex flex-wrap gap-2">${g.items.map((q) => `<button type="button" class="btn btn-outline btn-sm" data-example>${esc(q)}</button>`).join('')}</div>
-  </div>`).join('');
-$('[data-examples]').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-example]');
-  if (b) chat.ask(b.textContent);
-});
-
-const state = { iot: null, parking: null };
-
-function renderContext() {
-  if (!state.iot || !state.parking) return;
-  const s = summarizeIot(state.iot);
-  const p = summarizeParking(state.parking);
-  const rows = [
-    ['Lampu menyala', `${s.byType.light.on}/${s.byType.light.total}`],
-    ['AC menyala', `${s.byType.ac.on}/${s.byType.ac.total}`],
-    ['Perangkat offline', s.offline],
-    ['Suhu rata-rata', `${fmt1(s.avgTemp)}°C`],
-    ['Parkir kosong', `${p.free}/${p.total}`],
-    ['Diperbarui', fmtTime(state.iot.updatedAt)],
-  ];
-  $('[data-context]').innerHTML = rows
-    .map(([k, v]) => `<div><dt class="text-caption tracking-normal text-mid-gray">${k}</dt><dd class="font-semibold tabular-nums">${esc(v)}</dd></div>`)
+// Riwayat dikelompokkan per bulan; bulan berjalan tanpa judul kelompok.
+function renderHistory() {
+  const list = listConversations();
+  const active = activeConversation()?.id;
+  const thisMonth = monthFmt.format(new Date());
+  if (!list.length) {
+    $('[data-history]').innerHTML = '<p class="px-3 py-2 text-mid-gray">Belum ada percakapan.</p>';
+    return;
+  }
+  const groups = new Map();
+  for (const c of list) {
+    const key = monthFmt.format(new Date(c.updatedAt));
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(c);
+  }
+  $('[data-history]').innerHTML = [...groups.entries()]
+    .map(([month, items]) => `
+      <div class="mb-3">
+        ${month === thisMonth ? '' : `<p class="label-caps px-3 pt-2 pb-1">${esc(month)}</p>`}
+        <ul>
+          ${items
+            .map(
+              (c) => `<li class="group relative">
+                <button type="button" data-conv="${c.id}" aria-current="${c.id === active}"
+                  class="w-full cursor-pointer rounded-nested px-3 py-2.5 pr-9 text-left transition-colors hover:bg-canvas ${c.id === active ? 'bg-canvas' : ''}">
+                  <span class="block truncate font-medium">${esc(c.title)}</span>
+                  <span class="block text-caption tracking-normal text-mid-gray">${dayFmt.format(new Date(c.updatedAt))}</span>
+                </button>
+                <button type="button" data-delete="${c.id}" aria-label="Hapus percakapan ${esc(c.title)}"
+                  class="btn btn-ghost btn-icon absolute top-2.5 right-1 size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"><i data-lucide="x" class="size-3.5"></i></button>
+              </li>`,
+            )
+            .join('')}
+        </ul>
+      </div>`)
     .join('');
+  renderIcons($('[data-history]'));
 }
 
-async function load() {
-  [state.iot, state.parking] = await Promise.all([api.getIot(), api.getParking()]);
-  renderContext();
+function setPanel(open) {
+  panel.classList.toggle('hidden', !open);
+  panel.classList.toggle('flex', open);
+  openButton.setAttribute('aria-expanded', String(open));
 }
 
-api.subscribe((next) => {
-  Object.assign(state, next);
-  renderContext();
+$('[data-history]').addEventListener('click', (e) => {
+  const del = e.target.closest('[data-delete]');
+  if (del) return deleteConversation(del.dataset.delete);
+  const item = e.target.closest('[data-conv]');
+  if (!item) return;
+  setActiveConversation(item.dataset.conv);
+  if (window.matchMedia('(max-width: 1023px)').matches) setPanel(false);
 });
-window.addEventListener(DEVICES_CHANGED, async () => {
-  state.iot = await api.getIot();
-  renderContext();
+$('[data-new-chat]').addEventListener('click', () => {
+  startNewConversation();
+  if (window.matchMedia('(max-width: 1023px)').matches) setPanel(false);
 });
+openButton.addEventListener('click', () => setPanel(true));
+$('[data-history-close]').addEventListener('click', () => setPanel(false));
 
-// Pertanyaan dari command palette (⌘K) dikirim lewat ?q=
+window.addEventListener(CHATS_CHANGED, renderHistory);
+renderHistory();
+renderIcons($('main'));
+
+// Pertanyaan yang dikirim lewat ?q= (mis. dari halaman lain).
 const q = getParam('q');
 if (q) {
   setParams({ q: null });
   chat.ask(q);
 }
-
-load();
-renderIcons($('main'));

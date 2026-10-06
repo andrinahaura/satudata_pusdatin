@@ -24,8 +24,12 @@ export const api = {
   /** Ubah status on/off banyak perangkat sekaligus. @returns {Promise<{updated:number}>} */
   setDevices: (ids, on) => (config.useMock ? mock.setDevices(ids, on) : request('/iot/devices', { method: 'PATCH', body: { ids, on } })),
 
-  /** @returns {Promise<{text, items?, actions?, suggestions?, link?}>} */
-  ask: (message, history = []) => (config.useMock ? mock.ask(message) : request('/chat', { method: 'POST', body: { message, history } })),
+  /**
+   * meta: { unit, model, attachment: { name, size, type } } dari composer chatbot.
+   * @returns {Promise<{text, items?, actions?, suggestions?, link?}>}
+   */
+  ask: (message, history = [], meta = {}) =>
+    config.useMock ? mock.ask(message, meta) : request('/chat', { method: 'POST', body: { message, history, ...meta } }),
 
   /**
    * Update realtime. handler menerima { iot?, parking? }.

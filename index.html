@@ -13,91 +13,81 @@
   </head>
   <body>
     <div class="flex min-h-dvh flex-col">
-      <header id="navbar" class="sticky top-0 z-30 border-b border-hairline bg-surface-alt"></header>
-      <main class="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 class="text-heading font-semibold">Ringkasan gedung</h1>
-            <p class="mt-1 text-mid-gray" data-today>&nbsp;</p>
-          </div>
-          <div class="flex gap-2">
-            <a href="/iot.html" class="btn btn-secondary">Denah lengkap</a>
-            <a href="/chatbot.html" class="btn btn-primary">Buka chatbot</a>
-          </div>
+      <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
+      <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
+        <section class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h1 class="text-heading font-semibold">Ringkasan gedung</h1>
+          <p class="text-mid-gray tabular-nums"><span data-today></span> · <span data-updated>Memuat…</span></p>
         </section>
 
-        <section class="stat-strip mt-6 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan"></section>
+        <section class="stat-strip mt-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan"></section>
 
-        <section class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <article class="card min-w-0 xl:col-span-2">
+        <!-- Denah + peringatan: tinggi baris mengikuti denah, daftar peringatan di-scroll. -->
+        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
             <div class="card-header">
               <div>
                 <h2 class="card-title">Denah gedung</h2>
-                <p class="card-desc" data-floor-desc>&nbsp;</p>
               </div>
               <div class="segmented" role="tablist" aria-label="Pilih lantai" data-floor-tabs></div>
             </div>
             <div class="card-body" data-floor-plan></div>
             <div class="card-footer flex-wrap" data-floor-legend></div>
-          </article>
-
-          <article class="card flex h-[560px] min-w-0 flex-col xl:h-0 xl:min-h-full">
-            <div class="card-header pb-3">
-              <div>
-                <h2 class="card-title">Chatbot</h2>
-              </div>
-              <a href="/chatbot.html" class="btn btn-ghost btn-sm">Buka</a>
-            </div>
-            <div class="min-h-0 flex-1 border-t border-hairline" id="home-chat"></div>
-          </article>
+          </div>
+          <!-- xl: panel mengisi tinggi baris (mengikuti denah) tanpa ikut memperbesarnya. -->
+          <div class="min-w-0 xl:relative">
+            <div class="flex flex-col xl:absolute xl:inset-0" data-alert-panel aria-live="polite"></div>
+          </div>
         </section>
 
-        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_460px]">
           <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
             <div class="card-header">
               <div>
                 <h2 class="card-title">Listrik hari ini</h2>
-                <p class="card-desc" data-energy-desc>&nbsp;</p>
               </div>
               <a href="/iot.html#listrik" class="btn btn-ghost btn-sm">Detail</a>
             </div>
-            <div class="card-body">
-              <div class="flex flex-wrap items-end gap-x-6 gap-y-1" data-energy-total></div>
-              <div class="mt-4" data-energy-chart></div>
-            </div>
+            <div class="card-body" data-energy-chart></div>
             <div class="card-footer" data-energy-legend></div>
           </div>
-          <div class="flex min-w-0 flex-col">
+          <div class="min-w-0">
             <div class="card-header">
               <h2 class="card-title">Per lantai</h2>
-              <span class="text-caption tracking-normal text-mid-gray" data-flow-load></span>
+              <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-flow-load></span>
             </div>
-            <div class="card-body flex flex-1 flex-col justify-around gap-4" data-energy-floors></div>
+            <table class="data-table mt-3">
+              <thead><tr><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">vs kemarin</th></tr></thead>
+              <tbody data-energy-floors></tbody>
+              <tfoot data-energy-total></tfoot>
+            </table>
           </div>
         </section>
 
-        <section class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <article class="card flex flex-col">
+        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-2">
+          <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
             <div class="card-header">
-              <h2 class="card-title">Ketersediaan parkir</h2>
+              <h2 class="card-title">Parkir per zona</h2>
               <a href="/vision.html" class="btn btn-ghost btn-sm">Detail</a>
             </div>
-            <div class="card-body flex flex-1 flex-col" data-parking></div>
-          </article>
-          <article class="card">
+            <table class="data-table mt-3">
+              <thead><tr><th>Zona</th><th class="num">Terisi</th><th class="num">Kosong</th><th class="num">Okupansi</th></tr></thead>
+              <tbody data-parking></tbody>
+              <tfoot data-parking-total></tfoot>
+            </table>
+          </div>
+          <div class="min-w-0">
             <div class="card-header">
               <h2 class="card-title">Deteksi kendaraan terbaru</h2>
               <a href="/vision.html" class="btn btn-ghost btn-sm">Riwayat</a>
             </div>
-            <div class="card-body" data-events></div>
-          </article>
-          <article class="card">
-            <div class="card-header">
-              <h2 class="card-title">Peringatan</h2>
-              <span class="badge badge-soft" data-alert-count>0</span>
+            <div class="scroll-thin mt-3 overflow-x-auto">
+              <table class="data-table min-w-[420px]">
+                <thead><tr><th>Waktu</th><th>Plat</th><th>Jenis</th><th>Arah</th><th>Gerbang</th></tr></thead>
+                <tbody data-events></tbody>
+              </table>
             </div>
-            <div class="card-body" data-alerts></div>
-          </article>
+          </div>
         </section>
       </main>
     </div>
