@@ -4,7 +4,7 @@ import { renderIcons } from '../components/icons.js';
 import { lineLegendHtml } from '../components/line-chart.js';
 import { createTrendChart } from '../components/trend-chart.js';
 import { createAlertPanel } from '../components/alert-panel.js';
-import { errorState, segmentedHtml, statTile } from '../components/ui.js';
+import { errorState, floorTargetCell, segmentedHtml, statTile } from '../components/ui.js';
 import { VEHICLE_TYPES } from '../data/device-types.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import { energyByFloor, energySeries, getAlerts, summarizeIot, summarizeParking } from '../services/selectors.js';
@@ -74,7 +74,7 @@ function renderEnergy() {
   $('[data-flow-load]').textContent = `Beban ${fmt1(trafo.kw)} kW`;
   $('[data-energy-floors]').innerHTML = e.floors
     .map((f) => `<tr>
-        <td><a href="/iot.html?floor=${f.floor.id}#listrik" class="font-medium hover:underline">${esc(f.floor.name)}</a>${f.anomaly ? ' <span class="badge badge-alert">Di atas target</span>' : ''}</td>
+        <td>${floorTargetCell(f, { href: `/iot.html?floor=${f.floor.id}#listrik`, fmt: fmt1 })}</td>
         <td class="num">${fmt1(f.kwh)}</td>
         <td class="num">${rupiah(f.rupiah)}</td>
         <td class="num text-mid-gray">${pct(f.change)}</td>

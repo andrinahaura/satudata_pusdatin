@@ -40,54 +40,58 @@
           </div>
         </section>
 
-        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_460px]">
-          <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
+        <!-- Dua kartu terpisah dengan tinggi sama (grid stretch); tabel per lantai mengisi tinggi kartunya. -->
+        <section class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
+          <article class="card min-w-0">
             <div class="card-header">
-              <div>
-                <h2 class="card-title">Listrik hari ini</h2>
-              </div>
+              <h2 class="card-title">Listrik hari ini</h2>
               <a href="/iot.html#listrik" class="btn btn-ghost btn-sm">Detail</a>
             </div>
             <div class="card-body" data-energy-chart></div>
             <div class="card-footer" data-energy-legend></div>
-          </div>
-          <div class="min-w-0">
+          </article>
+          <article class="card flex min-w-0 flex-col overflow-hidden">
             <div class="card-header">
               <h2 class="card-title">Per lantai</h2>
               <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-flow-load></span>
             </div>
-            <table class="data-table mt-3">
-              <thead><tr><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">vs kemarin</th></tr></thead>
-              <tbody data-energy-floors></tbody>
-              <tfoot data-energy-total></tfoot>
-            </table>
-          </div>
+            <div class="mt-3 flex-1 pb-2">
+              <table class="data-table data-table-fill h-full">
+                <thead><tr><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">vs kemarin</th></tr></thead>
+                <tbody data-energy-floors></tbody>
+                <tfoot data-energy-total></tfoot>
+              </table>
+            </div>
+          </article>
         </section>
 
-        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-2">
-          <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
+        <!-- Dua kartu terpisah dengan tinggi sama; tabel parkir mengisi tinggi kartunya. -->
+        <section class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <article class="card flex min-w-0 flex-col overflow-hidden">
             <div class="card-header">
               <h2 class="card-title">Parkir per zona</h2>
               <a href="/vision.html" class="btn btn-ghost btn-sm">Detail</a>
             </div>
-            <table class="data-table mt-3">
-              <thead><tr><th>Zona</th><th class="num">Terisi</th><th class="num">Kosong</th><th class="num">Okupansi</th></tr></thead>
-              <tbody data-parking></tbody>
-              <tfoot data-parking-total></tfoot>
-            </table>
-          </div>
-          <div class="min-w-0">
+            <div class="mt-3 flex-1 pb-2">
+              <table class="data-table data-table-fill h-full">
+                <thead><tr><th>Zona</th><th class="num">Terisi</th><th class="num">Kosong</th><th class="num">Okupansi</th></tr></thead>
+                <tbody data-parking></tbody>
+                <tfoot data-parking-total></tfoot>
+              </table>
+            </div>
+          </article>
+          <article class="card flex min-w-0 flex-col overflow-hidden">
             <div class="card-header">
               <h2 class="card-title">Deteksi kendaraan terbaru</h2>
               <a href="/vision.html" class="btn btn-ghost btn-sm">Riwayat</a>
             </div>
-            <div class="scroll-thin mt-3 overflow-x-auto">
+            <div class="scroll-thin mt-3 flex-1 overflow-x-auto pb-2">
               <table class="data-table min-w-[420px]">
                 <thead><tr><th>Waktu</th><th>Plat</th><th>Jenis</th><th>Arah</th><th>Gerbang</th></tr></thead>
                 <tbody data-events></tbody>
               </table>
             </div>
-          </div>
+          </article>
         </section>
       </main>
     </div>
