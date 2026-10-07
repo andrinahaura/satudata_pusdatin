@@ -1,10 +1,8 @@
 // Ringkasan satu lokasi parkir (saat ini piloting Smart Parking, parkir susun):
 // cincin slot tersedia, status, dan angka terisi / kapasitas / okupansi.
 // Dipakai kartu "Slot tersedia" di Home dan AI Vision supaya tampilannya sama.
-import { VEHICLE_TYPES } from '../data/device-types.js';
 import { esc } from '../utils/dom.js';
-import { fmtPct } from '../utils/format.js';
-import { icon } from './icons.js';
+import { fmtPct, fmtTime } from '../utils/format.js';
 import { ringSvg } from './ui.js';
 
 /** "Smart Parking · parkir susun (piloting)" dari parking.site. */
@@ -44,31 +42,13 @@ export function siteSlotsHtml(p, { layout = 'row' } = {}) {
     </div>`;
 }
 
-// Warna tetap per jenis kendaraan (urutan sama dengan VEHICLE_TYPES).
-const TYPE_COLOR = { car: 'bg-ink', motorcycle: 'bg-accent', truck: 'bg-mid-gray' };
-const TYPE_ICON = { car: 'car', motorcycle: 'bike', truck: 'truck' };
-
-/**
- * Kendaraan yang sedang terparkir per jenis: satu batang komposisi lalu satu baris per jenis
- * (ikon, nama, jumlah, porsi). parked = { car, motorcycle, truck }.
- */
-export function parkedByTypeHtml(parked) {
-  const entries = Object.entries(VEHICLE_TYPES).map(([k, t]) => ({ key: k, label: t.label, count: parked[k] ?? 0 }));
-  const total = entries.reduce((s, e) => s + e.count, 0);
-  const visible = entries.filter((e) => e.count > 0);
-  const bar = visible
-    .map((e, i) => `<div class="${TYPE_COLOR[e.key]} ${i === 0 ? 'rounded-l-full' : ''} ${i === visible.length - 1 ? 'rounded-r-full' : ''}" style="width:${((e.count / total) * 100).toFixed(1)}%" title="${esc(e.label)}: ${e.count}"></div>`)
-    .join('');
-  return `
-    <div class="flex h-2.5 gap-0.5 rounded-full bg-canvas" role="img" aria-label="${esc(entries.map((e) => `${e.label} ${e.count}`).join(', '))}">${bar}</div>
-    <ul class="mt-3 space-y-1.5">
-      ${entries
-        .map((e) => `<li class="flex items-center gap-3 rounded-nested border border-hairline px-3 py-2">
-          <span class="grid size-7 shrink-0 place-items-center rounded-full bg-canvas text-ink">${icon(TYPE_ICON[e.key], 'size-4')}</span>
-          <span class="flex min-w-0 flex-1 items-center gap-2"><span class="dot ${TYPE_COLOR[e.key]}"></span><span class="truncate font-medium">${esc(e.label)}</span></span>
-          <span class="text-subheading font-semibold tabular-nums">${e.count}</span>
-          <span class="w-11 text-right text-mid-gray tabular-nums">${total ? fmtPct(e.count / total) : '0%'}</span>
-        </li>`)
-        .join('')}
-    </ul>`;
+/** Isi tooltip satu slot di ilustrasi parkir susun (3D dan 2D). Slot ke-i ada di tingkat floor(i / cols) + 1. */
+export function slotTooltip(zone, slotId) {
+  const i = zone.slots.findIndex((x) => x.id === slotId);
+  const s = zone.slots[i];
+  const level = Math.floor(i / zone.cols) + 1;
+  const body = s.occupied
+    ? `Mobil · <span class="font-mono">${esc(s.plate)}</span><br><span class="opacity-70">Parkir sejak ${fmtTime(s.since)}</span>`
+    : '<span class="opacity-70">Kosong</span>';
+  return `<div class="font-medium">Slot ${esc(s.id.split('-')[1])} · Tingkat ${level}</div>${body}`;
 }

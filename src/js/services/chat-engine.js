@@ -8,7 +8,7 @@
 //   { kind: 'line', title, labels: string[], series: [{ label, values, style: 'current'|'previous'|'target' }], unit }
 //   { kind: 'bar', title, bars: [{ label, value }], unit }
 import { MODELS } from '../data/chat-models.js';
-import { DEVICE_TYPES, VEHICLE_TYPES } from '../data/device-types.js';
+import { DEVICE_TYPES } from '../data/device-types.js';
 import { DOCUMENTS, SITABA_EVENTS } from '../data/documents.js';
 import { energyByFloor, energySeries, findWasteRooms, getAlerts, indexIot, isWorkspace, summarizeIot, summarizeParking, devicePowerW } from './selectors.js';
 
@@ -52,7 +52,7 @@ const TYPE_PATTERNS = [
   ['presence', /(sensor kehadiran|sensor gerak|\bhps\b)/],
   ['sensor', /\b(sensor|remote ir)\b/],
 ];
-const PARKING = /(parkir|parkiran|slot|kendaraan|mobil|motor\b)/;
+const PARKING = /(parkir|parkiran|slot|kendaraan|mobil|smart parking)/;
 
 const fmt1 = (n) => n.toLocaleString('id-ID', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const MAX_ITEMS = 8;
@@ -140,20 +140,20 @@ function controlIntent(q, ctx) {
   };
 }
 
+// Satu lokasi parkir (Smart Parking, parkir susun) khusus mobil.
 function parkingIntent(q, { parking }) {
   const s = summarizeParking(parking);
-  const kind = /motor\b/.test(q) ? 'motorcycle' : /mobil/.test(q) ? 'car' : null;
-  const scope = kind ? s[kind] : s;
-  const zones = kind ? s.zones.filter((z) => z.kind === kind) : s.zones;
-  const kindLabel = kind ? VEHICLE_TYPES[kind].label.toLowerCase() : 'kendaraan';
-  const asksCount = /(berapa|jumlah|ada).*(terparkir|terisi|mobil|motor|kendaraan)/.test(q) && !/kosong|tersedia|sisa/.test(q);
+  const site = parking.site?.name ?? 'area parkir';
+  const asksCount = /(berapa|jumlah|ada).*(terparkir|terisi|mobil|kendaraan)/.test(q) && !/kosong|tersedia|sisa/.test(q);
+  const inside = parking.visits.filter((v) => !v.outAt).sort((a, b) => a.inAt.localeCompare(b.inAt));
 
   const text = asksCount
-    ? `Saat ini ada ${scope.occupied} ${kindLabel} terparkir, dari kapasitas ${scope.total} slot. Sisa ${scope.free} slot kosong.`
-    : `Tersedia ${scope.free} slot parkir ${kind ? kindLabel : ''} kosong dari ${scope.total} slot (okupansi ${Math.round((scope.occupied / scope.total) * 100)}%).`.replace('  ', ' ');
+    ? `Saat ini ada ${s.occupied} mobil terparkir di ${site}, dari kapasitas ${s.total} slot. Sisa ${s.free} slot kosong.`
+    : `Tersedia ${s.free} slot kosong di ${site} dari ${s.total} slot (okupansi ${Math.round(s.rate * 100)}%).`;
   return {
     text,
-    items: zones.map((z) => ({ title: `${z.name} · ${z.location}`, meta: `${z.free} kosong · ${z.occupied} terisi` })),
+    // Kendaraan yang paling lama parkir lebih dulu.
+    items: inside.slice(0, 5).map((v) => ({ title: v.plate, meta: `masuk ${new Date(v.inAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` })),
     chart: {
       kind: 'line',
       title: 'Okupansi parkir per jam hari ini',
@@ -161,8 +161,8 @@ function parkingIntent(q, { parking }) {
       series: [{ label: 'Okupansi', style: 'current', values: parking.history.map((h) => Math.round(h.occupancy * 100)) }],
       unit: '%',
     },
-    link: { label: 'Lihat peta parkir', href: '/vision.html' },
-    suggestions: ['Kendaraan masuk hari ini?', 'Slot parkir motor yang kosong?'],
+    link: { label: 'Buka AI Vision', href: '/vision.html' },
+    suggestions: ['Kendaraan masuk hari ini?', 'Berapa mobil yang terparkir?'],
   };
 }
 
@@ -170,9 +170,9 @@ function trafficIntent(q, { parking }) {
   const { in: incoming, out } = parking.today;
   const total = (o) => Object.values(o).reduce((a, b) => a + b, 0);
   return {
-    text: `Hari ini tercatat ${total(incoming)} kendaraan masuk dan ${total(out)} keluar berdasarkan deteksi kamera gerbang.`,
-    items: Object.entries(VEHICLE_TYPES).map(([k, v]) => ({ title: v.label, meta: `${incoming[k]} masuk · ${out[k]} keluar` })),
-    link: { label: 'Lihat riwayat deteksi', href: '/vision.html' },
+    text: `Hari ini tercatat ${total(incoming)} kendaraan masuk dan ${total(out)} keluar di ${parking.site?.name ?? 'area parkir'}, berdasarkan pembacaan nomor polisi di gerbang.`,
+    items: parking.events.slice(0, 5).map((ev) => ({ title: ev.plate, meta: `${ev.direction === 'in' ? 'masuk' : 'keluar'} ${new Date(ev.time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` })),
+    link: { label: 'Lihat riwayat kendaraan', href: '/vision.html' },
   };
 }
 

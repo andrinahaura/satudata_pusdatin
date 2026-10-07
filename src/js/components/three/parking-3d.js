@@ -1,134 +1,111 @@
-// Peta parkir 3D per zona: marka slot, jalur, kendaraan hasil deteksi, dan tiang CCTV.
+// Ilustrasi 3D Smart Parking (parkir susun): rangka bertingkat, satu palet per slot,
+// mobil di slot yang terisi, dan label tingkat. Tingkat = zone.rows, slot per tingkat = zone.cols.
+// Slot ke-i ada di tingkat floor(i / cols), kolom i % cols (sama dengan ilustrasi 2D).
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { VEHICLE_TYPES } from '../../data/device-types.js';
 import { esc } from '../../utils/dom.js';
-import { fmtTime } from '../../utils/format.js';
-import { createScene3D, disposeGroup, hatchTexture, mat, PALETTE } from './scene.js';
+import { slotTooltip } from '../parking-site.js';
+import { createScene3D, disposeGroup, mat, PALETTE } from './scene.js';
 
-function slotGeometry(zone) {
-  const car = zone.kind === 'car';
-  return { w: car ? 44 : 26, h: car ? 76 : 46, gap: 4, lane: car ? 56 : 36 };
+const BAY_W = 48; // lebar satu slot
+const BAY_D = 78; // kedalaman satu slot
+const LEVEL_H = 44; // tinggi antar tingkat
+const POST = 3; // tebal tiang rangka
+const LANE = 60; // jalur masuk di depan rak
+
+/** Tata letak rak: posisi tiap slot (x, tingkat) dan ukuran keseluruhan. */
+export function rackLayout(zone) {
+  const width = zone.cols * BAY_W;
+  const height = zone.rows * LEVEL_H;
+  const slots = zone.slots.map((s, i) => ({ slot: s, level: Math.floor(i / zone.cols), col: i % zone.cols }));
+  return { width, height, depth: BAY_D, slots, levels: zone.rows };
 }
 
-// Posisi slot: baris berpasangan dengan jalur kendaraan di antaranya (sama dengan peta 2D).
-export function zoneLayout(zone) {
-  const g = slotGeometry(zone);
-  const width = zone.cols * (g.w + g.gap) - g.gap + 32;
-  const rowY = [];
-  const lanes = [];
-  let y = 8;
-  for (let r = 0; r < zone.rows; r++) {
-    if (r % 2 === 0) {
-      lanes.push(y + g.lane / 2);
-      y += g.lane;
-    } else {
-      y += g.gap;
-    }
-    rowY.push(y);
-    y += g.h;
-  }
-  if (zone.rows % 2 === 0) {
-    lanes.push(y + g.lane / 2);
-    y += g.lane;
-  }
-  const height = y + 8;
-  const slots = zone.slots.map((s, i) => ({
-    slot: s,
-    x: 16 + (i % zone.cols) * (g.w + g.gap),
-    y: rowY[Math.floor(i / zone.cols)],
-  }));
-  return { g, width, height, lanes, slots };
+function car(THREE) {
+  const v = new THREE.Group();
+  const part = (w, h, d, color, y, z = 0) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, { roughness: 0.5 }));
+    m.position.set(0, y, z);
+    m.castShadow = true;
+    v.add(m);
+  };
+  part(BAY_W - 14, 9, BAY_D - 20, PALETTE.inkSoft, 6.5);
+  part(BAY_W - 18, 7, (BAY_D - 20) * 0.5, PALETTE.cabin, 14.5, 2);
+  return v;
 }
 
 export function createParking3D(container) {
-  const ctx = createScene3D(container, { height: 'clamp(320px, 42vw, 460px)', view: { dir: [-0.2, 1, 0.95], fit: [800, 300] } });
+  const ctx = createScene3D(container, { height: 'clamp(320px, 38vw, 440px)', view: { dir: [-0.35, 0.6, 1], fit: [520, 260], target: [0, 50, 0] } });
   const { THREE, scene, tooltip, render, pick } = ctx;
   const group = new THREE.Group();
   scene.add(group);
-  const hatch = hatchTexture(1);
-  const reservedMat = new THREE.MeshStandardMaterial({ map: hatch, roughness: 0.9 });
   let zone = null;
-  let zoneId = null;
+  let built = false;
 
-  function vehicle(type, w, d) {
-    const v = new THREE.Group();
-    const part = (bw, bh, bd, color, y, z = 0) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), mat(color, { roughness: 0.5 }));
-      m.position.set(0, y, z);
-      m.castShadow = true;
-      v.add(m);
-      return m;
-    };
-    if (type === 'motorcycle') {
-      part(6, 9, d - 14, PALETTE.inkSoft, 6.5);
-      part(8, 4, 10, PALETTE.cabin, 13, -2);
-    } else if (type === 'truck') {
-      part(w - 10, 18, d - 24, PALETTE.inkSoft, 11, 4);
-      part(w - 12, 12, 14, PALETTE.cabin, 8, -(d - 14) / 2 + 2);
-    } else {
-      part(w - 12, 9, d - 16, PALETTE.inkSoft, 6.5);
-      part(w - 16, 7, (d - 16) * 0.5, PALETTE.cabin, 14.5, 2);
-    }
-    return v;
-  }
-
-  function cctvPole(x, z, cam) {
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 64, 10), mat(PALETTE.muted));
-    pole.position.set(x, 32, z);
-    pole.castShadow = true;
-    const head = new THREE.Mesh(new THREE.BoxGeometry(12, 6, 6), mat(cam.online ? PALETTE.inkSoft : PALETTE.ember));
-    head.position.set(x + 4, 64, z + 3);
-    head.rotation.y = -Math.PI / 4;
-    const el = document.createElement('div');
-    el.innerHTML = `<span class="badge bg-paper text-ink shadow-card"><span class="dot ${cam.online ? 'bg-ember' : 'bg-mid-gray'}"></span>${esc(cam.id)}</span>`;
-    const label = new CSS2DObject(el);
-    label.position.set(x, 80, z);
-    group.add(pole, head, label);
-  }
-
-  function build(next, cameras) {
+  function build(next) {
     disposeGroup(group);
-    const L = zoneLayout(next);
-    const X = (px) => px - L.width / 2;
-    const Z = (py) => py - L.height / 2;
+    const L = rackLayout(next);
+    const x0 = -L.width / 2;
+    const z0 = -L.depth / 2;
 
-    const ground = new THREE.Mesh(new THREE.BoxGeometry(L.width, 6, L.height), mat(PALETTE.hairline));
-    ground.position.y = -3;
+    // Lantai dasar + jalur masuk dengan marka putus-putus di depan rak.
+    const ground = new THREE.Mesh(new THREE.BoxGeometry(L.width + 60, 6, L.depth + LANE + 30), mat(PALETTE.hairline));
+    ground.position.set(0, -3, LANE / 2);
     ground.receiveShadow = true;
-    ground.add(new THREE.LineSegments(new THREE.EdgesGeometry(ground.geometry), new THREE.LineBasicMaterial({ color: PALETTE.off })));
     group.add(ground);
+    for (let x = x0 + 8; x < -x0 - 8; x += 22) {
+      const dash = new THREE.Mesh(new THREE.BoxGeometry(12, 0.6, 2), mat(PALETTE.paper));
+      dash.position.set(x + 6, 0.3, -z0 + LANE / 2);
+      group.add(dash);
+    }
 
-    for (const ly of L.lanes) {
-      for (let x = 24; x < L.width - 24; x += 22) {
-        const dash = new THREE.Mesh(new THREE.BoxGeometry(12, 0.6, 2), mat(PALETTE.paper));
-        dash.position.set(X(x + 6), 0.3, Z(ly));
-        group.add(dash);
+    // Tiang rangka di setiap batas slot, depan dan belakang.
+    const steel = mat(PALETTE.ink2, { roughness: 0.6 });
+    const postH = L.height + 8;
+    for (let c = 0; c <= next.cols; c++) {
+      for (const z of [z0, -z0]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(POST, postH, POST), steel);
+        post.position.set(x0 + c * BAY_W, postH / 2, z);
+        post.castShadow = true;
+        group.add(post);
       }
     }
+    // Balok atas sepanjang rak.
+    for (const z of [z0, -z0]) {
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(L.width + POST, POST, POST), steel);
+      beam.position.set(0, postH, z);
+      group.add(beam);
+    }
 
-    for (const { slot, x, y } of L.slots) {
-      const pad = new THREE.Mesh(new THREE.BoxGeometry(L.g.w - 2, 0.8, L.g.h - 2), slot.reserved && !slot.occupied ? reservedMat : mat(PALETTE.paper));
-      pad.position.set(X(x + L.g.w / 2), 0.4, Z(y + L.g.h / 2));
-      pad.receiveShadow = true;
-      pad.userData.slotId = slot.id;
-      group.add(pad);
-
+    // Palet per slot; mobil di atasnya bila terisi, nomor slot bila kosong.
+    for (const { slot, level, col } of L.slots) {
+      const y = level * LEVEL_H;
+      const pallet = new THREE.Mesh(new THREE.BoxGeometry(BAY_W - 4, 2, L.depth - 4), mat(slot.occupied ? PALETTE.line : PALETTE.paper));
+      pallet.position.set(x0 + col * BAY_W + BAY_W / 2, y + 1, 0);
+      pallet.receiveShadow = true;
+      pallet.userData.slotId = slot.id;
+      group.add(pallet);
       if (slot.occupied) {
-        const v = vehicle(slot.vehicleType, L.g.w, L.g.h);
-        v.position.set(pad.position.x, 0.8, pad.position.z);
+        const v = car(THREE);
+        v.position.set(pallet.position.x, y + 2, 0);
         v.traverse((o) => (o.userData.slotId = slot.id));
         group.add(v);
       } else {
         const el = document.createElement('div');
-        const tag = slot.reserved === 'disabilitas' ? 'D' : slot.reserved === 'pimpinan' ? 'P' : slot.id.split('-')[1];
-        el.innerHTML = `<span class="text-[11px] font-medium text-mid-gray">${tag}</span>`;
+        el.innerHTML = `<span class="text-[11px] font-medium text-mid-gray">${esc(slot.id.split('-')[1])}</span>`;
         const label = new CSS2DObject(el);
-        label.position.set(pad.position.x, 2, pad.position.z);
+        label.position.set(pallet.position.x, y + 4, -z0 - 8);
         group.add(label);
       }
     }
 
-    cameras.filter((c) => c.zoneId === next.id).forEach((cam) => cctvPole(X(24), Z(10), cam));
+    // Label tingkat di sisi kiri rak.
+    for (let level = 0; level < L.levels; level++) {
+      const el = document.createElement('div');
+      el.innerHTML = `<span class="badge bg-paper text-ink shadow-card">Tingkat ${level + 1}</span>`;
+      const label = new CSS2DObject(el);
+      label.position.set(x0 - 30, level * LEVEL_H + 10, -z0);
+      group.add(label);
+    }
     return L;
   }
 
@@ -138,23 +115,18 @@ export function createParking3D(container) {
     const slotId = pick(e, [group])?.userData.slotId;
     canvas.style.cursor = slotId ? 'pointer' : 'grab';
     if (!slotId) return tooltip.hide();
-    const s = zone.slots.find((x) => x.id === slotId);
-    const reserved = s.reserved ? ` · khusus ${s.reserved}` : '';
-    const body = s.occupied
-      ? `${VEHICLE_TYPES[s.vehicleType]?.label ?? 'Kendaraan'} · ${esc(s.plate)}<br><span class="opacity-70">Parkir sejak ${fmtTime(s.since)}</span>`
-      : '<span class="opacity-70">Kosong</span>';
-    tooltip.show(`<div class="font-medium">Slot ${esc(s.id)}${reserved}</div>${body}`, e);
+    tooltip.show(slotTooltip(zone, slotId), e);
   });
   canvas.addEventListener('pointerleave', () => tooltip.hide());
 
   return {
-    /** @param {object} next zona parkir  @param {object[]} cameras */
-    update(next, cameras = []) {
+    /** @param {object} next zona parkir (satu lokasi Smart Parking) */
+    update(next) {
       zone = next;
-      const L = build(next, cameras);
-      if (next.id !== zoneId) {
-        zoneId = next.id;
-        ctx.setView({ dir: [-0.2, 1, 0.95], fit: [L.width, L.height] });
+      const L = build(next);
+      if (!built) {
+        built = true;
+        ctx.setView({ dir: [-0.35, 0.6, 1], fit: [L.width + 120, L.height + LANE + 80], target: [0, L.height / 2, LANE / 3] });
       }
       render();
     },

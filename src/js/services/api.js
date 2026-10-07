@@ -21,7 +21,7 @@ export const api = {
   /** @returns {Promise<{building, devices, updatedAt}>} */
   getIot: () => (config.useMock ? mock.getIot() : request('/iot')),
 
-  /** Kondisi parkir saat ini. @returns {Promise<{zones, cameras, events, visits, history, today, updatedAt}>} */
+  /** Kondisi parkir saat ini. @returns {Promise<{site, zones, events, visits, history, today, updatedAt}>} */
   getParking: () => (config.useMock ? mock.getParking() : request('/parking')),
 
   /** Ubah status on/off banyak perangkat sekaligus. @returns {Promise<{updated:number}>} */

@@ -2,7 +2,7 @@
 
 Dashboard monitoring Gedung Pusdatin: **IoT bangunan cerdas**, **chatbot AI**, dan **computer vision parkir**.
 Dibangun dengan HTML, Tailwind CSS v4, dan JavaScript (ES modules), dijalankan dengan Vite.
-Denah lantai dan peta parkir tampil dalam 3D (Three.js) dengan opsi beralih ke 2D (SVG).
+Denah lantai dan ilustrasi parkir susun tampil dalam 3D (Three.js) dengan opsi beralih ke 2D (SVG).
 Tema visual mengikuti [`design.md`](design.md).
 
 | Menu | Halaman | Isi |
@@ -10,7 +10,7 @@ Tema visual mengikuti [`design.md`](design.md).
 | Home | `index.html` | KPI dan grafik dari tiga menu: IoT (perangkat, uptime, peringatan, Telegram, listrik), AI Vision (slot tersedia di Smart Parking, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
 | IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang, kontrol perangkat, peringatan + notifikasi Telegram, riwayat status perangkat dan uptime, listrik per lantai dan panel distribusi |
 | Chatbot | `chatbot.html` | Chatbot TEJAS (pintas unit PU, SITABA, rujukan dokumen, analisis lampiran, grafik, penilaian jawaban) dan tab Analitik (tren pertanyaan/token/biaya, pengguna, riwayat chat) |
-| AI Vision | `vision.html` | Peta parkir 3D/2D, kamera + bounding box, okupansi per jam dan 7 hari, riwayat ALPR, riwayat kendaraan (jam masuk/keluar, lama parkir) |
+| AI Vision | `vision.html` | Satu lokasi: Smart Parking (parkir susun, piloting, 24 slot). Ilustrasi rak 3D/2D (3 tingkat × 8 slot) dari status slot, slot tersedia, kendaraan yang sedang parkir, okupansi, deteksi nomor polisi di gerbang, riwayat kendaraan (jam masuk/keluar, lama parkir). Tanpa kamera area |
 
 Ruang lingkup mengikuti paparan *Sistem Informasi Kecerdasan Buatan* (Pusdatin Kementerian PU):
 Dashboard Monitoring IoT, Dashboard AI Vision, dan Dashboard Chatbot. SSO masih dalam kajian, jadi
@@ -44,8 +44,8 @@ src/
   js/
     config.js              # baca variabel .env
     pages/                 # entry script per halaman
-    components/            # layout, denah 2D, peta parkir 2D, grafik tren (trend-chart.js), chat, kamera, ui kecil
-      three/               # scene 3D bersama, denah lantai 3D, peta parkir 3D (Three.js)
+    components/            # layout, denah 2D, ilustrasi parkir 2D, grafik tren (trend-chart.js), chat, rentang waktu, slot parkir, ui kecil
+      three/               # scene 3D bersama, denah lantai 3D, rak parkir susun 3D (Three.js)
     services/
       api.js               # SATU-SATUNYA pintu data (mock atau HTTP/WebSocket)
       mock-backend.js      # backend palsu di browser
@@ -169,24 +169,22 @@ Request `{ "ids": ["L1-R01-LMP1"], "on": false }`, response `{ "updated": 1 }`.
 
 ### `GET /parking`
 
+Kondisi parkir saat ini. Satu lokasi (Smart Parking, parkir susun) dengan 24 slot mobil. Data yang dipakai
+dashboard hanya hasil pembacaan nomor polisi (ALPR) di gerbang dan status slot; tidak ada kamera area.
+
 ```jsonc
 {
-  "site": { "id": "smart-parking", "name": "Smart Parking", "kind": "Parkir susun", "status": "Piloting" },  // lokasi yang dipantau
-  "zones": [{
-    "id": "A", "name": "Area A", "location": "Basement", "kind": "car",  // car | motorcycle
-    "rows": 2, "cols": 16,
-    "slots": [{ "id": "A-01", "reserved": "disabilitas", "occupied": true,
-                "vehicleType": "car", "plate": "B 1234 ABC", "since": "..." }]
+  "site": { "id": "smart-parking", "name": "Smart Parking", "kind": "Parkir susun", "status": "Piloting" },
+  "zones": [{                       // satu entri untuk lokasi ini; slot dihitung untuk ketersediaan
+    "id": "SP", "name": "Smart Parking", "location": "Parkir susun", "kind": "car",
+    "rows": 3, "cols": 8,           // 3 tingkat × 8 slot = 24; slot ke-i ada di tingkat floor(i / cols) + 1
+    "slots": [{ "id": "SP-01", "reserved": null, "occupied": true, "vehicleType": "car", "plate": "B 1234 ABC", "since": "..." }]
   }],
-  "cameras": [{
-    "id": "CAM-02", "name": "Area A · Basement", "zoneId": "A", "online": true,
-    "streamUrl": null,   // isi URL MJPEG/snapshot agar gambar kamera asli tampil
-    "detections": [{ "label": "mobil", "confidence": 0.94, "slotId": "A-03", "box": [4, 30, 19, 26] }]  // box: x,y,w,h dalam % frame
-  }],
-  "events": [{ "id": "EV-1", "time": "...", "gate": "Gerbang 1", "direction": "in",
+  "events": [{ "id": "EV-1", "time": "...", "gate": "Gerbang Smart Parking", "direction": "in",
                "vehicleType": "car", "plate": "B 1234 ABC", "confidence": 0.97 }],
+  "visits": [{ "plate": "B 1234 ABC", "inAt": "...", "outAt": null }],   // kunjungan hari ini, outAt null = masih parkir
   "history": [{ "hour": "06:00", "occupancy": 0.08 }],
-  "today": { "in": { "car": 148, "motorcycle": 263, "truck": 6 }, "out": { "car": 97, "motorcycle": 171, "truck": 4 } },
+  "today": { "in": { "car": 30 }, "out": { "car": 9 } },
   "updatedAt": "..."
 }
 ```
@@ -227,9 +225,6 @@ peringatan baru dari aturan yang sama dengan `getAlerts()`, dan pesan "pulih" sa
               "title": "Lampu offline", "meta": "Lantai 1 · 22 R. Katim", "text": "...", "status": "sent" }]  // sent | skipped | failed
 }
 ```
-
-`GET /parking` (kondisi saat ini) juga memuat `visits` hari ini (satu baris per kendaraan: `plate`, `inAt`,
-`outAt`, `gateIn`, `gateOut`, `zoneId`, `slotId`, `confidence`; `outAt` null = masih parkir).
 
 ### `GET /parking/stats?from=&to=`, `GET /parking/visits?from=&to=&status=&q=&limit=`
 

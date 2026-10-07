@@ -432,18 +432,8 @@ export function stepIot(state, rand = Math.random, dtSec = 5) {
 /* Parkir & computer vision                                            */
 /* ------------------------------------------------------------------ */
 
-const ZONES = [
-  { id: 'A', name: 'Area A', location: 'Basement', kind: 'car', rows: 2, cols: 16, fill: 0.78 },
-  { id: 'B', name: 'Area B', location: 'Halaman depan', kind: 'car', rows: 2, cols: 10, fill: 0.6 },
-  { id: 'M', name: 'Area Motor', location: 'Samping gedung', kind: 'motorcycle', rows: 3, cols: 20, fill: 0.82 },
-];
-
-const CAMERAS = [
-  { id: 'CAM-01', name: 'Gerbang Masuk', zoneId: null },
-  { id: 'CAM-02', name: 'Area A · Basement', zoneId: 'A' },
-  { id: 'CAM-03', name: 'Area B · Halaman', zoneId: 'B' },
-  { id: 'CAM-04', name: 'Area Motor', zoneId: 'M' },
-];
+// Satu lokasi: Smart Parking (parkir susun, piloting), 24 slot mobil (3 tingkat × 8 slot).
+const ZONES = [{ id: 'SP', name: 'Smart Parking', location: 'Parkir susun', kind: 'car', rows: 3, cols: 8, fill: 0.8 }];
 
 const PLATE_LETTERS = 'ABCDEFGHJKLMNPRSTUVWXYZ';
 function plate(rand) {
@@ -459,35 +449,10 @@ function minutesAgo(min) {
   return new Date(Date.now() - min * 60000).toISOString();
 }
 
-// Bounding box deteksi palsu dalam persen frame kamera [x, y, w, h].
-function detectionsFor(camera, zone, slots, rand) {
-  if (!zone) {
-    const n = 1 + Math.floor(rand() * 2);
-    return Array.from({ length: n }, (_, i) => ({
-      label: rand() < 0.6 ? 'mobil' : 'motor',
-      confidence: Math.round((0.88 + rand() * 0.11) * 100) / 100,
-      box: [18 + i * 38, 36 + rand() * 8, 30, 40],
-    }));
-  }
-  const occupied = slots.filter((s) => s.occupied).slice(0, zone.kind === 'car' ? 8 : 10);
-  const perRow = zone.kind === 'car' ? 4 : 5;
-  const w = zone.kind === 'car' ? 19 : 14;
-  return occupied.map((s, i) => {
-    const row = Math.floor(i / perRow) % 2;
-    const col = i % perRow;
-    return {
-      label: zone.kind === 'car' ? 'mobil' : 'motor',
-      confidence: Math.round((0.86 + rand() * 0.13) * 100) / 100,
-      slotId: s.id,
-      box: [4 + col * (96 / perRow) + rand() * 2, row === 0 ? 30 + rand() * 3 : 62 + rand() * 3, w, row === 0 ? 26 : 32],
-    };
-  });
-}
-
 /* Riwayat kendaraan: satu baris per kunjungan (plat, jam masuk, jam keluar). */
 
 const VISIT_LIMIT = 220;
-const GATES = ['Gerbang 1', 'Gerbang 2'];
+const GATES = ['Gerbang Smart Parking'];
 const confidence = (rand) => Math.round((0.9 + rand() * 0.09) * 100) / 100;
 
 function seedVisits(zones, rand) {
@@ -496,20 +461,20 @@ function seedVisits(zones, rand) {
   // Kendaraan yang sedang parkir: jam masuk = sejak kapan slot terisi.
   for (const zone of zones) {
     for (const s of zone.slots.filter((x) => x.occupied)) {
-      visits.push({ id: `VS-${s.id}`, plate: s.plate, vehicleType: s.vehicleType, zoneId: zone.id, slotId: s.id, gateIn: GATES[Math.floor(rand() * 2)], gateOut: null, inAt: s.since, outAt: null, confidence: confidence(rand) });
+      visits.push({ id: `VS-${s.id}`, plate: s.plate, vehicleType: s.vehicleType, zoneId: zone.id, slotId: s.id, gateIn: GATES[Math.floor(rand() * GATES.length)], gateOut: null, inAt: s.since, outAt: null, confidence: confidence(rand) });
     }
   }
   // Kendaraan yang sudah keluar hari ini.
   const dayStart = new Date();
   dayStart.setHours(6, 0, 0, 0);
   const span = Math.max(0, now - dayStart.getTime() - 30 * 60000);
-  const done = span ? 70 : 0;
+  const done = span ? 9 : 0;
   for (let i = 0; i < done; i++) {
     const zone = zones[Math.floor(rand() * zones.length)];
     const inAt = dayStart.getTime() + rand() * span;
     const outAt = Math.min(now - 60000, inAt + (15 + rand() * 300) * 60000);
-    const vehicleType = zone.kind === 'car' ? (rand() < 0.06 ? 'truck' : 'car') : 'motorcycle';
-    visits.push({ id: `VS-done-${i}`, plate: plate(rand), vehicleType, zoneId: zone.id, slotId: null, gateIn: GATES[Math.floor(rand() * 2)], gateOut: GATES[Math.floor(rand() * 2)], inAt: new Date(inAt).toISOString(), outAt: new Date(outAt).toISOString(), confidence: confidence(rand) });
+    const vehicleType = 'car';
+    visits.push({ id: `VS-done-${i}`, plate: plate(rand), vehicleType, zoneId: zone.id, slotId: null, gateIn: GATES[Math.floor(rand() * GATES.length)], gateOut: GATES[Math.floor(rand() * GATES.length)], inAt: new Date(inAt).toISOString(), outAt: new Date(outAt).toISOString(), confidence: confidence(rand) });
   }
   return visits.sort((a, b) => lastMove(b).localeCompare(lastMove(a)));
 }
@@ -528,12 +493,12 @@ export function parkingDayVisits(key) {
   const rand = rngFor(`visits:${key}`);
   const day = new Date(`${key}T00:00:00`).getTime();
   const weekend = [0, 6].includes(new Date(day).getDay());
-  const n = weekend ? 30 + Math.floor(rand() * 20) : 135 + Math.floor(rand() * 30);
+  const n = weekend ? 4 + Math.floor(rand() * 4) : 26 + Math.floor(rand() * 7);
   const visits = [];
   for (let i = 0; i < n; i++) {
-    const kind = rand() < 0.55 ? 'motorcycle' : rand() < 0.95 ? 'car' : 'truck';
-    const zoneId = kind === 'motorcycle' ? 'M' : rand() < 0.62 ? 'A' : 'B';
-    const allDay = rand() < 0.55;
+    const kind = 'car';
+    const zoneId = ZONES[0].id;
+    const allDay = rand() < 0.62;
     const arrive = allDay ? 6.5 + rand() * 2.5 : 8 + rand() * 8;
     const stay = allDay ? 7 + rand() * 2.5 : 0.5 + rand() * 2.5;
     const leave = Math.min(21.5, arrive + stay);
@@ -543,8 +508,8 @@ export function parkingDayVisits(key) {
       vehicleType: kind,
       zoneId,
       slotId: null,
-      gateIn: GATES[Math.floor(rand() * 2)],
-      gateOut: GATES[Math.floor(rand() * 2)],
+      gateIn: GATES[Math.floor(rand() * GATES.length)],
+      gateOut: GATES[Math.floor(rand() * GATES.length)],
       inAt: new Date(day + arrive * 3600000).toISOString(),
       outAt: new Date(day + leave * 3600000).toISOString(),
       confidence: confidence(rand),
@@ -582,15 +547,13 @@ export function createParkingState(seed = 7310) {
     const total = zone.rows * zone.cols;
     const slots = Array.from({ length: total }, (_, i) => {
       const id = `${zone.id}-${pad2(i + 1)}`;
-      let reserved = null;
-      if (zone.id === 'A' && i < 2) reserved = 'disabilitas';
-      if (zone.id === 'A' && i >= total - 3) reserved = 'pimpinan';
-      const occupied = rand() < (reserved === 'disabilitas' ? 0.3 : fill);
+      const reserved = null;
+      const occupied = rand() < fill;
       return {
         id,
         reserved,
         occupied,
-        vehicleType: occupied ? (zone.kind === 'car' ? (rand() < 0.06 ? 'truck' : 'car') : 'motorcycle') : null,
+        vehicleType: occupied ? 'car' : null,
         plate: occupied ? plate(rand) : null,
         since: occupied ? minutesAgo(10 + Math.floor(rand() * 420)) : null,
       };
@@ -598,20 +561,16 @@ export function createParkingState(seed = 7310) {
     return { ...zone, slots };
   });
 
-  const cameras = CAMERAS.map((cam) => {
-    const zone = zones.find((z) => z.id === cam.zoneId);
-    return { ...cam, streamUrl: null, online: true, detections: detectionsFor(cam, zone, zone?.slots ?? [], rand) };
-  });
 
   const events = [];
   let t = 1;
   for (let i = 0; i < 14; i++) {
-    t += 1 + Math.floor(rand() * 6);
-    const type = rand() < 0.62 ? 'motorcycle' : rand() < 0.94 ? 'car' : 'truck';
+    t += 4 + Math.floor(rand() * 20);
+    const type = 'car';
     events.push({
       id: `EV-${1000 - i}`,
       time: minutesAgo(t),
-      gate: rand() < 0.5 ? 'Gerbang 1' : 'Gerbang 2',
+      gate: GATES[Math.floor(rand() * GATES.length)],
       direction: rand() < 0.6 ? 'in' : 'out',
       vehicleType: type,
       plate: plate(rand),
@@ -630,7 +589,6 @@ export function createParkingState(seed = 7310) {
     // Lokasi parkir yang dipantau. Saat ini satu lokasi piloting: Smart Parking (parkir susun).
     site: { id: 'smart-parking', name: 'Smart Parking', kind: 'Parkir susun', status: 'Piloting' },
     zones,
-    cameras,
     events,
     visits,
     history,
@@ -656,7 +614,7 @@ export function stepParking(state, rand = Math.random) {
     : { occupied: false, vehicleType: null, plate: null, since: null });
 
   const now = new Date().toISOString();
-  const gate = GATES[Math.floor(rand() * 2)];
+  const gate = GATES[Math.floor(rand() * GATES.length)];
   const conf = confidence(rand);
   state.events.unshift({ id: `EV-${Date.now()}`, time: now, gate, direction: entering ? 'in' : 'out', vehicleType, plate: plateNo, confidence: conf });
   if (entering) {
@@ -673,10 +631,6 @@ export function stepParking(state, rand = Math.random) {
   state.events.length = Math.min(state.events.length, 30);
   state.today[entering ? 'in' : 'out'][vehicleType] += 1;
 
-  for (const cam of state.cameras) {
-    const z = state.zones.find((x) => x.id === cam.zoneId);
-    if (!z || z === zone) cam.detections = detectionsFor(cam, z, z?.slots ?? [], rand);
-  }
 
   const hourKey = `${pad2(new Date().getHours())}:00`;
   const point = state.history.find((h) => h.hour === hourKey);

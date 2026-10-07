@@ -31,7 +31,7 @@ const picker = createDateRange($('[data-range]'), {
 });
 
 $('[data-head-iot]').innerHTML = sectionHeadHtml({ title: 'IoT', id: 'home-iot', desc: 'Perangkat, peringatan, konektivitas, dan listrik', href: '/iot.html', linkLabel: 'Buka IoT' });
-$('[data-head-vision]').innerHTML = sectionHeadHtml({ title: 'AI Vision', id: 'home-vision', desc: 'Nomor polisi, kendaraan masuk dan keluar, slot parkir', href: '/vision.html', linkLabel: 'Buka AI Vision' });
+$('[data-head-vision]').innerHTML = sectionHeadHtml({ title: 'AI Vision', id: 'home-vision', desc: 'Nomor polisi, kendaraan masuk dan keluar, slot tersedia di Smart Parking', href: '/vision.html', linkLabel: 'Buka AI Vision' });
 $('[data-head-chatbot]').innerHTML = sectionHeadHtml({ title: 'Chatbot', id: 'home-chatbot', desc: 'Pengguna, pertanyaan, token, dan mutu jawaban', href: '/chatbot.html#analitik', linkLabel: 'Buka analitik' });
 
 const pct2 = (ratio) => `${(ratio * 100).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
@@ -90,7 +90,7 @@ function renderVision(range) {
   const r = state.parkingStats ? parkingRange(state.parkingStats, range) : null;
 
   $('[data-kpis-vision]').innerHTML = [
-    statTile({ label: 'Slot kosong', value: p.free, unit: ` / ${p.total}`, sub: `Saat ini · ${p.car.free} mobil, ${p.motorcycle.free} motor` }),
+    statTile({ label: 'Slot kosong', value: p.free, unit: ` / ${p.total}`, sub: `Saat ini · ${state.parking.site?.name ?? 'area parkir'}` }),
     statTile({ label: 'Okupansi', value: fmtPct(p.rate), sub: 'Saat ini' }),
     statTile({ label: 'Kendaraan di dalam', value: v.inside, sub: 'Saat ini' }),
     statTile({ label: `Masuk ${range.short}`, value: r ? fmtInt(r.in) : '–', sub: 'Tercatat di gerbang' }),

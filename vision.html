@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Deteksi kendaraan dan ketersediaan slot parkir." />
+    <meta name="description" content="Nomor polisi, jam masuk dan keluar, serta slot tersedia di Smart Parking." />
     <title>AI Vision · SatuData Pusdatin</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,8 +15,8 @@
     <div class="flex min-h-dvh flex-col">
       <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
       <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
-        <!-- Rentang waktu berlaku untuk masuk/keluar, grafik okupansi, dan riwayat kendaraan.
-             Peta slot, rekap zona, kamera, dan deteksi gerbang terbaru selalu kondisi saat ini. -->
+        <!-- Rentang waktu berlaku untuk KPI, grafik okupansi, dan riwayat kendaraan. Ilustrasi parkir,
+             slot tersedia, kendaraan yang sedang parkir, dan deteksi gerbang terbaru selalu kondisi saat ini. -->
         <section class="page-toolbar flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
           <div>
             <h1 class="text-heading font-semibold">Deteksi kendaraan</h1>
@@ -25,19 +25,18 @@
           <div data-range></div>
         </section>
 
-        <section class="stat-strip mt-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan parkir"></section>
+        <section class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-kpis aria-label="Ringkasan kendaraan"></section>
 
-        <!-- Peta slot (3D/2D) dan rekap slot tersedia dalam satu kartu. -->
-        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <!-- Ilustrasi Smart Parking (parkir susun, 3D/2D) dengan kolom kondisi saat ini:
+             slot tersedia dan mobil yang sedang parkir. Kolom kanan mengikuti tinggi ilustrasi. -->
+        <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px]">
           <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
             <div class="card-header">
-              <div>
-                <h2 class="card-title">Peta slot parkir</h2>
+              <div class="min-w-0">
+                <h2 class="card-title">Ilustrasi parkir</h2>
+                <p class="truncate text-caption tracking-normal text-mid-gray" data-map-desc></p>
               </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <div class="segmented" role="tablist" aria-label="Pilih zona" data-zone-tabs></div>
-                <div data-view-toggle></div>
-              </div>
+              <div data-view-toggle></div>
             </div>
             <div class="card-body">
               <div data-map-3d></div>
@@ -45,34 +44,28 @@
             </div>
             <div class="card-footer flex-wrap" data-parking-legend></div>
           </div>
-          <!-- Kolom rekap mengikuti tinggi peta: slot tersedia satu lokasi (Smart Parking) dan
-               kendaraan yang sedang terparkir per jenis. -->
           <div class="flex min-w-0 flex-col">
-            <div class="flex grow flex-col">
-              <div class="card-header">
-                <div class="min-w-0">
-                  <h2 class="card-title">Slot tersedia</h2>
-                  <p class="truncate text-caption tracking-normal text-mid-gray" data-site-name></p>
-                </div>
+            <div class="card-header">
+              <div class="min-w-0">
+                <h2 class="card-title">Slot tersedia</h2>
+                <p class="truncate text-caption tracking-normal text-mid-gray" data-site-name></p>
               </div>
-              <div class="card-body flex grow flex-col justify-center" data-site-slots></div>
+              <span class="text-caption tracking-normal text-mid-gray">Saat ini</span>
             </div>
-            <div class="flex grow flex-col border-t border-hairline">
+            <div class="card-body" data-site-slots></div>
+            <div class="flex min-h-[260px] flex-col border-t border-hairline xl:h-0 xl:min-h-[150px] xl:grow xl:basis-0">
               <div class="card-header">
-                <h2 class="card-title">Kendaraan terparkir</h2>
-                <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-parked-total></span>
+                <h2 class="card-title" data-inside-title>Sedang parkir</h2>
+                <span class="text-caption tracking-normal text-mid-gray">Terlama di atas</span>
               </div>
-              <div class="card-body flex grow flex-col justify-center" data-parked-types></div>
+              <div class="scroll-thin mt-3 min-h-0 flex-1 overflow-y-auto pb-2">
+                <table class="data-table">
+                  <thead class="sticky top-0 bg-paper"><tr><th>Nomor polisi</th><th>Jam masuk</th><th class="num">Lama parkir</th></tr></thead>
+                  <tbody data-inside></tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </section>
-
-        <section class="mt-4">
-          <div class="mb-3 flex items-baseline justify-between gap-2">
-            <h2 class="text-subheading font-semibold">Kamera</h2>
-            <span class="text-mid-gray tabular-nums" data-camera-count></span>
-          </div>
-          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" data-cameras></div>
         </section>
 
         <!-- Grafik okupansi dan riwayat gerbang: dua kartu, tinggi sama (mengikuti grafik).
@@ -94,8 +87,8 @@
               <h2 class="card-title">Deteksi gerbang terbaru</h2>
             </div>
             <div class="scroll-thin mt-3 overflow-x-auto pb-2 lg:h-0 lg:min-h-[240px] lg:grow lg:basis-0" data-events-box>
-              <table class="data-table data-table-fill h-full min-w-[520px]">
-                <thead><tr><th>Waktu</th><th>Plat</th><th>Arah</th><th class="num">Akurasi</th></tr></thead>
+              <table class="data-table data-table-fill h-full min-w-[440px]">
+                <thead><tr><th>Waktu</th><th>Nomor polisi</th><th>Arah</th><th class="num">Akurasi</th></tr></thead>
                 <tbody data-events></tbody>
               </table>
             </div>
@@ -115,8 +108,8 @@
             </div>
           </div>
           <div class="scroll-thin mt-3 max-h-[480px] overflow-auto pb-2">
-            <table class="data-table min-w-[640px]">
-              <thead class="sticky top-0 bg-paper"><tr><th>Nomor polisi</th><th>Jenis</th><th>Jam masuk</th><th>Jam keluar</th><th class="num">Lama parkir</th><th class="num">Akurasi</th></tr></thead>
+            <table class="data-table min-w-[560px]">
+              <thead class="sticky top-0 bg-paper"><tr><th>Nomor polisi</th><th>Jam masuk</th><th>Jam keluar</th><th class="num">Lama parkir</th><th class="num">Akurasi</th></tr></thead>
               <tbody data-visits></tbody>
             </table>
           </div>
