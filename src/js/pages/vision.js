@@ -1,4 +1,5 @@
 import { mountLayout } from '../components/layout.js';
+import { lineLegendHtml } from '../components/line-chart.js';
 import { createTrendChart } from '../components/trend-chart.js';
 import { cameraCardHtml } from '../components/camera-feed.js';
 import { renderIcons } from '../components/icons.js';
@@ -8,13 +9,13 @@ import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-tog
 import { errorState, segmentedHtml, statTile } from '../components/ui.js';
 import { VEHICLE_TYPES } from '../data/device-types.js';
 import { api } from '../services/api.js';
-import { summarizeParking } from '../services/selectors.js';
+import { summarizeParking, summarizeVisits } from '../services/selectors.js';
 import { $, esc } from '../utils/dom.js';
-import { fmtInt, fmtPct, fmtTime } from '../utils/format.js';
+import { fmtDuration, fmtInt, fmtPct, fmtTime } from '../utils/format.js';
 
 mountLayout({ page: 'vision' });
 
-const state = { parking: null, zoneId: 'A', view: getViewMode() };
+const state = { parking: null, zoneId: 'A', view: getViewMode(), chartPeriod: 'day', visitFilter: 'all', visitSearch: '' };
 const maps = {
   '3d': createParking3D($('[data-map-3d]')),
   '2d': createParkingMap($('[data-map-2d]')),
@@ -93,17 +94,84 @@ function renderCameras() {
   $('[data-cameras]').innerHTML = cams.map(cameraCardHtml).join('');
 }
 
+const WEEKDAY_SHORT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
 function renderChart() {
-  const { history } = state.parking;
-  const labels = history.map((h) => h.hour.slice(0, 2));
-  const values = history.map((h) => Math.round(h.occupancy * 100));
-  const now = labels.indexOf(String(new Date().getHours()).padStart(2, '0'));
-  const peak = Math.max(...values);
+  $('[data-chart-period]').innerHTML = segmentedHtml([{ value: 'day', label: 'Per jam' }, { value: 'week', label: '7 hari' }], state.chartPeriod, 'data-chart-period-id');
+  let opts;
+  let peak;
+  if (state.chartPeriod === 'week') {
+    const week = state.parking.historyWeek;
+    const labels = week.map((d) => WEEKDAY_SHORT[new Date(`${d.date}T00:00`).getDay()]);
+    const series = [
+      { label: 'Puncak', values: week.map((d) => Math.round(d.peak * 100)), style: 'current' },
+      { label: 'Rata-rata', values: week.map((d) => Math.round(d.avg * 100)), style: 'previous' },
+    ];
+    peak = Math.max(...series[0].values);
+    opts = { labels, series, height: 260, format: (v) => `${v}%`, selected: labels.length - 1 };
+    $('[data-chart-legend]').innerHTML = lineLegendHtml(series);
+  } else {
+    const { history } = state.parking;
+    const labels = history.map((h) => h.hour.slice(0, 2));
+    const values = history.map((h) => Math.round(h.occupancy * 100));
+    const now = labels.indexOf(String(new Date().getHours()).padStart(2, '0'));
+    peak = Math.max(...values);
+    opts = { labels, series: [{ label: 'Okupansi', values, style: 'current' }], height: 260, format: (v) => `${v}% terisi`, selected: now >= 0 ? now : undefined };
+  }
+  $('[data-chart-legend]').classList.toggle('hidden', state.chartPeriod !== 'week');
+  $('[data-chart-title]').textContent = state.chartPeriod === 'week' ? 'Okupansi parkir 7 hari' : 'Okupansi parkir per jam';
   $('[data-chart-summary]').innerHTML = `<span class="text-ink/80">Puncak</span><span class="font-semibold tabular-nums">${peak}%</span>`;
-  const opts = { labels, series: [{ label: 'Okupansi', values, style: 'current' }], height: 260, format: (v) => `${v}% terisi`, selected: now >= 0 ? now : undefined };
   if (chart) chart.update(opts);
   else chart = createTrendChart($('[data-chart]'), opts);
 }
+
+$('[data-chart-period]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-chart-period-id]');
+  if (!btn) return;
+  state.chartPeriod = btn.dataset.chartPeriodId;
+  renderChart();
+});
+
+/* --------------------------- riwayat kendaraan --------------------------- */
+
+function renderVisits() {
+  const v = summarizeVisits(state.parking);
+  const filters = [
+    { value: 'all', label: `Semua (${v.total})` },
+    { value: 'inside', label: `Di dalam (${v.inside})` },
+    { value: 'out', label: `Sudah keluar (${v.done})` },
+  ];
+  $('[data-visits-filter]').innerHTML = segmentedHtml(filters, state.visitFilter, 'data-visits-filter-id');
+  const zones = new Map(state.parking.zones.map((z) => [z.id, z]));
+  const q = state.visitSearch.replace(/\s+/g, '');
+  const list = state.parking.visits
+    .filter((x) => state.visitFilter === 'all' || (state.visitFilter === 'inside' ? !x.outAt : x.outAt))
+    .filter((x) => !q || x.plate.replace(/\s+/g, '').toLowerCase().includes(q))
+    .slice(0, 120);
+  $('[data-visits]').innerHTML =
+    list
+      .map((x) => `<tr>
+          <td class="font-mono font-medium whitespace-nowrap">${esc(x.plate)}</td>
+          <td>${VEHICLE_TYPES[x.vehicleType].label}</td>
+          <td class="whitespace-nowrap">${esc(zones.get(x.zoneId)?.name ?? '–')}${x.slotId ? ` <span class="text-mid-gray">· ${esc(x.slotId)}</span>` : ''}</td>
+          <td class="whitespace-nowrap">${fmtTime(x.inAt)} <span class="text-caption tracking-normal text-mid-gray">${esc(x.gateIn)}</span></td>
+          <td class="whitespace-nowrap">${x.outAt ? `${fmtTime(x.outAt)} <span class="text-caption tracking-normal text-mid-gray">${esc(x.gateOut)}</span>` : '<span class="badge badge-solid">Masih parkir</span>'}</td>
+          <td class="num">${fmtDuration(v.minutes(x))}</td>
+          <td class="num text-mid-gray">${Math.round(x.confidence * 100)}%</td>
+        </tr>`)
+      .join('') || '<tr><td colspan="7" class="py-6 text-center text-mid-gray">Tidak ada kendaraan yang cocok.</td></tr>';
+}
+
+$('[data-visits-filter]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-visits-filter-id]');
+  if (!btn) return;
+  state.visitFilter = btn.dataset.visitsFilterId;
+  renderVisits();
+});
+$('[data-visits-search]').addEventListener('input', (e) => {
+  state.visitSearch = e.target.value.trim().toLowerCase();
+  renderVisits();
+});
 
 // Jumlah baris riwayat yang muat utuh di kartu (tinggi kartu mengikuti grafik di sebelahnya).
 const EVENT_ROW_H = 44;
@@ -145,6 +213,7 @@ function render() {
   renderCameras();
   renderChart();
   renderEvents();
+  renderVisits();
   renderIcons($('main'));
 }
 

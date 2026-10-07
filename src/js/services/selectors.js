@@ -1,4 +1,5 @@
 // Fungsi turunan murni dari snapshot data. Dipakai halaman, komponen, dan chat engine.
+import { MODELS, tokenCostRupiah } from '../data/chat-models.js';
 import { DEVICE_TYPES, DEVICE_TYPE_KEYS, NON_WORKSPACE } from '../data/device-types.js';
 import { fmt1 } from '../utils/format.js';
 
@@ -255,4 +256,118 @@ export function roomRanking(iot, period = 'harian') {
 
 export function roomActivity(iot, roomId, limit = 20) {
   return iot.activity.filter((a) => a.roomId === roomId).slice(0, limit);
+}
+
+/* ------------------------------------------------------------------ */
+/* Riwayat perangkat                                                   */
+/* ------------------------------------------------------------------ */
+
+const DAY_MS = 86400000;
+const WEEKDAY_SHORT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+const overlap = (start, end, from, to) => Math.max(0, Math.min(end, to) - Math.max(start, from));
+
+/**
+ * Uptime perangkat dalam jendela riwayat (default 7 hari, sampai sekarang).
+ * daily[i].ratio = porsi waktu perangkat terhubung pada hari itu (hari ini sampai jam sekarang).
+ */
+export function deviceUptime(history, iot, now = new Date()) {
+  const days = history.windowDays ?? 7;
+  const to = now.getTime();
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const from = dayStart.getTime() - (days - 1) * DAY_MS;
+  const outages = history.outages.map((o) => ({ ...o, s: new Date(o.start).getTime(), e: o.end ? new Date(o.end).getTime() : to }));
+  const inWindow = outages.filter((o) => o.e > from);
+
+  const perDevice = new Map(iot.devices.map((d) => [d.id, { device: d, downMs: 0, outages: 0, last: null }]));
+  for (const o of inWindow) {
+    const row = perDevice.get(o.deviceId);
+    if (!row) continue;
+    row.downMs += overlap(o.s, o.e, from, to);
+    row.outages += 1;
+    if (!row.last || o.s > new Date(row.last.start).getTime()) row.last = o;
+  }
+  const span = to - from;
+  for (const row of perDevice.values()) row.uptime = span ? 1 - row.downMs / span : 1;
+
+  const daily = Array.from({ length: days }, (_, i) => {
+    const s = from + i * DAY_MS;
+    const e = Math.min(s + DAY_MS, to);
+    const down = inWindow.reduce((sum, o) => sum + overlap(o.s, o.e, s, e), 0);
+    const date = new Date(s);
+    return { date, label: WEEKDAY_SHORT[date.getDay()], today: i === days - 1, ratio: 1 - down / (iot.devices.length * Math.max(1, e - s)), outages: inWindow.filter((o) => o.s >= s && o.s < e).length };
+  });
+
+  const downMs = [...perDevice.values()].reduce((sum, r) => sum + r.downMs, 0);
+  return {
+    days,
+    from: new Date(from),
+    overall: 1 - downMs / (iot.devices.length * Math.max(1, span)),
+    outages: inWindow.length,
+    downMs,
+    disconnected: iot.devices.filter((d) => !d.online).length,
+    daily,
+    devices: [...perDevice.values()].sort((a, b) => a.uptime - b.uptime || b.outages - a.outages),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Parkir: kunjungan kendaraan                                         */
+/* ------------------------------------------------------------------ */
+
+export function summarizeVisits(parking, now = new Date()) {
+  const visits = parking.visits ?? [];
+  const inside = visits.filter((v) => !v.outAt);
+  const done = visits.filter((v) => v.outAt);
+  const minutes = (v) => ((v.outAt ? new Date(v.outAt) : now) - new Date(v.inAt)) / 60000;
+  const avg = (list) => (list.length ? list.reduce((s, v) => s + minutes(v), 0) / list.length : 0);
+  return { total: visits.length, inside: inside.length, done: done.length, avgDoneMinutes: avg(done), avgInsideMinutes: avg(inside), minutes };
+}
+
+/* ------------------------------------------------------------------ */
+/* Chatbot                                                             */
+/* ------------------------------------------------------------------ */
+
+/** Ringkasan analitik chatbot dari GET /chat/analytics. */
+export function summarizeChat(chat, now = new Date()) {
+  const days = chat.daily;
+  const today = days[days.length - 1];
+  const sumDays = (key) => days.reduce((s, d) => s + d[key], 0);
+  const cost = (d) => Object.entries(d.byModel).reduce((s, [m, v]) => s + tokenCostRupiah(m, v.inputTokens, v.outputTokens), 0);
+  const ratings = chat.users.reduce((acc, u) => ({ up: acc.up + u.ratings.up, down: acc.down + u.ratings.down }), { up: 0, down: 0 });
+  const rated = ratings.up + ratings.down;
+  const byModel = MODELS.map((model) => {
+    const t = days.reduce((acc, d) => {
+      const v = d.byModel[model] ?? { questions: 0, inputTokens: 0, outputTokens: 0 };
+      return { questions: acc.questions + v.questions, inputTokens: acc.inputTokens + v.inputTokens, outputTokens: acc.outputTokens + v.outputTokens };
+    }, { questions: 0, inputTokens: 0, outputTokens: 0 });
+    return { model, ...t, tokens: t.inputTokens + t.outputTokens, rupiah: tokenCostRupiah(model, t.inputTokens, t.outputTokens) };
+  });
+  const dayKey = now.toDateString();
+  return {
+    users: chat.users.filter((u) => u.questions > 0).length,
+    activeToday: chat.users.filter((u) => u.questions > 0 && new Date(u.lastLogin).toDateString() === dayKey).length,
+    questions: sumDays('questions'),
+    questionsToday: today?.questions ?? 0,
+    inputTokens: sumDays('inputTokens'),
+    outputTokens: sumDays('outputTokens'),
+    tokens: sumDays('inputTokens') + sumDays('outputTokens'),
+    tokensToday: today ? today.inputTokens + today.outputTokens : 0,
+    rupiah: days.reduce((s, d) => s + cost(d), 0),
+    rupiahToday: today ? cost(today) : 0,
+    ratings,
+    rated,
+    upRate: rated ? ratings.up / rated : 0,
+    byModel,
+    series: {
+      labels: days.map((d) => String(Number(d.date.slice(8)))),
+      questions: days.map((d) => d.questions),
+      activeUsers: days.map((d) => d.activeUsers),
+      tokens: days.map((d) => d.inputTokens + d.outputTokens),
+      inputTokens: days.map((d) => d.inputTokens),
+      outputTokens: days.map((d) => d.outputTokens),
+      rupiah: days.map(cost),
+    },
+  };
 }

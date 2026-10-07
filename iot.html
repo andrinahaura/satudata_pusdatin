@@ -19,7 +19,9 @@
           <div>
             <h1 class="text-heading font-semibold">Monitoring gedung</h1>
           </div>
-          <div class="flex items-center gap-2 self-start sm:self-auto">
+          <div class="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <a href="#peringatan" class="btn btn-secondary btn-sm">Peringatan</a>
+            <a href="#riwayat" class="btn btn-secondary btn-sm">Riwayat</a>
             <a href="#listrik" class="btn btn-secondary btn-sm">Listrik</a>
             <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated>Memuat…</span>
           </div>
@@ -76,6 +78,85 @@
               </table>
             </div>
           </div>
+        </section>
+
+        <!-- Peringatan di dashboard + notifikasi ke Telegram: dua kartu, tinggi sama di layar lebar. -->
+        <section id="peringatan" class="mt-8 scroll-mt-24" aria-labelledby="peringatan-title">
+          <h2 id="peringatan-title" class="text-heading-sm font-semibold">Peringatan &amp; notifikasi</h2>
+          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <article class="card flex min-w-0 flex-col overflow-hidden xl:h-[600px]">
+              <div class="flex min-h-0 flex-1 flex-col" data-alert-panel aria-live="polite"></div>
+            </article>
+            <article class="card flex min-w-0 flex-col overflow-hidden xl:h-[600px]">
+              <div class="card-header">
+                <div class="min-w-0">
+                  <h3 class="card-title text-body-lg">Notifikasi Telegram</h3>
+                  <p class="truncate text-mid-gray" data-tg-channel></p>
+                </div>
+                <span data-tg-status></span>
+              </div>
+              <div class="card-body pb-4">
+                <div class="divide-y divide-hairline rounded-nested border border-hairline" data-tg-settings></div>
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-mid-gray tabular-nums" data-tg-count></span>
+                  <button type="button" class="btn btn-outline btn-sm" data-tg-test>Kirim pesan uji</button>
+                </div>
+              </div>
+              <div class="scroll-thin max-h-[420px] min-h-0 flex-1 overflow-y-auto border-t border-hairline xl:max-h-none">
+                <table class="data-table">
+                  <thead class="sticky top-0 bg-paper"><tr><th>Waktu</th><th>Pesan</th><th class="num">Status</th></tr></thead>
+                  <tbody data-tg-log></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Data historis: riwayat status (aktif / tidak aktif) dan uptime (terhubung / terputus). -->
+        <section id="riwayat" class="mt-8 scroll-mt-24" aria-labelledby="riwayat-title">
+          <h2 id="riwayat-title" class="text-heading-sm font-semibold">Riwayat perangkat</h2>
+          <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-uptime-kpis aria-label="Ringkasan konektivitas"></div>
+          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
+            <article class="card min-w-0">
+              <div class="card-header">
+                <h3 class="card-title">Uptime perangkat per hari</h3>
+                <span class="text-caption tracking-normal text-mid-gray">Porsi waktu perangkat terhubung, 7 hari</span>
+              </div>
+              <div class="card-body" data-uptime-chart></div>
+            </article>
+            <article class="card flex min-w-0 flex-col overflow-hidden">
+              <div class="card-header">
+                <h3 class="card-title">Uptime terendah</h3>
+              </div>
+              <div class="scroll-thin mt-3 flex-1 overflow-x-auto pb-2">
+                <table class="data-table data-table-fill h-full min-w-[480px]">
+                  <thead><tr><th>Perangkat</th><th class="num">Uptime</th><th class="num">Gangguan</th><th>Terakhir terputus</th></tr></thead>
+                  <tbody data-uptime-low></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+          <article class="card mt-4 min-w-0">
+            <div class="card-header">
+              <div class="flex flex-wrap items-center gap-3">
+                <h3 class="card-title" data-log-title>Riwayat</h3>
+                <div class="segmented" role="tablist" aria-label="Jenis riwayat" data-log-kind></div>
+              </div>
+              <div class="flex max-w-full flex-wrap items-center gap-2">
+                <div class="segmented" role="tablist" aria-label="Pilih lantai" data-log-floor></div>
+                <div class="relative w-full sm:w-56">
+                  <i data-lucide="search" class="pointer-events-none absolute top-2.5 left-3 size-4 text-mid-gray"></i>
+                  <input type="search" class="input pl-9" placeholder="Cari perangkat / ruangan" data-log-search aria-label="Cari riwayat" />
+                </div>
+              </div>
+            </div>
+            <div class="scroll-thin mt-3 max-h-[440px] overflow-auto pb-2">
+              <table class="data-table min-w-[640px]">
+                <thead class="sticky top-0 bg-paper" data-log-head></thead>
+                <tbody data-log-body></tbody>
+              </table>
+            </div>
+          </article>
         </section>
 
         <section id="listrik" class="mt-8 scroll-mt-24" aria-labelledby="listrik-title">

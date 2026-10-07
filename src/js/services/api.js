@@ -24,12 +24,31 @@ export const api = {
   /** Ubah status on/off banyak perangkat sekaligus. @returns {Promise<{updated:number}>} */
   setDevices: (ids, on) => (config.useMock ? mock.setDevices(ids, on) : request('/iot/devices', { method: 'PATCH', body: { ids, on } })),
 
+  /** Riwayat status (aktif/tidak aktif) dan konektivitas perangkat. @returns {Promise<{statusLog, outages, windowDays, updatedAt}>} */
+  getIotHistory: () => (config.useMock ? mock.getIotHistory() : request('/iot/history')),
+
+  /** Kanal Telegram, pengaturan, dan log notifikasi peringatan. @returns {Promise<{channel, settings, items, updatedAt}>} */
+  getNotifications: () => (config.useMock ? mock.getNotifications() : request('/notifications')),
+
+  /** patch: { enabled?, critical?, warning? } @returns {Promise<{enabled, critical, warning}>} */
+  updateNotificationSettings: (patch) =>
+    config.useMock ? mock.updateNotificationSettings(patch) : request('/notifications/settings', { method: 'PATCH', body: patch }),
+
+  /** Kirim pesan uji ke grup Telegram. @returns {Promise<object>} item log yang baru */
+  sendTestNotification: () => (config.useMock ? mock.sendTestNotification() : request('/notifications/test', { method: 'POST' })),
+
   /**
-   * meta: { unit, model, attachment: { name, size, type } } dari composer chatbot.
-   * @returns {Promise<{text, items?, actions?, suggestions?, link?}>}
+   * meta: { unit, model, attachment: { name, size, type, text? } } dari composer chatbot.
+   * @returns {Promise<{text, items?, actions?, suggestions?, link?, citations?, chart?, model, usage}>}
    */
   ask: (message, history = [], meta = {}) =>
-    config.useMock ? mock.ask(message, meta) : request('/chat', { method: 'POST', body: { message, history, ...meta } }),
+    config.useMock ? mock.ask(message, history, meta) : request('/chat', { method: 'POST', body: { message, history, ...meta } }),
+
+  /** Penilaian jawaban. payload: { messageId, rating: 'up'|'down'|null, previous, model, question, answer } */
+  rateAnswer: (payload) => (config.useMock ? mock.rateAnswer(payload) : request('/chat/feedback', { method: 'POST', body: payload })),
+
+  /** Pengguna, pemakaian token per hari, dan penilaian jawaban. @returns {Promise<{users, daily, feedback, updatedAt}>} */
+  getChatAnalytics: () => (config.useMock ? mock.getChatAnalytics() : request('/chat/analytics')),
 
   /**
    * Update realtime. handler menerima { iot?, parking? }.

@@ -472,6 +472,57 @@ function detectionsFor(camera, zone, slots, rand) {
   });
 }
 
+/* Riwayat kendaraan: satu baris per kunjungan (plat, jam masuk, jam keluar). */
+
+const VISIT_LIMIT = 220;
+const GATES = ['Gerbang 1', 'Gerbang 2'];
+const confidence = (rand) => Math.round((0.9 + rand() * 0.09) * 100) / 100;
+
+function seedVisits(zones, rand) {
+  const now = Date.now();
+  const visits = [];
+  // Kendaraan yang sedang parkir: jam masuk = sejak kapan slot terisi.
+  for (const zone of zones) {
+    for (const s of zone.slots.filter((x) => x.occupied)) {
+      visits.push({ id: `VS-${s.id}`, plate: s.plate, vehicleType: s.vehicleType, zoneId: zone.id, slotId: s.id, gateIn: GATES[Math.floor(rand() * 2)], gateOut: null, inAt: s.since, outAt: null, confidence: confidence(rand) });
+    }
+  }
+  // Kendaraan yang sudah keluar hari ini.
+  const dayStart = new Date();
+  dayStart.setHours(6, 0, 0, 0);
+  const span = Math.max(0, now - dayStart.getTime() - 30 * 60000);
+  const done = span ? 70 : 0;
+  for (let i = 0; i < done; i++) {
+    const zone = zones[Math.floor(rand() * zones.length)];
+    const inAt = dayStart.getTime() + rand() * span;
+    const outAt = Math.min(now - 60000, inAt + (15 + rand() * 300) * 60000);
+    const vehicleType = zone.kind === 'car' ? (rand() < 0.06 ? 'truck' : 'car') : 'motorcycle';
+    visits.push({ id: `VS-done-${i}`, plate: plate(rand), vehicleType, zoneId: zone.id, slotId: null, gateIn: GATES[Math.floor(rand() * 2)], gateOut: GATES[Math.floor(rand() * 2)], inAt: new Date(inAt).toISOString(), outAt: new Date(outAt).toISOString(), confidence: confidence(rand) });
+  }
+  return visits.sort((a, b) => lastMove(b).localeCompare(lastMove(a)));
+}
+
+// Waktu gerakan terakhir kunjungan (keluar bila sudah keluar, selain itu masuk).
+const lastMove = (v) => v.outAt ?? v.inAt;
+
+// Okupansi 7 hari terakhir: rata-rata dan puncak per hari. Hari ini dihitung dari `history`.
+function seedWeek(history, rand) {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const weekend = d.getDay() === 0 || d.getDay() === 6;
+    const peak = weekend ? 0.18 + rand() * 0.12 : 0.82 + rand() * 0.14;
+    return { date: localDate(d), peak: Math.min(1, peak), avg: peak * (0.62 + rand() * 0.08) };
+  }).map((day, i, list) => (i === list.length - 1 ? { ...day, ...weekFromHourly(history) } : day));
+}
+
+function weekFromHourly(history) {
+  const hour = new Date().getHours();
+  const passed = history.filter((h) => Number(h.hour.slice(0, 2)) <= hour).map((h) => h.occupancy);
+  if (!passed.length) return { peak: 0, avg: 0 };
+  return { peak: Math.max(...passed), avg: passed.reduce((s, v) => s + v, 0) / passed.length };
+}
+
 export function createParkingState(seed = 7310) {
   const rand = createRng(seed);
   const zones = ZONES.map(({ fill, ...zone }) => {
@@ -523,7 +574,9 @@ export function createParkingState(seed = 7310) {
     zones,
     cameras,
     events,
+    visits: seedVisits(zones, rand),
     history,
+    historyWeek: seedWeek(history, rand),
     today: {
       in: { car: 148, motorcycle: 263, truck: 6 },
       out: { car: 97, motorcycle: 171, truck: 4 },
@@ -544,15 +597,21 @@ export function stepParking(state, rand = Math.random) {
     ? { occupied: true, vehicleType, plate: plateNo, since: new Date().toISOString() }
     : { occupied: false, vehicleType: null, plate: null, since: null });
 
-  state.events.unshift({
-    id: `EV-${Date.now()}`,
-    time: new Date().toISOString(),
-    gate: rand() < 0.5 ? 'Gerbang 1' : 'Gerbang 2',
-    direction: entering ? 'in' : 'out',
-    vehicleType,
-    plate: plateNo,
-    confidence: Math.round((0.9 + rand() * 0.09) * 100) / 100,
-  });
+  const now = new Date().toISOString();
+  const gate = GATES[Math.floor(rand() * 2)];
+  const conf = confidence(rand);
+  state.events.unshift({ id: `EV-${Date.now()}`, time: now, gate, direction: entering ? 'in' : 'out', vehicleType, plate: plateNo, confidence: conf });
+  if (entering) {
+    state.visits.unshift({ id: `VS-${Date.now()}`, plate: plateNo, vehicleType, zoneId: zone.id, slotId: slot.id, gateIn: gate, gateOut: null, inAt: now, outAt: null, confidence: conf });
+  } else {
+    const visit = state.visits.find((v) => v.plate === plateNo && !v.outAt);
+    if (visit) Object.assign(visit, { outAt: now, gateOut: gate, slotId: null });
+  }
+  state.visits.sort((a, b) => lastMove(b).localeCompare(lastMove(a)));
+  // Kunjungan yang masih di dalam selalu disimpan; yang sudah keluar dipangkas dari yang terlama.
+  const inside = state.visits.filter((v) => !v.outAt).length;
+  let doneKept = 0;
+  state.visits = state.visits.filter((v) => !v.outAt || ++doneKept <= Math.max(0, VISIT_LIMIT - inside));
   state.events.length = Math.min(state.events.length, 30);
   state.today[entering ? 'in' : 'out'][vehicleType] += 1;
 
@@ -567,5 +626,11 @@ export function stepParking(state, rand = Math.random) {
     const all = state.zones.flatMap((z) => z.slots);
     point.occupancy = all.filter((s) => s.occupied).length / all.length;
   }
+  const week = state.historyWeek;
+  if (week.at(-1).date !== localDate()) {
+    week.push({ date: localDate(), peak: 0, avg: 0 });
+    week.splice(0, week.length - 7);
+  }
+  Object.assign(week.at(-1), weekFromHourly(state.history));
   state.updatedAt = new Date().toISOString();
 }

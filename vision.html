@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Deteksi kendaraan dan ketersediaan slot parkir." />
-    <title>Computer Vision · SatuData Pusdatin</title>
+    <title>AI Vision · SatuData Pusdatin</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -77,10 +77,14 @@
         <section class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_560px]">
           <article class="card min-w-0">
             <div class="card-header">
-              <h2 class="card-title">Okupansi parkir per jam</h2>
+              <div class="flex flex-wrap items-center gap-3">
+                <h2 class="card-title" data-chart-title>Okupansi parkir</h2>
+                <div class="segmented" role="tablist" aria-label="Pilih periode" data-chart-period></div>
+              </div>
               <span class="inline-flex items-baseline gap-2 rounded-pill border border-ink/15 bg-ink/5 px-3 py-1.5 text-ink" data-chart-summary></span>
             </div>
             <div class="card-body" data-chart></div>
+            <div class="card-footer hidden" data-chart-legend></div>
           </article>
           <article class="card flex min-w-0 flex-col overflow-hidden">
             <div class="card-header">
@@ -93,6 +97,26 @@
               </table>
             </div>
           </article>
+        </section>
+
+        <!-- Satu baris per kendaraan: plat dari ALPR, jam masuk, jam keluar, dan lama parkir. -->
+        <section class="card mt-4 min-w-0" aria-labelledby="visits-title">
+          <div class="card-header">
+            <div class="flex flex-wrap items-center gap-3">
+              <h2 id="visits-title" class="card-title" data-visits-title>Riwayat kendaraan</h2>
+              <div class="segmented" role="tablist" aria-label="Saring kendaraan" data-visits-filter></div>
+            </div>
+            <div class="relative w-full sm:w-64">
+              <i data-lucide="search" class="pointer-events-none absolute top-2.5 left-3 size-4 text-mid-gray"></i>
+              <input type="search" class="input pl-9" placeholder="Cari nomor polisi" data-visits-search aria-label="Cari nomor polisi" />
+            </div>
+          </div>
+          <div class="scroll-thin mt-3 max-h-[480px] overflow-auto pb-2">
+            <table class="data-table min-w-[760px]">
+              <thead class="sticky top-0 bg-paper"><tr><th>Nomor polisi</th><th>Jenis</th><th>Zona</th><th>Jam masuk</th><th>Jam keluar</th><th class="num">Lama parkir</th><th class="num">Akurasi</th></tr></thead>
+              <tbody data-visits></tbody>
+            </table>
+          </div>
         </section>
       </main>
     </div>

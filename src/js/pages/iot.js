@@ -5,20 +5,27 @@ import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-tog
 import { icon, renderIcons } from '../components/icons.js';
 import { lineLegendHtml, miniLineChartSvg } from '../components/line-chart.js';
 import { createTrendChart } from '../components/trend-chart.js';
+import { createAlertPanel } from '../components/alert-panel.js';
 import { errorState, floorTargetCell, segmentedHtml, statTile } from '../components/ui.js';
 import { DEVICE_TYPES } from '../data/device-types.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
-  devicePowerW, devicesInRoom, ENERGY_PERIODS, energyByFloor, energySeries, findWasteRooms, indexIot,
+  devicePowerW, devicesInRoom, deviceUptime, ENERGY_PERIODS, energyByFloor, energySeries, findWasteRooms, getAlerts, indexIot,
   roomActivity, roomEnergy, roomRanking, summarizeIot,
 } from '../services/selectors.js';
 import { $, esc, getParam, setParams } from '../utils/dom.js';
-import { fmt1, fmtInt, fmtRelative, fmtTime } from '../utils/format.js';
+import { fmt1, fmtDateTime, fmtDuration, fmtInt, fmtRelative, fmtTime } from '../utils/format.js';
 
 mountLayout({ page: 'iot' });
 
 const state = {
   iot: null,
+  parking: null,
+  history: null,
+  notifications: null,
+  logKind: 'status',
+  logFloor: 'all',
+  logSearch: '',
   floorId: getParam('floor') ?? 'L1',
   roomId: getParam('room'),
   filter: 'all',
@@ -109,7 +116,7 @@ async function setDevices(ids, on) {
   render();
   try {
     await api.setDevices(ids, on);
-    state.iot = await api.getIot();
+    [state.iot] = await Promise.all([api.getIot(), loadExtras()]);
   } catch (err) {
     console.error(err);
     alertBanner(`Gagal mengubah perangkat: ${err.message}`);
@@ -387,6 +394,205 @@ $('[data-energy-scope]').addEventListener('click', (e) => {
   }),
 );
 
+/* ------------------------- peringatan & telegram ------------------------- */
+
+const alertPanel = createAlertPanel($('[data-alert-panel]'));
+
+function monitoredChecks() {
+  const s = summarizeIot(state.iot);
+  const temps = state.iot.building.floors.flatMap((f) => f.rooms).map((r) => r.temperature).filter((t) => t != null);
+  return [
+    { label: 'Perangkat online', value: `${s.online}/${s.totalDevices}` },
+    { label: 'Suhu ruang tertinggi', value: `${fmt1(Math.max(...temps))}°C` },
+    { label: 'Listrik per lantai', value: 'Sesuai target' },
+    { label: 'Ruang kosong menyala', value: 'Tidak ada' },
+  ];
+}
+
+function renderAlerts() {
+  alertPanel.update(getAlerts(state.iot, state.parking), { checks: monitoredChecks(), checkedAt: fmtTime(state.iot.updatedAt) });
+}
+
+const TG_STATUS = {
+  sent: '<span class="badge badge-solid">Terkirim</span>',
+  skipped: '<span class="badge badge-soft">Tidak dikirim</span>',
+  failed: '<span class="badge badge-alert">Gagal</span>',
+};
+const TG_KIND = { alert: '', resolved: 'Pulih · ', test: '' };
+
+function renderTelegram() {
+  const n = state.notifications;
+  if (!n) return;
+  const { channel, settings } = n;
+  $('[data-tg-channel]').textContent = `${channel.bot} ke ${channel.chat}`;
+  $('[data-tg-status]').innerHTML = channel.connected ? '<span class="badge badge-outline">Terhubung</span>' : '<span class="badge badge-alert">Terputus</span>';
+  const row = (key, label, desc, disabled = false) => `<div class="flex items-center justify-between gap-3 px-3 py-2.5">
+      <span class="min-w-0"><span class="block font-medium">${label}</span><span class="block text-caption tracking-normal text-mid-gray">${desc}</span></span>
+      <button type="button" class="switch" role="switch" aria-checked="${settings[key]}" aria-label="${label}" data-tg-setting="${key}" ${disabled ? 'disabled' : ''}></button>
+    </div>`;
+  $('[data-tg-settings]').innerHTML = [
+    row('enabled', 'Kirim ke Telegram', 'Peringatan baru dan pemulihan dikirim ke grup'),
+    row('critical', 'Tingkat Kritis', 'Perangkat offline, suhu tinggi', !settings.enabled),
+    row('warning', 'Tingkat Perhatian', 'Listrik di atas target, ruang kosong menyala', !settings.enabled),
+  ].join('');
+  const today = new Date().toDateString();
+  const sentToday = n.items.filter((i) => i.status === 'sent' && new Date(i.time).toDateString() === today).length;
+  $('[data-tg-count]').textContent = `${sentToday} pesan terkirim hari ini`;
+  $('[data-tg-log]').innerHTML =
+    n.items
+      .slice(0, 40)
+      .map((i) => `<tr>
+          <td class="align-top whitespace-nowrap text-mid-gray">${fmtTime(i.time)}</td>
+          <td class="min-w-0"><span class="block font-medium">${TG_KIND[i.kind] ?? ''}${esc(i.title)}</span><span class="block text-caption tracking-normal text-mid-gray">${esc(i.meta)}</span></td>
+          <td class="num align-top">${TG_STATUS[i.status] ?? ''}</td>
+        </tr>`)
+      .join('') || '<tr><td colspan="3" class="py-6 text-center text-mid-gray">Belum ada notifikasi.</td></tr>';
+}
+
+$('[data-tg-settings]').addEventListener('click', async (e) => {
+  const sw = e.target.closest('[data-tg-setting]');
+  if (!sw || !state.notifications) return;
+  const key = sw.dataset.tgSetting;
+  const value = !state.notifications.settings[key];
+  state.notifications.settings[key] = value;
+  renderTelegram();
+  try {
+    state.notifications.settings = await api.updateNotificationSettings({ [key]: value });
+  } catch (err) {
+    state.notifications.settings[key] = !value;
+    console.error(err);
+  }
+  renderTelegram();
+});
+
+$('[data-tg-test]').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.textContent = 'Mengirim…';
+  try {
+    await api.sendTestNotification();
+    state.notifications = await api.getNotifications();
+    btn.textContent = 'Pesan uji terkirim';
+  } catch (err) {
+    btn.textContent = 'Gagal mengirim';
+    console.error(err);
+  }
+  renderTelegram();
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = 'Kirim pesan uji';
+  }, 2500);
+});
+
+/* --------------------------- riwayat perangkat --------------------------- */
+
+let uptimeChart = null;
+const pct2 = (ratio) => `${(ratio * 100).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
+
+function renderHistory() {
+  if (!state.history) return;
+  const u = deviceUptime(state.history, state.iot);
+  const { rooms } = indexIot(state.iot);
+  const roomName = (id) => rooms.get(id)?.name ?? '–';
+
+  $('[data-uptime-kpis]').innerHTML = [
+    statTile({ label: `Uptime ${u.days} hari`, value: pct2(u.overall), sub: `${state.iot.devices.length} perangkat` }),
+    statTile({ label: 'Gangguan koneksi', value: fmtInt(u.outages), sub: `${u.days} hari terakhir` }),
+    statTile({ label: 'Terputus saat ini', value: u.disconnected, unit: ' perangkat', alert: u.disconnected > 0 }),
+    statTile({ label: 'Total waktu terputus', value: fmtDuration(u.downMs / 60000), sub: 'Dijumlah dari semua perangkat' }),
+  ].join('');
+
+  const opts = {
+    labels: u.daily.map((d) => d.label),
+    series: [{ label: 'Uptime', values: u.daily.map((d) => d.ratio * 100), style: 'current' }],
+    height: 240,
+    format: (v) => `${v.toLocaleString('id-ID', { maximumFractionDigits: 2 })}% terhubung`,
+  };
+  if (uptimeChart) uptimeChart.update(opts);
+  else uptimeChart = createTrendChart($('[data-uptime-chart]'), opts);
+
+  $('[data-uptime-low]').innerHTML = u.devices
+    .slice(0, 6)
+    .map((r) => `<tr>
+        <td><span class="block font-medium">${esc(r.device.name)} <span class="font-normal text-mid-gray">· ${esc(roomName(r.device.roomId))}</span></span><span class="block font-mono text-[11px] text-mid-gray">${esc(r.device.id)}</span></td>
+        <td class="num font-medium">${pct2(r.uptime)}</td>
+        <td class="num">${r.outages}</td>
+        <td class="whitespace-nowrap">${r.last ? (r.last.end ? `<span class="text-mid-gray">${fmtDateTime(r.last.start)}</span>` : '<span class="badge badge-alert">Masih terputus</span>') : '–'}</td>
+      </tr>`)
+    .join('');
+
+  renderLog();
+}
+
+function renderLog() {
+  const kinds = [{ value: 'status', label: 'Status perangkat' }, { value: 'connection', label: 'Konektivitas' }];
+  $('[data-log-kind]').innerHTML = segmentedHtml(kinds, state.logKind, 'data-log-kind-id');
+  const floors = [{ value: 'all', label: 'Semua' }, ...state.iot.building.floors.map((f) => ({ value: f.id, label: f.short }))];
+  $('[data-log-floor]').innerHTML = segmentedHtml(floors, state.logFloor, 'data-log-floor-id');
+
+  const { rooms } = indexIot(state.iot);
+  const devices = new Map(state.iot.devices.map((d) => [d.id, d]));
+  const q = state.logSearch;
+  const match = (e) => {
+    if (state.logFloor !== 'all' && e.floorId !== state.logFloor) return false;
+    if (!q) return true;
+    return `${devices.get(e.deviceId)?.name ?? ''} ${e.deviceId} ${rooms.get(e.roomId)?.name ?? ''}`.toLowerCase().includes(q);
+  };
+  const deviceCell = (e) => `<span class="block font-medium">${esc(devices.get(e.deviceId)?.name ?? e.deviceId)}</span><span class="block font-mono text-[11px] text-mid-gray">${esc(e.deviceId)}</span>`;
+  const roomCell = (e) => `${esc(rooms.get(e.roomId)?.name ?? '–')} <span class="text-mid-gray">· ${esc(state.iot.building.floors.find((f) => f.id === e.floorId)?.short ?? '')}</span>`;
+
+  if (state.logKind === 'status') {
+    const list = state.history.statusLog.filter(match).slice(0, 150);
+    $('[data-log-title]').innerHTML = `Riwayat <span class="font-normal text-mid-gray">${list.length}</span>`;
+    $('[data-log-head]').innerHTML = '<tr><th>Waktu</th><th>Perangkat</th><th>Ruangan</th><th>Status</th></tr>';
+    $('[data-log-body]').innerHTML =
+      list
+        .map((e) => {
+          const meta = DEVICE_TYPES[e.type];
+          return `<tr>
+            <td class="whitespace-nowrap text-mid-gray">${fmtDateTime(e.time)}</td>
+            <td>${deviceCell(e)}</td>
+            <td>${roomCell(e)}</td>
+            <td>${e.on ? `<span class="badge badge-solid">Aktif · ${meta.onLabel}</span>` : `<span class="badge badge-soft">Tidak aktif · ${meta.offLabel}</span>`}</td>
+          </tr>`;
+        })
+        .join('') || '<tr><td colspan="4" class="py-6 text-center text-mid-gray">Tidak ada riwayat yang cocok.</td></tr>';
+    return;
+  }
+
+  const now = Date.now();
+  const list = state.history.outages.filter(match).slice(0, 150);
+  $('[data-log-title]').innerHTML = `Riwayat <span class="font-normal text-mid-gray">${list.length}</span>`;
+  $('[data-log-head]').innerHTML = '<tr><th>Terputus</th><th>Perangkat</th><th>Ruangan</th><th>Tersambung lagi</th><th class="num">Durasi</th></tr>';
+  $('[data-log-body]').innerHTML =
+    list
+      .map((o) => `<tr>
+          <td class="whitespace-nowrap text-mid-gray">${fmtDateTime(o.start)}</td>
+          <td>${deviceCell(o)}</td>
+          <td>${roomCell(o)}</td>
+          <td class="whitespace-nowrap">${o.end ? fmtDateTime(o.end) : '<span class="badge badge-alert">Masih terputus</span>'}</td>
+          <td class="num">${fmtDuration(((o.end ? new Date(o.end).getTime() : now) - new Date(o.start).getTime()) / 60000)}</td>
+        </tr>`)
+      .join('') || '<tr><td colspan="5" class="py-6 text-center text-mid-gray">Tidak ada gangguan koneksi.</td></tr>';
+}
+
+$('[data-log-kind]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-log-kind-id]');
+  if (!btn) return;
+  state.logKind = btn.dataset.logKindId;
+  renderLog();
+});
+$('[data-log-floor]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-log-floor-id]');
+  if (!btn) return;
+  state.logFloor = btn.dataset.logFloorId;
+  renderLog();
+});
+$('[data-log-search]').addEventListener('input', (e) => {
+  state.logSearch = e.target.value.trim().toLowerCase();
+  renderLog();
+});
+
 function render() {
   if (!state.iot) return;
   const floor = currentFloor();
@@ -396,26 +602,39 @@ function render() {
   renderPlan(floor);
   renderRoomPanel(floor);
   renderTable();
+  renderAlerts();
+  renderTelegram();
+  renderHistory();
   renderEnergy();
   renderIcons($('main'));
 }
 
+// Data pendukung (parkir untuk peringatan, riwayat, notifikasi) dimuat bersama dan tiap pembaruan.
+async function loadExtras() {
+  [state.parking, state.history, state.notifications] = await Promise.all([api.getParking(), api.getIotHistory(), api.getNotifications()]);
+}
+
 async function load() {
   try {
-    state.iot = await api.getIot();
+    [state.iot] = await Promise.all([api.getIot(), loadExtras()]);
     render();
   } catch (err) {
     $('[data-kpis]').innerHTML = `<div class="col-span-full">${errorState(`Gagal memuat data IoT: ${err.message}`)}</div>`;
   }
 }
 
-api.subscribe((next) => {
+api.subscribe(async (next) => {
   if (!next.iot || state.pending.size) return;
   state.iot = next.iot;
+  try {
+    await loadExtras();
+  } catch (err) {
+    console.warn('[iot] gagal memuat riwayat/notifikasi', err);
+  }
   render();
 });
 window.addEventListener(DEVICES_CHANGED, async () => {
-  state.iot = await api.getIot();
+  [state.iot] = await Promise.all([api.getIot(), loadExtras()]);
   render();
 });
 

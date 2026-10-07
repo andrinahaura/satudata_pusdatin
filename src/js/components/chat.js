@@ -3,17 +3,81 @@
 //                       pintas unit organisasi PU, kartu saran; lampiran dokumen, pilihan model, dikte suara.
 //   variant 'compact' : widget di Home.
 // Keduanya memakai percakapan aktif yang sama dari chat-store.
+// Jawaban asisten bisa membawa rujukan dokumen (citations), grafik (chart), dan pemakaian token (usage).
+// Setiap jawaban bisa dinilai "Sesuai" / "Tidak sesuai" untuk analitik mutu layanan.
 import { api, DEVICES_CHANGED } from '../services/api.js';
-import { DEFAULT_SUGGESTIONS, DOCUMENT_SUGGESTIONS, MODELS, UNITS } from '../services/chat-engine.js';
+import { DEFAULT_SUGGESTIONS, DOCUMENT_SUGGESTIONS, MODELS, SITABA_SUGGESTIONS, UNITS } from '../services/chat-engine.js';
 import { activeConversation, CHATS_CHANGED, createConversation, saveConversation } from '../services/chat-store.js';
 import { esc } from '../utils/dom.js';
-import { fmtTime } from '../utils/format.js';
+import { fmtInt, fmtTime } from '../utils/format.js';
 import { icon, renderIcons } from './icons.js';
+import { lineLegendHtml, miniLineChartSvg } from './line-chart.js';
+import { barListHtml } from './ui.js';
+
+// Isi file teks dibaca di browser dan ikut dikirim (dipotong) supaya bisa dianalisis.
+const TEXT_LIMIT = 20000;
+const isTextFile = (file) => file.type.startsWith('text/') || /\.(txt|md|csv)$/i.test(file.name);
 
 const BUILDING_CARDS = ['Pemakaian listrik hari ini?', 'Ruang kosong tapi lampu masih menyala?', 'Perangkat mana yang offline?', 'Berapa slot parkir yang kosong?'];
 
 const unitLabel = (id) => UNITS.find((u) => u.id === id)?.label ?? 'Gedung Pusdatin';
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const fmtValue = (v, unit) => (unit === '%' ? `${Math.round(v)}%` : `${v.toLocaleString('id-ID', { maximumFractionDigits: 1 })} ${unit ?? ''}`.trim());
+
+function chartHtml(chart) {
+  if (!chart) return '';
+  const title = `<p class="mb-2 text-caption tracking-normal text-mid-gray">${esc(chart.title)}</p>`;
+  if (chart.kind === 'bar') {
+    return `<div class="mt-2 rounded-nested border border-hairline bg-paper p-3">${title}${barListHtml(chart.bars, { format: (v) => fmtValue(v, chart.unit) })}</div>`;
+  }
+  const main = chart.series.find((x) => x.style === 'current') ?? chart.series[0];
+  const values = main.values.filter((v) => v != null);
+  const peak = values.length ? Math.max(...values) : 0;
+  const peakLabel = chart.labels[main.values.indexOf(peak)];
+  return `<div class="mt-2 rounded-nested border border-hairline bg-paper p-3">
+      ${title}
+      ${miniLineChartSvg({ series: chart.series })}
+      <div class="mt-1 flex justify-between text-caption tracking-normal text-mid-gray"><span>${esc(chart.labels[0])}</span><span>${esc(chart.labels[chart.labels.length - 1])}</span></div>
+      <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
+        ${chart.series.length > 1 ? lineLegendHtml(chart.series) : '<span></span>'}
+        <span class="text-caption tracking-normal text-mid-gray">Puncak ${esc(fmtValue(peak, chart.unit))}${peakLabel ? ` · ${esc(peakLabel)}` : ''}</span>
+      </div>
+    </div>`;
+}
+
+function citationsHtml(citations) {
+  if (!citations?.length) return '';
+  return `<div class="mt-3 border-t border-hairline pt-2">
+      <p class="label-caps mb-1.5">Rujukan</p>
+      <ol class="space-y-1.5">
+        ${citations
+          .map((c) => `<li class="flex gap-2 text-[13px]">
+            <span class="grid size-5 shrink-0 place-items-center rounded-full bg-paper text-[11px] font-semibold tabular-nums">${c.n}</span>
+            <span class="min-w-0"><span class="font-medium">${esc(c.title)}</span>${c.ref ? ` <span class="text-mid-gray">· ${esc(c.ref)}</span>` : ''}
+              <span class="block text-mid-gray">${esc(c.snippet)}</span></span>
+          </li>`)
+          .join('')}
+      </ol>
+    </div>`;
+}
+
+function metaHtml(m, index) {
+  const tokens = m.usage ? m.usage.inputTokens + m.usage.outputTokens : null;
+  const info = [m.time && fmtTime(m.time), m.model, tokens && `${fmtInt(tokens)} token`].filter(Boolean).map(esc).join(' · ');
+  // Jawaban error (tanpa model) tidak dinilai.
+  const rating = m.model
+    ? `<span class="inline-flex items-center gap-1" role="group" aria-label="Penilaian jawaban">
+        <span class="mr-1">Jawaban sesuai?</span>
+        ${[['up', 'Sesuai', 'check'], ['down', 'Tidak sesuai', 'x']]
+          .map(([v, label, ic]) => `<button type="button" data-rate="${index}" data-rating="${v}" aria-pressed="${m.rating === v}"
+              class="inline-flex h-6 cursor-pointer items-center gap-1 rounded-pill px-2 font-medium transition-colors ${m.rating === v ? 'bg-ink text-paper' : 'border border-hairline text-ink hover:bg-canvas'}">${icon(ic, 'size-3')}${label}</button>`)
+          .join('')}
+      </span>`
+    : '';
+  if (!info && !rating) return '';
+  return `<div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption tracking-normal text-mid-gray">${info ? `<span>${info}</span>` : ''}${rating}</div>`;
+}
 
 function assistantHtml(m, index) {
   const items = m.items?.length
@@ -30,9 +94,9 @@ function assistantHtml(m, index) {
     <div class="min-w-0 max-w-[85%]">
       <div class="rounded-[18px] rounded-tl-small bg-canvas px-3.5 py-2.5">
         <p class="whitespace-pre-line">${esc(m.text)}</p>
-        ${items}${actions}${resolved}${link}
+        ${items}${chartHtml(m.chart)}${citationsHtml(m.citations)}${actions}${resolved}${link}
       </div>
-      ${m.time ? `<p class="mt-1 text-caption tracking-normal text-mid-gray">${fmtTime(m.time)}</p>` : ''}
+      ${metaHtml(m, index)}
     </div>
   </div>`;
 }
@@ -68,7 +132,7 @@ function fullSkeleton(id) {
           <textarea id="chat-q-${id}" name="q" rows="1" class="scroll-thin block max-h-48 w-full resize-none bg-transparent px-5 pt-4 pb-2 text-body-lg outline-none placeholder:text-mid-gray" placeholder="Masukkan pertanyaan…"></textarea>
           <div class="flex items-center gap-2 px-3 pb-3">
             <button type="button" class="btn btn-outline btn-icon size-8" data-chat-attach aria-label="Lampirkan dokumen" title="Lampirkan dokumen (PDF, Word, teks)">${icon('plus')}</button>
-            <input type="file" class="hidden" accept=".pdf,.doc,.docx,.txt" data-chat-file />
+            <input type="file" class="hidden" accept=".pdf,.doc,.docx,.txt,.md,.csv" data-chat-file />
             <label class="relative">
               <span class="sr-only">Model</span>
               <select data-chat-model class="h-8 cursor-pointer appearance-none rounded-pill bg-canvas pr-8 pl-3 text-[13px] font-medium text-ink outline-none">
@@ -155,8 +219,8 @@ export function createChat(root, opts = {}) {
       (u) => `<button type="button" role="radio" aria-checked="${u.id === draft.unit}" data-chat-unit-id="${u.id}"
         class="btn btn-sm shrink-0 ${u.id === draft.unit ? 'bg-ink text-paper hover:bg-ink-soft' : 'btn-outline'}">${esc(u.label)}</button>`,
     ).join('');
-    const prompts = draft.unit === 'pusdatin' ? BUILDING_CARDS : DOCUMENT_SUGGESTIONS;
-    const category = draft.unit === 'pusdatin' ? 'Gedung' : 'Dokumen';
+    const prompts = draft.unit === 'pusdatin' ? BUILDING_CARDS : draft.unit === 'sitaba' ? SITABA_SUGGESTIONS : DOCUMENT_SUGGESTIONS;
+    const category = draft.unit === 'pusdatin' ? 'Gedung' : draft.unit === 'sitaba' ? 'Kebencanaan' : 'Dokumen';
     $('[data-chat-cards]').innerHTML = prompts
       .map(
         (p, i) => `<button type="button" data-suggest="${esc(p)}"
@@ -200,19 +264,37 @@ export function createChat(root, opts = {}) {
     const q = text.trim();
     if (!q || busy) return;
     conv ??= createConversation({ unit: draft.unit, model: draft.model });
-    const attachment = draft.attachment ? { name: draft.attachment.name, size: draft.attachment.size, type: draft.attachment.type } : null;
+    const file = draft.attachment;
+    const attachment = file ? { name: file.name, size: file.size, type: file.type } : null;
     draft.attachment = null;
     push({ role: 'user', text: q, ...(attachment ? { attachment } : {}) });
     busy = true;
     render();
     try {
       const history = conv.messages.slice(-10).map(({ role, text: t }) => ({ role, text: t }));
-      const res = await api.ask(q, history, { unit: conv.unit, model: conv.model, ...(attachment ? { attachment } : {}) });
+      // Isi teks tidak disimpan di riwayat percakapan, hanya dikirim bersama pertanyaan.
+      const text = file && isTextFile(file) ? (await file.text()).slice(0, TEXT_LIMIT) : null;
+      const res = await api.ask(q, history, { unit: conv.unit, model: conv.model, ...(attachment ? { attachment: { ...attachment, ...(text ? { text } : {}) } } : {}) });
       busy = false;
       push({ role: 'assistant', ...res });
     } catch (err) {
       busy = false;
       push({ role: 'assistant', text: `Maaf, asisten tidak bisa dihubungi. ${err.message}` });
+    }
+  }
+
+  async function rate(msgIndex, rating) {
+    const msg = conv.messages[msgIndex];
+    const previous = msg.rating ?? null;
+    const next = previous === rating ? null : rating;
+    msg.rating = next;
+    persist();
+    render();
+    const question = [...conv.messages.slice(0, msgIndex)].reverse().find((m) => m.role === 'user')?.text ?? '';
+    try {
+      await api.rateAnswer({ messageId: `${conv.id}-${msgIndex}`, rating: next, previous, model: msg.model, question, answer: msg.text });
+    } catch (err) {
+      console.warn('[chat] penilaian gagal dikirim', err);
     }
   }
 
@@ -269,6 +351,8 @@ export function createChat(root, opts = {}) {
     if (chip) return ask(chip.dataset.suggest);
     const btn = e.target.closest('[data-action]');
     if (btn) return runAction(Number(btn.dataset.msg), Number(btn.dataset.action));
+    const rateBtn = e.target.closest('[data-rate]');
+    if (rateBtn) return rate(Number(rateBtn.dataset.rate), rateBtn.dataset.rating);
     const unit = e.target.closest('[data-chat-unit-id]');
     if (unit) {
       draft.unit = unit.dataset.chatUnitId;

@@ -7,10 +7,14 @@ Tema visual mengikuti [`design.md`](design.md).
 
 | Menu | Halaman | Isi |
 |------|---------|-----|
-| Home | `index.html` | Ringkasan KPI, denah lantai + peringatan, listrik hari ini + tabel per lantai, parkir per zona + deteksi terbaru |
-| IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang (sensor, listrik, riwayat aktivitas), kontrol perangkat, listrik (grafik, tabel per lantai, panel distribusi, pemakaian per ruang) |
-| Chatbot | `chatbot.html` | Chatbot TEJAS di dalam dashboard: riwayat percakapan, pintas unit organisasi PU, lampiran dokumen, pilihan model, dikte suara, data gedung |
-| Computer Vision | `vision.html` | Peta parkir 3D/2D, kamera + bounding box, okupansi per jam, riwayat ALPR |
+| Home | `index.html` | KPI dan grafik dari tiga menu: IoT (perangkat, uptime, peringatan, Telegram, listrik), AI Vision (slot, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
+| IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang, kontrol perangkat, peringatan + notifikasi Telegram, riwayat status perangkat dan uptime, listrik |
+| Chatbot | `chatbot.html` | Chatbot TEJAS (pintas unit PU, SITABA, rujukan dokumen, analisis lampiran, grafik, penilaian jawaban) dan tab Analitik (token & biaya, pengguna, ulasan, integrasi) |
+| AI Vision | `vision.html` | Peta parkir 3D/2D, kamera + bounding box, okupansi per jam dan 7 hari, riwayat ALPR, riwayat kendaraan (jam masuk/keluar, lama parkir) |
+
+Ruang lingkup mengikuti paparan *Sistem Informasi Kecerdasan Buatan* (Pusdatin Kementerian PU):
+Dashboard Monitoring IoT, Dashboard AI Vision, dan Dashboard Chatbot. SSO masih dalam kajian, jadi
+analitik mencatat pertanyaan dari dashboard atas nama satu pengguna (`CURRENT_USER` di `src/js/data/mock-chat.js`).
 
 ## Menjalankan
 
@@ -162,6 +166,37 @@ Request `{ "ids": ["L1-R01-LMP1"], "on": false }`, response `{ "updated": 1 }`.
 }
 ```
 
+### `GET /iot/history`
+
+Riwayat 7 hari. Uptime per hari dan per perangkat dihitung di `deviceUptime()` (`selectors.js`).
+
+```jsonc
+{
+  "statusLog": [{ "id": "ST-1", "time": "...", "deviceId": "L1-R01-LMP1", "floorId": "L1", "roomId": "L1-R01", "type": "light", "on": true }],
+  "outages": [{ "id": "OUT-1", "deviceId": "L1-R03-LMP1", "floorId": "L1", "roomId": "L1-R03", "type": "light",
+                "start": "...", "end": null }],   // end null = masih terputus
+  "windowDays": 7,
+  "updatedAt": "..."
+}
+```
+
+### `GET /notifications`, `PATCH /notifications/settings`, `POST /notifications/test`
+
+Log pesan peringatan ke Telegram. Backend mengirim lewat Telegram Bot API (`sendMessage`) setiap ada
+peringatan baru dari aturan yang sama dengan `getAlerts()`, dan pesan "pulih" saat peringatan hilang.
+
+```jsonc
+{
+  "channel": { "type": "telegram", "bot": "@pusdatin_iot_bot", "chat": "Grup Teknisi Pusdatin", "connected": true },
+  "settings": { "enabled": true, "critical": true, "warning": true },   // PATCH menerima sebagian field ini
+  "items": [{ "id": "TG-1", "time": "...", "kind": "alert", "severity": "critical",   // kind: alert | resolved | test
+              "title": "Lampu offline", "meta": "Lantai 1 · 22 R. Katim", "text": "...", "status": "sent" }]  // sent | skipped | failed
+}
+```
+
+`GET /parking` juga memuat `visits` (satu baris per kendaraan: `plate`, `inAt`, `outAt`, `gateIn`, `gateOut`,
+`zoneId`, `slotId`, `confidence`; `outAt` null = masih parkir) dan `historyWeek` (`[{ date, avg, peak }]`, 7 hari).
+
 ### `POST /chat`
 
 Request:
@@ -193,6 +228,15 @@ Response:
   "link": { "label": "Lihat peta parkir", "href": "/vision.html" }                  // opsional
 }
 ```
+
+Response juga boleh memuat `citations` (`[{ n, title, ref, snippet }]`, ditampilkan sebagai rujukan bernomor),
+`chart` (lihat komentar di `chat-engine.js`), `model`, dan `usage` (`{ inputTokens, outputTokens }`).
+Untuk lampiran teks (.txt/.md/.csv) dashboard mengirim isinya di `attachment.text` (maks. 20.000 karakter).
+
+`POST /chat/feedback` menerima `{ messageId, rating: "up" | "down" | null, previous, model, question, answer }`.
+`GET /chat/analytics` mengembalikan `users` (nama, unit, `lastLogin`, `questions`, `ratings`), `daily` (30 hari,
+pertanyaan dan token per model), dan `feedback`. Biaya dihitung di dashboard dari harga acuan di
+`src/js/data/chat-models.js`.
 
 `actions` selalu dikonfirmasi user lewat tombol sebelum dijalankan. Backend LLM sebaiknya memakai
 tool/function calling ke data `/iot` dan `/parking`, lalu mengembalikan bentuk respons di atas.

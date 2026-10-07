@@ -15,8 +15,14 @@
     <div class="flex min-h-dvh flex-col">
       <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
       <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
+        <!-- Dua tampilan: percakapan (chatbot TEJAS) dan analitik pemakaian. Pilihan disimpan di hash URL. -->
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="segmented" role="tablist" aria-label="Tampilan chatbot" data-view-tabs></div>
+          <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated></span>
+        </div>
+
         <!-- Chatbot TEJAS di dalam dashboard: riwayat percakapan di kiri, percakapan di kanan. -->
-        <section class="card relative grid h-[calc(100dvh-7rem)] min-h-[560px] grid-cols-1 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)]">
+        <section data-view="chat" class="card relative grid h-[calc(100dvh-10rem)] min-h-[560px] grid-cols-1 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside data-history-panel class="absolute inset-y-0 left-0 z-20 hidden w-[280px] flex-col border-r border-hairline bg-surface-alt lg:static lg:flex" aria-label="Riwayat percakapan">
             <div class="flex items-center gap-2 p-4">
               <button type="button" class="btn btn-primary flex-1" data-new-chat><i data-lucide="plus" class="size-4"></i>Percakapan baru</button>
@@ -29,6 +35,73 @@
               <button type="button" class="btn btn-ghost btn-sm" data-history-open aria-expanded="false"><i data-lucide="menu" class="size-4"></i>Riwayat</button>
             </div>
             <div class="min-h-0 flex-1" id="main-chat"></div>
+          </div>
+        </section>
+
+        <!-- Analitik: pemakaian token & biaya, pengguna, penilaian jawaban, dan status integrasi. -->
+        <section data-view="analytics" class="hidden" aria-label="Analitik chatbot">
+          <div class="stat-strip grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-chat-kpis></div>
+
+          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <article class="card min-w-0">
+              <div class="card-header">
+                <h2 class="card-title">Pemakaian token per hari</h2>
+                <span class="text-caption tracking-normal text-mid-gray">30 hari terakhir</span>
+              </div>
+              <div class="card-body" data-token-chart></div>
+              <div class="card-footer" data-token-legend></div>
+            </article>
+            <article class="card min-w-0">
+              <div class="card-header">
+                <h2 class="card-title">Pertanyaan per hari</h2>
+                <span class="text-caption tracking-normal text-mid-gray">30 hari terakhir</span>
+              </div>
+              <div class="card-body" data-question-chart></div>
+              <div class="card-footer" data-question-legend></div>
+            </article>
+          </div>
+
+          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <article class="card flex min-w-0 flex-col overflow-hidden">
+              <div class="card-header"><h2 class="card-title">Biaya per model</h2><span class="text-caption tracking-normal text-mid-gray">Estimasi 30 hari</span></div>
+              <div class="mt-3 flex-1 pb-2">
+                <table class="data-table data-table-fill h-full">
+                  <thead><tr><th>Model</th><th class="num">Pertanyaan</th><th class="num">Token</th><th class="num">Biaya</th></tr></thead>
+                  <tbody data-model-rows></tbody>
+                  <tfoot data-model-total></tfoot>
+                </table>
+              </div>
+            </article>
+            <article class="card min-w-0">
+              <div class="card-header"><h2 class="card-title">Penilaian respons AI</h2><span class="text-caption tracking-normal text-mid-gray" data-rating-count></span></div>
+              <div class="card-body" data-rating-summary></div>
+            </article>
+            <article class="card flex min-w-0 flex-col overflow-hidden">
+              <div class="card-header"><h2 class="card-title">Integrasi sistem</h2></div>
+              <ul class="mt-3 flex-1 divide-y divide-hairline border-t border-hairline" data-integrations></ul>
+            </article>
+          </div>
+
+          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+            <article class="card min-w-0">
+              <div class="card-header">
+                <h2 class="card-title" data-users-title>Pengguna</h2>
+                <div class="relative w-full sm:w-56">
+                  <i data-lucide="search" class="pointer-events-none absolute top-2.5 left-3 size-4 text-mid-gray"></i>
+                  <input type="search" class="input pl-9" placeholder="Cari nama / unit" data-users-search aria-label="Cari pengguna" />
+                </div>
+              </div>
+              <div class="scroll-thin mt-3 max-h-[440px] overflow-auto pb-2">
+                <table class="data-table min-w-[560px]">
+                  <thead class="sticky top-0 bg-paper"><tr><th>Nama</th><th>Unit</th><th>Login terakhir</th><th class="num">Pertanyaan</th><th class="num">Sesuai / tidak</th></tr></thead>
+                  <tbody data-users></tbody>
+                </table>
+              </div>
+            </article>
+            <article class="card min-w-0">
+              <div class="card-header"><h2 class="card-title">Ulasan terbaru</h2></div>
+              <ul class="scroll-thin mt-3 max-h-[440px] divide-y divide-hairline overflow-y-auto border-t border-hairline" data-feedback></ul>
+            </article>
           </div>
         </section>
       </main>

@@ -4,7 +4,7 @@ export const NAV = [
   { id: 'home', label: 'Home', href: '/' },
   { id: 'iot', label: 'IoT', href: '/iot.html' },
   { id: 'chatbot', label: 'Chatbot', href: '/chatbot.html' },
-  { id: 'vision', label: 'Computer Vision', href: '/vision.html' },
+  { id: 'vision', label: 'AI Vision', href: '/vision.html' },
 ];
 
 function navbarHtml(active) {

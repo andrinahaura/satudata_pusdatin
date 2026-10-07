@@ -1,10 +1,18 @@
 // Chat engine berbasis aturan (rule-based) untuk mode mock.
 // Saat backend AI siap, endpoint POST /chat cukup mengembalikan bentuk respons yang sama:
-//   { text, items?: [{ title, meta }], actions?: [{ label, variant, action }], suggestions?: string[], link? }
+//   { text, items?: [{ title, meta }], actions?: [{ label, variant, action }], suggestions?: string[], link?,
+//     citations?: [{ n, title, ref, snippet }], chart?: ChartSpec }
 // `action` berupa data (bukan fungsi) supaya bisa dikirim dari server:
 //   { type: 'setDevices', ids: string[], on: boolean } | { type: 'dismiss' }
+// ChartSpec (grafik di dalam jawaban):
+//   { kind: 'line', title, labels: string[], series: [{ label, values, style: 'current'|'previous'|'target' }], unit }
+//   { kind: 'bar', title, bars: [{ label, value }], unit }
+import { MODELS } from '../data/chat-models.js';
 import { DEVICE_TYPES, VEHICLE_TYPES } from '../data/device-types.js';
-import { energyByFloor, findWasteRooms, getAlerts, indexIot, isWorkspace, summarizeIot, summarizeParking, devicePowerW } from './selectors.js';
+import { DOCUMENTS, SITABA_EVENTS } from '../data/documents.js';
+import { energyByFloor, energySeries, findWasteRooms, getAlerts, indexIot, isWorkspace, summarizeIot, summarizeParking, devicePowerW } from './selectors.js';
+
+export { MODELS };
 
 // Pintas chatbot unit organisasi PU (dari TEJAS Chatbot PU). `pusdatin` = data gedung dashboard ini.
 export const UNITS = [
@@ -16,9 +24,10 @@ export const UNITS = [
   { id: 'prasarana-strategis', label: 'Prasarana Strategis' },
   { id: 'pembiayaan', label: 'Pembiayaan' },
   { id: 'bpsdm', label: 'BPSDM' },
+  { id: 'sitaba', label: 'Kebencanaan (SITABA)' },
 ];
 
-export const MODELS = ['GPT-4o Mini', 'GPT-4o'];
+export const SITABA_SUGGESTIONS = ['Kejadian bencana terbaru?', 'Bencana yang masih tanggap darurat?', 'Dampak banjir ke infrastruktur?', 'Kejadian bencana di Jawa Barat?'];
 
 // Pertanyaan tentang dokumen yang dilampirkan / basis dokumen unit.
 export const DOCUMENT_SUGGESTIONS = [
@@ -145,6 +154,13 @@ function parkingIntent(q, { parking }) {
   return {
     text,
     items: zones.map((z) => ({ title: `${z.name} · ${z.location}`, meta: `${z.free} kosong · ${z.occupied} terisi` })),
+    chart: {
+      kind: 'line',
+      title: 'Okupansi parkir per jam hari ini',
+      labels: parking.history.map((h) => h.hour.slice(0, 5)),
+      series: [{ label: 'Okupansi', style: 'current', values: parking.history.map((h) => Math.round(h.occupancy * 100)) }],
+      unit: '%',
+    },
     link: { label: 'Lihat peta parkir', href: '/vision.html' },
     suggestions: ['Kendaraan masuk hari ini?', 'Slot parkir motor yang kosong?'],
   };
@@ -230,7 +246,19 @@ function energyIntent(q, { iot, floor, scopeLabel }) {
         return { title: `Beban ${noun(m.label)} saat ini`, meta: `${fmt1(w / 1000)} kW` };
       })
     : e.floors.map((f) => ({ title: f.floor.name, meta: `${fmt1(f.kwh)} kWh · ${rupiah(f.rupiah)}${f.anomaly ? ' · di atas target' : ''}` }));
+  const series = energySeries(iot, period, floor?.id ?? null);
+  const chart = {
+    kind: 'line',
+    title: `Pemakaian listrik ${scopeLabel}, ${periodLabel}`,
+    labels: series.labels,
+    series: [
+      { label: periodLabel[0].toUpperCase() + periodLabel.slice(1), style: 'current', values: series.current },
+      { label: previousLabel[0].toUpperCase() + previousLabel.slice(1), style: 'previous', values: series.previous },
+    ],
+    unit: 'kWh',
+  };
   return {
+    chart,
     text: `Pemakaian listrik ${scopeLabel} ${periodLabel} ${fmt1(scope.kwh)} kWh (${rupiah(scope.rupiah)}), ${change === 0 ? 'sama dengan' : `${change < 0 ? 'turun' : 'naik'} ${Math.abs(change)}% dibanding`} ${previousLabel} pada titik yang sama.`,
     items,
     link: { label: 'Lihat grafik listrik', href: '/iot.html#listrik' },
@@ -251,6 +279,7 @@ function occupancyIntent(q, { iot, floor, scopeLabel }) {
   }
   const s = summarizeIot(iot, floor?.id);
   return {
+    chart: { kind: 'bar', title: 'Jumlah orang per lantai', bars: floors.map((f) => ({ label: f.name, value: summarizeIot(iot, f.id).people })), unit: 'orang' },
     text: `Terdeteksi ${s.people} orang di ${scopeLabel}. ${s.occupiedRooms} dari ${s.workspaceRooms} ruang kerja sedang terpakai.`,
     items: floors.map((f) => {
       const fs = summarizeIot(iot, f.id);
@@ -302,15 +331,106 @@ function scopeSummary({ iot, room, floor, scopeLabel }) {
 
 const BUILDING_TOPIC = /(lampu|ac\b|suhu|listrik|kwh|perangkat|sensor|ruang|lantai|basement|parkir|kendaraan|offline|matikan|nyalakan|orang|gedung)/;
 
-// Pertanyaan dokumen / unit lain dijawab oleh basis dokumen TEJAS di backend.
-// Mode simulasi tidak membaca dokumen, jadi jawabannya jujur menyebut itu.
-function documentAnswer(message, meta) {
-  const unit = UNITS.find((u) => u.id === meta.unit);
-  const source = meta.attachment ? `dokumen "${meta.attachment.name}"` : `basis dokumen ${unit?.label ?? 'unit'}`;
+/* ---------------------- dokumen (RAG) & SITABA ---------------------- */
+
+const STOPWORDS = new Set(['yang', 'dan', 'atau', 'untuk', 'dengan', 'dari', 'pada', 'dalam', 'apa', 'apakah', 'bagaimana', 'berapa', 'siapa', 'kapan', 'dimana', 'mana', 'ini', 'itu', 'ada', 'adalah', 'saja', 'tentang', 'jelaskan', 'sebutkan', 'tolong', 'bisa', 'tidak', 'akan', 'oleh', 'sebagai', 'para', 'agar', 'juga']);
+
+function keywords(text) {
+  return normalize(text).split(' ').filter((w) => w.length > 2 && !STOPWORDS.has(w));
+}
+
+// Skor sederhana: jumlah kata kunci pertanyaan yang muncul di potongan teks (awalan kata ikut dihitung).
+function scorePassage(words, text) {
+  const hay = normalize(text);
+  return words.reduce((s, w) => s + (hay.includes(w) ? 1 : hay.includes(w.slice(0, 5)) && w.length > 6 ? 0.5 : 0), 0);
+}
+
+const firstSentence = (text) => text.split(/(?<=\.)\s/)[0];
+
+/** Cari potongan dokumen paling relevan. Mengembalikan jawaban dengan rujukan bernomor. */
+function ragAnswer(message, unitId) {
+  const words = keywords(message);
+  const docs = DOCUMENTS.filter((d) => !unitId || unitId === 'pusdatin' || d.unit === unitId);
+  const hits = docs
+    .flatMap((doc) => doc.sections.map((sec) => ({ doc, sec, score: scorePassage(words, `${doc.title} ${sec.text}`) })))
+    .filter((h) => h.score >= Math.min(2, words.length))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+  if (!hits.length) return null;
+  const citations = hits.map((h, i) => ({ n: i + 1, id: h.doc.id, title: h.doc.title, ref: h.sec.ref, snippet: h.sec.text }));
+  const text = hits.map((h, i) => `${firstSentence(h.sec.text)} [${i + 1}]`).join(' ');
   return {
-    text: `Pertanyaan ini dijawab dari ${source} oleh chatbot TEJAS. Mode simulasi belum membaca isi dokumen, jadi jawaban belum tersedia. Untuk kondisi Gedung Pusdatin, pilih pintas "Gedung Pusdatin".`,
-    suggestions: unit?.id === 'pusdatin' ? DEFAULT_SUGGESTIONS.slice(0, 3) : ['Pemakaian listrik hari ini?', 'Lampu yang belum mati?'],
+    text: `Berdasarkan basis dokumen: ${text}`,
+    citations,
+    suggestions: ['Ringkaskan poin-poin penting', 'Apa syarat atau ketentuan yang disebutkan?'],
   };
+}
+
+/** Analisis lampiran teks (.txt). Lampiran lain perlu diurai backend lebih dulu. */
+function attachmentAnswer(message, attachment) {
+  const name = attachment.name;
+  if (!attachment.text) {
+    return {
+      text: `Dokumen "${name}" sudah diterima. Mode simulasi hanya bisa membaca isi file teks (.txt). Untuk PDF dan Word, isi dokumen diurai oleh backend TEJAS sebelum dianalisis.`,
+      suggestions: DOCUMENT_SUGGESTIONS.slice(0, 2),
+    };
+  }
+  const paragraphs = attachment.text.split(/\n\s*\n|\r?\n/).map((p) => p.trim()).filter((p) => p.length > 20);
+  const words = attachment.text.split(/\s+/).filter(Boolean).length;
+  const q = normalize(message);
+  const wantsSummary = /(ringkas|isi utama|poin|inti|rangkum)/.test(q) || !keywords(message).length;
+  const qWords = keywords(message);
+  const ranked = paragraphs
+    .map((p, i) => ({ p, i, score: wantsSummary ? (i < 3 ? 3 - i : 0) + Math.min(2, p.length / 300) : scorePassage(qWords, p) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .sort((a, b) => a.i - b.i);
+  if (!ranked.length) {
+    return { text: `Saya tidak menemukan bagian "${name}" yang membahas pertanyaan itu. Dokumen berisi ${words} kata dalam ${paragraphs.length} paragraf.` };
+  }
+  const citations = ranked.map((x, n) => ({ n: n + 1, title: name, ref: `Paragraf ${x.i + 1}`, snippet: x.p.length > 220 ? `${x.p.slice(0, 217)}…` : x.p }));
+  return {
+    text: `${wantsSummary ? `Ringkasan "${name}" (${words} kata, ${paragraphs.length} paragraf):` : `Bagian "${name}" yang relevan:`} ${ranked.map((x, n) => `${firstSentence(x.p)} [${n + 1}]`).join(' ')}`,
+    citations,
+    suggestions: DOCUMENT_SUGGESTIONS.filter((s) => s !== message).slice(0, 2),
+  };
+}
+
+const DISASTER = /(bencana|banjir|longsor|gempa|angin kencang|puting beliung|tsunami|erupsi|kekeringan|sitaba|tanggap darurat)/;
+
+function sitabaAnswer(message) {
+  const q = normalize(message);
+  const now = new Date();
+  const dated = SITABA_EVENTS.map((e) => ({ ...e, date: new Date(now.getTime() - e.daysAgo * 86400000) }));
+  const type = ['banjir', 'longsor', 'gempa', 'angin'].find((t) => q.includes(t));
+  const region = dated.map((e) => e.location.split(', ')[1]).find((r) => q.includes(normalize(r)));
+  let list = dated;
+  if (type) list = list.filter((e) => normalize(e.type).includes(type));
+  if (region) list = list.filter((e) => e.location.endsWith(region));
+  if (/(tanggap darurat|masih|aktif|berlangsung)/.test(q)) list = list.filter((e) => e.status === 'Tanggap darurat');
+  const dayFmt = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' });
+  if (!list.length) return { text: 'Tidak ada kejadian bencana yang cocok di data SITABA 14 hari terakhir.', suggestions: SITABA_SUGGESTIONS.slice(0, 2) };
+  const emergency = list.filter((e) => e.status === 'Tanggap darurat').length;
+  return {
+    text: `Data SITABA mencatat ${list.length} kejadian${type ? ` ${type}` : ' bencana'}${region ? ` di ${region}` : ''} dalam 14 hari terakhir${emergency ? `, ${emergency} masih tanggap darurat` : ''}. Dampak ke infrastruktur PU tercantum di tiap kejadian.`,
+    items: list.map((e) => ({ title: `${e.type} · ${e.location}`, meta: `${dayFmt.format(e.date)} · ${e.status}` })),
+    citations: list.slice(0, 3).map((e, i) => ({ n: i + 1, title: `SITABA ${e.id}`, ref: e.type, snippet: `${e.location}: ${e.impact}.` })),
+    suggestions: SITABA_SUGGESTIONS.filter((s) => normalize(s) !== q).slice(0, 2),
+  };
+}
+
+// Pertanyaan dokumen / unit lain dijawab dari basis dokumen (RAG) dengan rujukan.
+function documentAnswer(message, meta) {
+  if (meta.attachment) return attachmentAnswer(message, meta.attachment);
+  if (meta.unit === 'sitaba' || DISASTER.test(normalize(message))) return sitabaAnswer(message);
+  const unit = UNITS.find((u) => u.id === meta.unit);
+  return (
+    ragAnswer(message, meta.unit) ?? {
+      text: `Saya tidak menemukan dokumen ${unit?.label ?? 'unit'} yang membahas pertanyaan itu. Coba gunakan kata kunci lain, atau lampirkan dokumennya.`,
+      suggestions: unit?.id === 'pusdatin' ? DEFAULT_SUGGESTIONS.slice(0, 3) : DOCUMENT_SUGGESTIONS.slice(0, 2),
+    }
+  );
 }
 
 /**
@@ -320,7 +440,8 @@ function documentAnswer(message, meta) {
  */
 export function answer(message, { iot, parking }, meta = {}) {
   const q = normalize(message);
-  if (meta.attachment || (meta.unit && meta.unit !== 'pusdatin' && !BUILDING_TOPIC.test(q))) return documentAnswer(message, meta);
+  if (meta.attachment || meta.unit === 'sitaba' || (meta.unit && meta.unit !== 'pusdatin' && !BUILDING_TOPIC.test(q))) return documentAnswer(message, meta);
+  if (DISASTER.test(q)) return sitabaAnswer(message);
   const idx = indexIot(iot);
   const floor = matchFloor(q, iot);
   const room = matchRoom(q, iot, floor);
@@ -342,16 +463,16 @@ export function answer(message, { iot, parking }, meta = {}) {
   if (room || floor) return scopeSummary(ctx);
   if (/\b(halo|hai|hi|hello|pagi|siang|sore|malam|bantuan|help|bisa apa)\b/.test(q)) {
     return {
-      text: 'Saya membaca status perangkat IoT, kondisi ruang, pemakaian listrik, dan parkir Gedung Pusdatin. Saya juga bisa mematikan lampu atau AC yang tidak terpakai.',
+      text: 'Saya membaca status perangkat IoT, kondisi ruang, pemakaian listrik, dan parkir Gedung Pusdatin. Saya juga bisa mematikan lampu atau AC yang tidak terpakai, mencari dokumen dan regulasi, serta memberi informasi kebencanaan dari SITABA.',
       suggestions: DEFAULT_SUGGESTIONS.slice(0, 4),
     };
   }
-  return fallback();
+  return ragAnswer(message, 'pusdatin') ?? fallback();
 }
 
 function fallback() {
   return {
-    text: 'Maaf, saya belum memahami pertanyaan itu. Coba tanyakan soal lampu, AC, suhu, listrik, perangkat offline, atau parkir. Sebutkan lantai atau nama ruangan bila perlu.',
+    text: 'Maaf, saya belum memahami pertanyaan itu. Coba tanyakan soal lampu, AC, suhu, listrik, perangkat offline, parkir, dokumen, atau kejadian bencana. Sebutkan lantai atau nama ruangan bila perlu.',
     suggestions: DEFAULT_SUGGESTIONS.slice(0, 4),
   };
 }
