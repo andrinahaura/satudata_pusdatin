@@ -274,7 +274,9 @@ export function createChat(root, opts = {}) {
       const history = conv.messages.slice(-10).map(({ role, text: t }) => ({ role, text: t }));
       // Isi teks tidak disimpan di riwayat percakapan, hanya dikirim bersama pertanyaan.
       const text = file && isTextFile(file) ? (await file.text()).slice(0, TEXT_LIMIT) : null;
-      const res = await api.ask(q, history, { unit: conv.unit, model: conv.model, ...(attachment ? { attachment: { ...attachment, ...(text ? { text } : {}) } } : {}) });
+      // messageId = posisi jawaban yang akan datang, dipakai lagi saat jawaban dinilai.
+      const messageId = `${conv.id}-${conv.messages.length}`;
+      const res = await api.ask(q, history, { unit: conv.unit, model: conv.model, messageId, ...(attachment ? { attachment: { ...attachment, ...(text ? { text } : {}) } } : {}) });
       busy = false;
       push({ role: 'assistant', ...res });
     } catch (err) {

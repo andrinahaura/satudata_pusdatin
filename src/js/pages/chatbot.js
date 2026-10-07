@@ -1,10 +1,9 @@
 import { createChat } from '../components/chat.js';
 import { renderIcons } from '../components/icons.js';
 import { mountLayout } from '../components/layout.js';
-import { lineLegendHtml } from '../components/line-chart.js';
+import { modelUsageHtml } from '../components/model-usage.js';
 import { createTrendChart } from '../components/trend-chart.js';
 import { errorState, segmentedHtml, statTile } from '../components/ui.js';
-import { DOCUMENTS } from '../data/documents.js';
 import { api } from '../services/api.js';
 import {
   activeConversation, CHATS_CHANGED, deleteConversation, listConversations, setActiveConversation, startNewConversation,
@@ -90,7 +89,16 @@ renderIcons($('main'));
 /* ------------------------------- analitik ------------------------------- */
 
 const VIEWS = [{ value: 'chat', label: 'Percakapan' }, { value: 'analytics', label: 'Analitik' }];
-const analytics = { data: null, search: '', tokenChart: null, questionChart: null, timer: null };
+const analytics = { data: null, trend: 'questions', search: '', chatFilter: 'all', chart: null, timer: null };
+
+// Satu grafik, tiga pilihan data. Satu seri per pilihan supaya tidak ada dua skala di satu sumbu.
+const TRENDS = [
+  { value: 'questions', label: 'Pertanyaan', desc: 'Jumlah pertanyaan per hari', key: 'questions', format: (v) => `${fmtInt(v)} pertanyaan` },
+  { value: 'tokens', label: 'Token', desc: 'Token masuk dan keluar per hari', key: 'tokens', format: (v) => `${fmtCompact(v)} token` },
+  { value: 'cost', label: 'Biaya', desc: 'Estimasi biaya model AI per hari', key: 'rupiah', format: (v) => fmtRupiah(v) },
+];
+
+const CHAT_FILTERS = [{ value: 'all', label: 'Semua' }, { value: 'down', label: 'Tidak sesuai' }];
 
 function currentView() {
   return location.hash === '#analitik' ? 'analytics' : 'chat';
@@ -126,82 +134,44 @@ async function loadAnalytics() {
 }
 
 function renderAnalytics() {
-  const chat = analytics.data;
-  const s = summarizeChat(chat);
-  $('[data-updated]').textContent = `Diperbarui ${fmtTime(chat.updatedAt)}`;
-
+  const s = summarizeChat(analytics.data);
+  $('[data-updated]').textContent = `Diperbarui ${fmtTime(analytics.data.updatedAt)}`;
   $('[data-chat-kpis]').innerHTML = [
-    statTile({ label: 'Pengguna chatbot', value: fmtInt(s.users), unit: ' orang', sub: `${s.activeToday} aktif hari ini` }),
-    statTile({ label: 'Pertanyaan 30 hari', value: fmtInt(s.questions), sub: `${fmtInt(s.questionsToday)} hari ini` }),
-    statTile({ label: 'Token 30 hari', value: fmtCompact(s.tokens), sub: `${fmtCompact(s.tokensToday)} hari ini` }),
-    statTile({ label: 'Estimasi biaya', value: fmtRupiah(s.rupiah), sub: `${fmtRupiah(s.rupiahToday)} hari ini` }),
-    statTile({ label: 'Rata-rata token', value: fmtInt(s.questions ? Math.round(s.tokens / s.questions) : 0), unit: ' / pertanyaan' }),
-    statTile({ label: 'Jawaban sesuai', value: fmtPct(s.upRate), sub: `dari ${fmtInt(s.rated)} penilaian` }),
+    statTile({ label: 'Pengguna', value: fmtInt(s.users), unit: ' orang', sub: `${s.activeToday} aktif hari ini` }),
+    statTile({ label: 'Pertanyaan', value: fmtInt(s.questions), sub: `30 hari · ${fmtInt(s.questionsToday)} hari ini` }),
+    statTile({ label: 'Biaya AI', value: fmtRupiah(s.rupiah), sub: `30 hari · ${fmtCompact(s.tokens)} token` }),
+    statTile({ label: 'Jawaban sesuai', value: fmtPct(s.upRate), sub: `Dari ${fmtInt(s.rated)} ulasan` }),
   ].join('');
-
-  const tokenSeries = [
-    { label: 'Token masuk', values: s.series.inputTokens, style: 'current' },
-    { label: 'Token keluar', values: s.series.outputTokens, style: 'previous' },
-  ];
-  const tokenOpts = { labels: s.series.labels, series: tokenSeries, height: 240, format: (v) => `${fmtCompact(v)} token` };
-  if (analytics.tokenChart) analytics.tokenChart.update(tokenOpts);
-  else analytics.tokenChart = createTrendChart($('[data-token-chart]'), tokenOpts);
-  $('[data-token-legend]').innerHTML = lineLegendHtml(tokenSeries);
-
-  const questionSeries = [
-    { label: 'Pertanyaan', values: s.series.questions, style: 'current' },
-    { label: 'Pengguna aktif', values: s.series.activeUsers, style: 'previous' },
-  ];
-  const questionOpts = { labels: s.series.labels, series: questionSeries, height: 240, format: (v) => fmtInt(v) };
-  if (analytics.questionChart) analytics.questionChart.update(questionOpts);
-  else analytics.questionChart = createTrendChart($('[data-question-chart]'), questionOpts);
-  $('[data-question-legend]').innerHTML = lineLegendHtml(questionSeries);
-
-  $('[data-model-rows]').innerHTML = s.byModel
-    .map((m) => `<tr><td class="font-medium">${esc(m.model)}</td><td class="num">${fmtInt(m.questions)}</td><td class="num">${fmtCompact(m.tokens)}</td><td class="num">${fmtRupiah(m.rupiah)}</td></tr>`)
-    .join('');
-  $('[data-model-total]').innerHTML = `<tr><td>Total</td><td class="num">${fmtInt(s.questions)}</td><td class="num">${fmtCompact(s.tokens)}</td><td class="num">${fmtRupiah(s.rupiah)}</td></tr>`;
-
-  // Satu batang bertumpuk: sesuai (navy) dan tidak sesuai (merah), dipisah celah 2px.
-  const up = s.rated ? (s.ratings.up / s.rated) * 100 : 0;
-  $('[data-rating-count]').textContent = `${fmtInt(s.rated)} penilaian`;
-  $('[data-rating-summary]').innerHTML = `
-    <p class="text-heading-sm font-semibold tabular-nums">${fmtPct(s.upRate)} <span class="text-body font-normal text-mid-gray">jawaban dinilai sesuai</span></p>
-    <div class="mt-4 flex h-3 gap-0.5" role="img" aria-label="Sesuai ${fmtInt(s.ratings.up)}, tidak sesuai ${fmtInt(s.ratings.down)}">
-      <div class="rounded-l-full bg-ink ${s.ratings.down ? '' : 'rounded-r-full'}" style="width:${up.toFixed(1)}%" title="Sesuai: ${fmtInt(s.ratings.up)}"></div>
-      ${s.ratings.down ? `<div class="flex-1 rounded-r-full bg-ember" title="Tidak sesuai: ${fmtInt(s.ratings.down)}"></div>` : ''}
-    </div>
-    <dl class="mt-4 grid grid-cols-2 gap-4">
-      <div><dt class="flex items-center gap-1.5 text-mid-gray"><span class="dot bg-ink"></span>Sesuai</dt><dd class="text-subheading font-semibold tabular-nums">${fmtInt(s.ratings.up)}</dd></div>
-      <div><dt class="flex items-center gap-1.5 text-mid-gray"><span class="dot bg-ember"></span>Tidak sesuai</dt><dd class="text-subheading font-semibold tabular-nums">${fmtInt(s.ratings.down)}</dd></div>
-    </dl>
-    <p class="mt-4 text-mid-gray">Penilaian diberikan pengguna lewat tombol di bawah setiap jawaban.</p>`;
-
-  const integrations = [
-    { name: 'SITABA', desc: 'Informasi kebencanaan', status: '<span class="badge badge-solid">Terhubung</span>' },
-    { name: 'Basis dokumen (RAG)', desc: `${DOCUMENTS.length} dokumen, jawaban dengan rujukan`, status: '<span class="badge badge-solid">Aktif</span>' },
-    { name: 'Unggah & analisis dokumen', desc: 'PDF, Word, dan teks', status: '<span class="badge badge-solid">Aktif</span>' },
-    { name: 'Single Sign-On (SSO)', desc: 'Login dengan akun PU', status: '<span class="badge badge-outline">Dalam kajian</span>' },
-  ];
-  $('[data-integrations]').innerHTML = integrations
-    .map((i) => `<li class="flex items-center justify-between gap-3 px-5 py-3"><span class="min-w-0"><span class="block font-medium">${i.name}</span><span class="block text-mid-gray">${i.desc}</span></span>${i.status}</li>`)
-    .join('');
-
+  renderTrend(s);
+  $('[data-model-usage]').innerHTML = modelUsageHtml(s);
   renderUsers();
+  renderChats();
+}
 
-  $('[data-feedback]').innerHTML =
-    chat.feedback
-      .slice(0, 20)
-      .map((f) => `<li class="px-5 py-3">
-          <div class="flex items-start justify-between gap-3">
-            <p class="min-w-0 font-medium">${esc(f.question || '(tanpa pertanyaan)')}</p>
-            ${f.rating === 'up' ? '<span class="badge badge-solid shrink-0">Sesuai</span>' : '<span class="badge badge-alert shrink-0">Tidak sesuai</span>'}
-          </div>
-          ${f.note || f.answer ? `<p class="mt-1 text-mid-gray">${esc(f.note ?? f.answer)}</p>` : ''}
-          <p class="mt-1 text-caption tracking-normal text-mid-gray">${esc(f.userName)} · ${esc(f.model)} · ${fmtDateTime(f.time)}</p>
-        </li>`)
-      .join('') || '<li class="px-5 py-6 text-center text-mid-gray">Belum ada ulasan.</li>';
-  renderIcons($('[data-view="analytics"]'));
+const TREND_DAYS = 7;
+const WEEKDAY_SHORT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+function renderTrend(s = summarizeChat(analytics.data)) {
+  const t = TRENDS.find((x) => x.value === analytics.trend);
+  $('[data-trend-tabs]').innerHTML = segmentedHtml(TRENDS, t.value, 'data-trend-id');
+  $('[data-trend-desc]').textContent = t.desc;
+  const labels = analytics.data.daily.slice(-TREND_DAYS).map((d) => WEEKDAY_SHORT[new Date(`${d.date}T00:00`).getDay()]);
+  const values = s.series[t.key].slice(-TREND_DAYS);
+  const opts = { labels, series: [{ label: t.label, values, style: 'current' }], height: 260, format: t.format };
+  if (analytics.chart) analytics.chart.update(opts);
+  else analytics.chart = createTrendChart($('[data-trend-chart]'), opts);
+}
+
+$('[data-trend-tabs]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-trend-id]');
+  if (!btn || !analytics.data) return;
+  analytics.trend = btn.dataset.trendId;
+  renderTrend();
+});
+
+// "12 menit lalu" untuk hari ini, selain itu tanggal dan jam.
+function fmtWhen(iso) {
+  return new Date(iso).toDateString() === new Date().toDateString() ? fmtRelative(iso) : fmtDateTime(iso);
 }
 
 function renderUsers() {
@@ -213,24 +183,62 @@ function renderUsers() {
   $('[data-users-title]').innerHTML = `Pengguna <span class="font-normal text-mid-gray">${users.length}</span>`;
   $('[data-users]').innerHTML =
     users
-      .map((u) => `<tr>
-          <td class="font-medium whitespace-nowrap">${esc(u.name)}</td>
-          <td class="text-mid-gray">${esc(u.unit)}</td>
-          <td class="whitespace-nowrap" title="${esc(fmtDateTime(u.lastLogin))}">${fmtRelativeDay(u.lastLogin)}</td>
+      .map((u) => {
+        const rated = u.ratings.up + u.ratings.down;
+        return `<tr>
+          <td><span class="block font-medium">${esc(u.name)}</span><span class="block text-caption tracking-normal text-mid-gray">${esc(u.unit)}</span></td>
+          <td class="whitespace-nowrap text-mid-gray">${fmtWhen(u.lastLogin)}</td>
           <td class="num">${fmtInt(u.questions)}</td>
-          <td class="num whitespace-nowrap"><span title="Sesuai">${u.ratings.up}</span> <span class="text-mid-gray">/</span> <span class="${u.ratings.down ? 'text-ember' : 'text-mid-gray'}" title="Tidak sesuai">${u.ratings.down}</span></td>
-        </tr>`)
-      .join('') || '<tr><td colspan="5" class="py-6 text-center text-mid-gray">Tidak ada pengguna yang cocok.</td></tr>';
-}
-
-// "12 menit lalu" untuk hari ini, selain itu tanggal dan jam.
-function fmtRelativeDay(iso) {
-  return new Date(iso).toDateString() === new Date().toDateString() ? fmtRelative(iso) : fmtDateTime(iso);
+          <td class="num whitespace-nowrap">${rated ? `${fmtPct(u.ratings.up / rated)} sesuai<span class="block text-caption tracking-normal text-mid-gray">${rated} ulasan</span>` : '<span class="text-mid-gray">Belum ada</span>'}</td>
+        </tr>`;
+      })
+      .join('') || '<tr><td colspan="4" class="py-6 text-center text-mid-gray">Tidak ada pengguna yang cocok.</td></tr>';
 }
 
 $('[data-users-search]').addEventListener('input', (e) => {
   analytics.search = e.target.value.trim().toLowerCase();
   if (analytics.data) renderUsers();
+});
+
+const RATING_BADGE = {
+  up: '<span class="badge badge-solid">Sesuai</span>',
+  down: '<span class="badge badge-alert">Tidak sesuai</span>',
+};
+
+// Satu baris per pertanyaan. Jawaban lengkap dibuka dengan klik supaya daftar tetap ringkas.
+function renderChats() {
+  const all = analytics.data.history;
+  const list = all.filter((h) => analytics.chatFilter === 'all' || h.rating === analytics.chatFilter);
+  const filters = CHAT_FILTERS.map((f) => ({ ...f, label: f.value === 'all' ? f.label : `${f.label} (${all.filter((h) => h.rating === f.value).length})` }));
+  $('[data-chats-filter]').innerHTML = segmentedHtml(filters, analytics.chatFilter, 'data-chats-filter-id');
+  $('[data-chats-title]').innerHTML = `Riwayat chat <span class="font-normal text-mid-gray">${list.length}</span>`;
+  const open = new Set([...document.querySelectorAll('[data-chats] details[open]')].map((d) => d.dataset.id));
+  $('[data-chats]').innerHTML =
+    list
+      .map((h) => `<li>
+        <details class="group" data-id="${esc(h.id)}" ${open.has(h.id) ? 'open' : ''}>
+          <summary class="flex cursor-pointer list-none items-start gap-3 px-5 py-3 transition-colors hover:bg-canvas [&::-webkit-details-marker]:hidden">
+            <span class="min-w-0 flex-1">
+              <span class="block font-medium">${esc(h.question)}</span>
+              <span class="mt-0.5 block text-caption tracking-normal text-mid-gray">${esc(h.userName)} · ${esc(h.unit)} · ${fmtWhen(h.time)}</span>
+            </span>
+            <span class="flex shrink-0 items-center gap-2">${RATING_BADGE[h.rating] ?? ''}<i data-lucide="chevron-down" class="size-4 text-mid-gray transition-transform group-open:rotate-180" aria-hidden="true"></i></span>
+          </summary>
+          <div class="px-5 pb-4">
+            <p class="rounded-nested bg-canvas px-3.5 py-2.5 whitespace-pre-line">${esc(h.answer)}</p>
+            <p class="mt-1.5 text-caption tracking-normal text-mid-gray">${esc(h.model)} · ${fmtInt(h.inputTokens + h.outputTokens)} token${h.rating ? '' : ' · Belum diulas'}</p>
+          </div>
+        </details>
+      </li>`)
+      .join('') || '<li class="px-5 py-6 text-center text-mid-gray">Belum ada riwayat chat.</li>';
+  renderIcons($('[data-chats]'));
+}
+
+$('[data-chats-filter]').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-chats-filter-id]');
+  if (!btn || !analytics.data) return;
+  analytics.chatFilter = btn.dataset.chatsFilterId;
+  renderChats();
 });
 
 showView();

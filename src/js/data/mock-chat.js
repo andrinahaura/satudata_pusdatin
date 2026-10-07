@@ -1,12 +1,12 @@
 // Analitik chatbot untuk mode simulasi. Bentuk objeknya = kontrak GET /chat/analytics.
 //   users    : pengguna yang pernah memakai chatbot (login terakhir, jumlah pertanyaan, ulasan)
 //   daily    : 30 hari terakhir, pertanyaan dan token per model
-//   feedback : penilaian jawaban (Sesuai / Tidak sesuai), terbaru di depan
+//   history  : riwayat chat semua pengguna (pertanyaan, jawaban, model, token, penilaian), terbaru di depan
 // Pertanyaan dari dashboard ini dicatat atas nama pengguna yang sedang login (CURRENT_USER).
 import { MODELS } from './chat-models.js';
 
 const DAYS = 30;
-const FEEDBACK_LIMIT = 60;
+const HISTORY_LIMIT = 80;
 
 function createRng(seed) {
   let s = seed % 2147483647;
@@ -24,10 +24,22 @@ const USER_UNITS = ['Pusdatin', 'Pusdatin', 'Pusdatin', 'Sekjen', 'SDA', 'Bina M
 
 export const CURRENT_USER = { id: 'U-ADMIN', name: 'Admin Pusdatin', unit: 'Pusdatin' };
 
-const SAMPLE_DOWN = [
-  ['Jadwal pemeliharaan genset bulan ini?', 'Jawaban tidak menyebut tanggal pemeliharaan.'],
-  ['Berapa sisa anggaran listrik tahun ini?', 'Data anggaran belum tersedia di chatbot.'],
-  ['Prosedur peminjaman mobil dinas?', 'Rujukan dokumen kurang lengkap.'],
+// Contoh riwayat chat. rating: 'up' (Sesuai) | 'down' (Tidak sesuai) | null (belum dinilai).
+const SAMPLE_BUILDING = [
+  ['Lampu yang belum mati di lantai 1?', 'Ada 9 lampu yang masih menyala di Lantai 1, tersebar di 4 ruangan. Terbanyak di Lobby (3 lampu).', 'up'],
+  ['Berapa slot parkir yang kosong?', 'Tersedia 18 slot parkir kosong dari 112 slot. Area A sisa 4, Area B sisa 8, Area Motor sisa 6.', 'up'],
+  ['Pemakaian listrik hari ini?', 'Pemakaian listrik seluruh gedung hari ini 104,2 kWh (Rp 179.953), turun 12% dibanding kemarin pada jam yang sama.', 'up'],
+  ['Perangkat mana yang offline?', 'Ada 3 perangkat offline: Lampu 1 di 22 R. Katim, AC 1 di 09 R. Tim Jaringan, dan sensor kehadiran di Mushola.', 'up'],
+  ['Ruang kosong tapi AC masih menyala?', 'Workspace Lt 2 kosong tetapi 2 AC dan 4 lampu masih menyala, sekitar 1,8 kW terbuang.', null],
+  ['Jadwal pemeliharaan genset bulan ini?', 'Maaf, saya belum memahami pertanyaan itu. Coba tanyakan soal lampu, AC, suhu, listrik, perangkat offline, atau parkir.', 'down'],
+  ['Berapa sisa anggaran listrik tahun ini?', 'Pemakaian listrik bulan ini 2.840 kWh (Rp 4.904.680). Data anggaran tahunan belum tersedia di chatbot.', 'down'],
+];
+const SAMPLE_DOCUMENT = [
+  ['Siapa yang menandatangani nota dinas?', 'Nota dinas ditandatangani pejabat paling rendah setingkat eselon III dan ditujukan kepada pejabat setingkat atau satu tingkat di atasnya. [1]', 'up'],
+  ['Kapan pemeliharaan rutin saluran irigasi tersier?', 'Pemeliharaan rutin dilakukan setiap awal musim tanam: pembersihan sedimen, perbaikan tanggul kecil, dan pengecekan pintu air. [1]', 'up'],
+  ['Kejadian bencana yang masih tanggap darurat?', 'Data SITABA mencatat 2 kejadian yang masih tanggap darurat: banjir di Kab. Bekasi dan tanah longsor di Kab. Bogor.', 'up'],
+  ['Berapa jam pelajaran pengembangan kompetensi per tahun?', 'Setiap pegawai mengikuti pengembangan kompetensi paling sedikit 20 jam pelajaran dalam satu tahun. [1]', null],
+  ['Prosedur peminjaman mobil dinas?', 'Saya tidak menemukan dokumen yang membahas peminjaman mobil dinas. Coba gunakan kata kunci lain, atau lampirkan dokumennya.', 'down'],
 ];
 
 function emptyDay(date) {
@@ -70,18 +82,19 @@ export function createChatState(now = new Date(), seed = 5521) {
     return day;
   });
 
-  const feedback = SAMPLE_DOWN.map(([question, note], i) => ({
-    id: `FB-seed-${i}`,
-    time: new Date(now.getTime() - (i + 1) * 26 * 3600000).toISOString(),
-    userId: users[2 + i * 3].id,
-    userName: users[2 + i * 3].name,
-    model: MODELS[i % MODELS.length],
-    question,
-    note,
-    rating: 'down',
-  }));
+  // Riwayat chat contoh: 30 percakapan terakhir dari pengguna lain, makin lama makin jarang.
+  const history = Array.from({ length: 30 }, (_, i) => {
+    const user = users[1 + Math.floor(rand() * (users.length - 1))];
+    const pool = user.unit === 'Pusdatin' ? SAMPLE_BUILDING : SAMPLE_DOCUMENT;
+    const [question, answer, rating] = pool[Math.floor(rand() * pool.length)];
+    const model = rand() < 0.78 ? MODELS[0] : MODELS[1];
+    const inputTokens = Math.round(850 + rand() * 500);
+    const outputTokens = Math.round(answer.length / 4);
+    const time = new Date(now.getTime() - (i * 1.6 + rand()) * 3600000);
+    return { id: `CH-seed-${i}`, messageId: null, time: time.toISOString(), userId: user.id, userName: user.name, unit: user.unit, question, answer, model, inputTokens, outputTokens, rating };
+  });
 
-  return { users, daily, feedback, updatedAt: now.toISOString() };
+  return { users, daily, history, updatedAt: now.toISOString() };
 }
 
 function today(state, now = new Date()) {
@@ -97,8 +110,8 @@ function today(state, now = new Date()) {
 
 const currentUser = (state) => state.users.find((u) => u.id === CURRENT_USER.id);
 
-/** Catat satu pertanyaan beserta pemakaian tokennya. */
-export function recordQuestion(state, { model, inputTokens, outputTokens }, now = new Date()) {
+/** Catat satu pertanyaan beserta jawaban dan pemakaian tokennya. */
+export function recordQuestion(state, { model, inputTokens, outputTokens, messageId = null, question = '', answer = '' }, now = new Date()) {
   const day = today(state, now);
   const m = day.byModel[model] ?? (day.byModel[model] = { questions: 0, inputTokens: 0, outputTokens: 0 });
   m.questions += 1;
@@ -111,6 +124,8 @@ export function recordQuestion(state, { model, inputTokens, outputTokens }, now 
   if (user.questions === 0 || new Date(user.lastLogin).toDateString() !== now.toDateString()) day.activeUsers += 1;
   user.questions += 1;
   user.lastLogin = now.toISOString();
+  state.history.unshift({ id: `CH-${now.getTime()}`, messageId, time: now.toISOString(), userId: user.id, userName: user.name, unit: user.unit, question, answer, model, inputTokens, outputTokens, rating: null });
+  state.history.length = Math.min(state.history.length, HISTORY_LIMIT);
   state.updatedAt = now.toISOString();
 }
 
@@ -118,15 +133,12 @@ export function recordQuestion(state, { model, inputTokens, outputTokens }, now 
  * Penilaian jawaban. rating: 'up' (Sesuai) | 'down' (Tidak sesuai) | null (batalkan).
  * `previous` = penilaian sebelumnya untuk jawaban yang sama, supaya hitungan tidak dobel.
  */
-export function recordFeedback(state, { messageId, rating, previous = null, model, question = '', answer = '' }, now = new Date()) {
+export function recordFeedback(state, { messageId, rating, previous = null }, now = new Date()) {
   const user = currentUser(state);
   if (previous) user.ratings[previous] = Math.max(0, user.ratings[previous] - 1);
   if (rating) user.ratings[rating] += 1;
-  state.feedback = state.feedback.filter((f) => f.messageId !== messageId);
-  if (rating) {
-    state.feedback.unshift({ id: `FB-${now.getTime()}`, messageId, time: now.toISOString(), userId: user.id, userName: user.name, model, question, answer: answer.slice(0, 160), rating });
-  }
-  state.feedback.length = Math.min(state.feedback.length, FEEDBACK_LIMIT);
+  const entry = state.history.find((h) => h.messageId === messageId);
+  if (entry) entry.rating = rating;
   state.updatedAt = now.toISOString();
   return { ok: true };
 }

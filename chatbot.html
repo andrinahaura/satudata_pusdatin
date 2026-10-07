@@ -29,6 +29,16 @@
               <button type="button" class="btn btn-ghost btn-icon lg:hidden" data-history-close aria-label="Tutup riwayat"><i data-lucide="x" class="size-4"></i></button>
             </div>
             <nav class="scroll-thin min-h-0 flex-1 overflow-y-auto border-t border-hairline px-2 py-3" data-history></nav>
+            <!-- SSO masih dalam kajian: hanya status, belum bisa dipakai. -->
+            <div class="border-t border-hairline p-4">
+              <div class="flex items-center justify-between gap-2 rounded-nested border border-hairline bg-paper px-3 py-2.5">
+                <span class="min-w-0">
+                  <span class="block truncate font-medium">Login SSO PU</span>
+                  <span class="block text-caption tracking-normal text-mid-gray">Belum tersedia</span>
+                </span>
+                <span class="badge badge-outline shrink-0">Dalam kajian</span>
+              </div>
+            </div>
           </aside>
           <div class="flex min-h-0 min-w-0 flex-col">
             <div class="flex items-center gap-2 border-b border-hairline px-4 py-2 lg:hidden">
@@ -38,69 +48,55 @@
           </div>
         </section>
 
-        <!-- Analitik: pemakaian token & biaya, pengguna, penilaian jawaban, dan status integrasi. -->
+        <!-- Analitik: ringkasan, tren 30 hari (pertanyaan / token / biaya), pengguna, dan riwayat chat. -->
         <section data-view="analytics" class="hidden" aria-label="Analitik chatbot">
-          <div class="stat-strip grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-chat-kpis></div>
+          <div class="stat-strip grid-cols-2 lg:grid-cols-4" data-chat-kpis></div>
 
+          <!-- Tren dan biaya per model: dua kartu, lebar sama dengan baris di bawahnya. -->
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
             <article class="card min-w-0">
               <div class="card-header">
-                <h2 class="card-title">Pemakaian token per hari</h2>
-                <span class="text-caption tracking-normal text-mid-gray">30 hari terakhir</span>
+                <div>
+                  <h2 class="card-title">Tren 7 hari</h2>
+                  <p class="text-caption tracking-normal text-mid-gray" data-trend-desc></p>
+                </div>
+                <div class="segmented" role="tablist" aria-label="Pilih data" data-trend-tabs></div>
               </div>
-              <div class="card-body" data-token-chart></div>
-              <div class="card-footer" data-token-legend></div>
+              <div class="card-body" data-trend-chart></div>
             </article>
-            <article class="card min-w-0">
+            <article class="card flex min-w-0 flex-col">
               <div class="card-header">
-                <h2 class="card-title">Pertanyaan per hari</h2>
-                <span class="text-caption tracking-normal text-mid-gray">30 hari terakhir</span>
+                <div>
+                  <h2 class="card-title">Biaya per model</h2>
+                  <p class="text-caption tracking-normal text-mid-gray">30 hari terakhir</p>
+                </div>
               </div>
-              <div class="card-body" data-question-chart></div>
-              <div class="card-footer" data-question-legend></div>
+              <div class="card-body flex flex-1 flex-col" data-model-usage></div>
             </article>
           </div>
 
-          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
             <article class="card flex min-w-0 flex-col overflow-hidden">
-              <div class="card-header"><h2 class="card-title">Biaya per model</h2><span class="text-caption tracking-normal text-mid-gray">Estimasi 30 hari</span></div>
-              <div class="mt-3 flex-1 pb-2">
-                <table class="data-table data-table-fill h-full">
-                  <thead><tr><th>Model</th><th class="num">Pertanyaan</th><th class="num">Token</th><th class="num">Biaya</th></tr></thead>
-                  <tbody data-model-rows></tbody>
-                  <tfoot data-model-total></tfoot>
-                </table>
-              </div>
-            </article>
-            <article class="card min-w-0">
-              <div class="card-header"><h2 class="card-title">Penilaian respons AI</h2><span class="text-caption tracking-normal text-mid-gray" data-rating-count></span></div>
-              <div class="card-body" data-rating-summary></div>
-            </article>
-            <article class="card flex min-w-0 flex-col overflow-hidden">
-              <div class="card-header"><h2 class="card-title">Integrasi sistem</h2></div>
-              <ul class="mt-3 flex-1 divide-y divide-hairline border-t border-hairline" data-integrations></ul>
-            </article>
-          </div>
-
-          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-            <article class="card min-w-0">
               <div class="card-header">
                 <h2 class="card-title" data-users-title>Pengguna</h2>
                 <div class="relative w-full sm:w-56">
                   <i data-lucide="search" class="pointer-events-none absolute top-2.5 left-3 size-4 text-mid-gray"></i>
-                  <input type="search" class="input pl-9" placeholder="Cari nama / unit" data-users-search aria-label="Cari pengguna" />
+                  <input type="search" class="input pl-9" placeholder="Cari nama atau unit" data-users-search aria-label="Cari pengguna" />
                 </div>
               </div>
-              <div class="scroll-thin mt-3 max-h-[440px] overflow-auto pb-2">
-                <table class="data-table min-w-[560px]">
-                  <thead class="sticky top-0 bg-paper"><tr><th>Nama</th><th>Unit</th><th>Login terakhir</th><th class="num">Pertanyaan</th><th class="num">Sesuai / tidak</th></tr></thead>
+              <div class="scroll-thin mt-3 max-h-[520px] overflow-auto pb-2">
+                <table class="data-table">
+                  <thead class="sticky top-0 bg-paper"><tr><th>Nama</th><th>Terakhir aktif</th><th class="num">Pertanyaan</th><th class="num">Ulasan</th></tr></thead>
                   <tbody data-users></tbody>
                 </table>
               </div>
             </article>
-            <article class="card min-w-0">
-              <div class="card-header"><h2 class="card-title">Ulasan terbaru</h2></div>
-              <ul class="scroll-thin mt-3 max-h-[440px] divide-y divide-hairline overflow-y-auto border-t border-hairline" data-feedback></ul>
+            <article class="card flex min-w-0 flex-col overflow-hidden">
+              <div class="card-header">
+                <h2 class="card-title" data-chats-title>Riwayat chat</h2>
+                <div class="segmented" role="tablist" aria-label="Saring riwayat" data-chats-filter></div>
+              </div>
+              <ul class="scroll-thin mt-3 max-h-[520px] divide-y divide-hairline overflow-y-auto border-t border-hairline" data-chats></ul>
             </article>
           </div>
         </section>

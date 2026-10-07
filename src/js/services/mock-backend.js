@@ -9,7 +9,7 @@ import { createNotificationState, sendTest, syncNotifications, updateSettings } 
 import { answer } from './chat-engine.js';
 import { getAlerts } from './selectors.js';
 
-const STORAGE_KEY = 'sdp:mock-state:v3';
+const STORAGE_KEY = 'sdp:mock-state:v4';
 const listeners = new Set();
 let timer = null;
 
@@ -121,7 +121,7 @@ export async function ask(message, history, meta) {
     inputTokens: 420 + estimateTokens(message) + estimateTokens(context),
     outputTokens: estimateTokens(`${res.text}${(res.items ?? []).map((i) => `${i.title} ${i.meta}`).join(' ')}${(res.citations ?? []).map((c) => c.snippet).join(' ')}`),
   };
-  recordQuestion(state.chat, { model, ...usage });
+  recordQuestion(state.chat, { model, ...usage, messageId: meta.messageId ?? null, question: message, answer: res.text });
   save();
   return { ...res, model, usage };
 }

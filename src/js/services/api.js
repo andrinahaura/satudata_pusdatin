@@ -47,7 +47,7 @@ export const api = {
   /** Penilaian jawaban. payload: { messageId, rating: 'up'|'down'|null, previous, model, question, answer } */
   rateAnswer: (payload) => (config.useMock ? mock.rateAnswer(payload) : request('/chat/feedback', { method: 'POST', body: payload })),
 
-  /** Pengguna, pemakaian token per hari, dan penilaian jawaban. @returns {Promise<{users, daily, feedback, updatedAt}>} */
+  /** Pengguna, pemakaian token per hari, dan riwayat chat. @returns {Promise<{users, daily, history, updatedAt}>} */
   getChatAnalytics: () => (config.useMock ? mock.getChatAnalytics() : request('/chat/analytics')),
 
   /**

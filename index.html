@@ -55,16 +55,12 @@
               </div>
               <div class="card-body" data-parking-chart></div>
             </article>
-            <article class="card min-w-0">
+            <article class="card flex min-w-0 flex-col">
               <div class="card-header">
-                <h3 class="card-title">Okupansi per zona</h3>
+                <h3 class="card-title">Slot tersedia per zona</h3>
                 <a href="/vision.html" class="btn btn-ghost btn-sm">Peta parkir</a>
               </div>
-              <div class="card-body" data-zone-bars></div>
-              <div class="border-t border-hairline p-5">
-                <h4 class="mb-3 font-semibold">Kendaraan terparkir</h4>
-                <div data-type-bars></div>
-              </div>
+              <div class="card-body flex flex-1 flex-col justify-center" data-zone-rings></div>
             </article>
           </div>
         </section>
@@ -81,13 +77,17 @@
               <div class="card-body" data-question-chart></div>
               <div class="card-footer" data-question-legend></div>
             </article>
-            <article class="card min-w-0">
+            <!-- Perbandingan model: porsi token (satu batang bertumpuk) lalu satu panel per model.
+                 Tinggi kartu mengikuti grafik di sebelahnya; panel model mengisi sisa tinggi. -->
+            <article class="card flex min-w-0 flex-col">
               <div class="card-header">
-                <h3 class="card-title">Token per model</h3>
+                <div>
+                  <h3 class="card-title">Pemakaian model AI</h3>
+                  <p class="text-caption tracking-normal text-mid-gray">30 hari terakhir</p>
+                </div>
                 <a href="/chatbot.html#analitik" class="btn btn-ghost btn-sm">Analitik</a>
               </div>
-              <div class="card-body" data-model-bars></div>
-              <div class="border-t border-hairline p-5" data-rating-summary></div>
+              <div class="card-body flex flex-1 flex-col" data-model-usage></div>
             </article>
           </div>
         </section>

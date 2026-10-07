@@ -3,9 +3,9 @@
 import { mountLayout } from '../components/layout.js';
 import { renderIcons } from '../components/icons.js';
 import { lineLegendHtml } from '../components/line-chart.js';
+import { modelUsageHtml } from '../components/model-usage.js';
 import { createTrendChart } from '../components/trend-chart.js';
-import { barListHtml, errorState, sectionHeadHtml, statTile } from '../components/ui.js';
-import { VEHICLE_TYPES } from '../data/device-types.js';
+import { errorState, ringGaugesHtml, sectionHeadHtml, statTile } from '../components/ui.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
   deviceUptime, energyByFloor, energySeries, getAlerts, summarizeChat, summarizeIot, summarizeParking, summarizeVisits,
@@ -93,15 +93,10 @@ function renderVision() {
   $('[data-parking-peak]').innerHTML = `<span class="text-ink/80">Puncak</span><span class="font-semibold tabular-nums">${Math.max(...values)}%</span>`;
   chart('parking', '[data-parking-chart]', { labels, series: [{ label: 'Okupansi', values, style: 'current' }], height: 240, format: (x) => `${x}% terisi`, selected: now >= 0 ? now : undefined });
 
-  $('[data-zone-bars]').innerHTML = barListHtml(
-    p.zones.map((z) => ({ label: z.name, sub: z.location, value: z.occupied / z.total, display: `${fmtPct(z.occupied / z.total)} · ${z.free} kosong` })),
-    { max: 1 },
-  );
-  const parked = { car: 0, motorcycle: 0, truck: 0 };
-  state.parking.zones.forEach((z) => z.slots.forEach((slot) => slot.occupied && (parked[slot.vehicleType] += 1)));
-  $('[data-type-bars]').innerHTML = barListHtml(
-    Object.entries(VEHICLE_TYPES).map(([k, t]) => ({ label: t.label, value: parked[k], display: `${parked[k]} · ${fmtPct(parked[k] / Math.max(1, p.occupied))}` })),
-    { max: p.occupied },
+  // Ambang "hampir penuh" sama dengan peringatan parkir di getAlerts(): sisa slot < 10%.
+  $('[data-zone-rings]').innerHTML = ringGaugesHtml(
+    // Angka di tengah = slot tersedia, busur = porsi slot tersedia dari total.
+    p.zones.map((z) => ({ label: z.name, sub: z.location, value: z.free, unit: 'tersedia', ratio: z.free / z.total, caption: `dari ${z.total} slot`, alert: z.free / z.total < 0.1, alertLabel: 'Hampir penuh' })),
   );
 }
 
@@ -127,24 +122,7 @@ function renderChatbot() {
   chart('questions', '[data-question-chart]', { labels: c.series.labels, series, height: 240, format: (v) => fmtInt(v) });
   $('[data-question-legend]').innerHTML = lineLegendHtml(series);
 
-  $('[data-model-bars]').innerHTML = barListHtml(
-    c.byModel.map((m) => ({ label: m.model, sub: `${fmtInt(m.questions)} pertanyaan`, value: m.tokens, display: `${fmtCompact(m.tokens)} token · ${fmtRupiah(m.rupiah)}` })),
-  );
-  // Satu batang bertumpuk: sesuai (navy) dan tidak sesuai (merah), label teks di bawahnya.
-  const up = c.rated ? (c.ratings.up / c.rated) * 100 : 0;
-  $('[data-rating-summary]').innerHTML = `
-    <div class="flex items-baseline justify-between gap-3">
-      <h4 class="font-semibold">Penilaian jawaban</h4>
-      <span class="text-mid-gray tabular-nums">${fmtInt(c.rated)} penilaian</span>
-    </div>
-    <div class="mt-3 flex h-2 gap-0.5" role="img" aria-label="Sesuai ${fmtInt(c.ratings.up)}, tidak sesuai ${fmtInt(c.ratings.down)}">
-      <div class="rounded-l-full bg-ink ${c.ratings.down ? '' : 'rounded-r-full'}" style="width:${up.toFixed(1)}%"></div>
-      ${c.ratings.down ? '<div class="flex-1 rounded-r-full bg-ember"></div>' : ''}
-    </div>
-    <div class="mt-2 flex justify-between gap-3 text-mid-gray">
-      <span class="inline-flex items-center gap-1.5"><span class="dot bg-ink"></span>Sesuai ${fmtInt(c.ratings.up)}</span>
-      <span class="inline-flex items-center gap-1.5"><span class="dot bg-ember"></span>Tidak sesuai ${fmtInt(c.ratings.down)}</span>
-    </div>`;
+  $('[data-model-usage]').innerHTML = modelUsageHtml(c);
 }
 
 /* --------------------------------- data --------------------------------- */

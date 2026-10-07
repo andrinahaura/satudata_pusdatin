@@ -9,7 +9,7 @@ Tema visual mengikuti [`design.md`](design.md).
 |------|---------|-----|
 | Home | `index.html` | KPI dan grafik dari tiga menu: IoT (perangkat, uptime, peringatan, Telegram, listrik), AI Vision (slot, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
 | IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang, kontrol perangkat, peringatan + notifikasi Telegram, riwayat status perangkat dan uptime, listrik |
-| Chatbot | `chatbot.html` | Chatbot TEJAS (pintas unit PU, SITABA, rujukan dokumen, analisis lampiran, grafik, penilaian jawaban) dan tab Analitik (token & biaya, pengguna, ulasan, integrasi) |
+| Chatbot | `chatbot.html` | Chatbot TEJAS (pintas unit PU, SITABA, rujukan dokumen, analisis lampiran, grafik, penilaian jawaban) dan tab Analitik (tren pertanyaan/token/biaya, pengguna, riwayat chat) |
 | AI Vision | `vision.html` | Peta parkir 3D/2D, kamera + bounding box, okupansi per jam dan 7 hari, riwayat ALPR, riwayat kendaraan (jam masuk/keluar, lama parkir) |
 
 Ruang lingkup mengikuti paparan *Sistem Informasi Kecerdasan Buatan* (Pusdatin Kementerian PU):
@@ -234,8 +234,10 @@ Response juga boleh memuat `citations` (`[{ n, title, ref, snippet }]`, ditampil
 Untuk lampiran teks (.txt/.md/.csv) dashboard mengirim isinya di `attachment.text` (maks. 20.000 karakter).
 
 `POST /chat/feedback` menerima `{ messageId, rating: "up" | "down" | null, previous, model, question, answer }`.
+`POST /chat` juga mengirim `messageId` (id jawaban yang akan datang) supaya penilaian bisa dicocokkan ke riwayat.
 `GET /chat/analytics` mengembalikan `users` (nama, unit, `lastLogin`, `questions`, `ratings`), `daily` (30 hari,
-pertanyaan dan token per model), dan `feedback`. Biaya dihitung di dashboard dari harga acuan di
+pertanyaan dan token per model), dan `history` (riwayat chat semua pengguna: `question`, `answer`, `model`,
+`inputTokens`, `outputTokens`, `rating`). Biaya dihitung di dashboard dari harga acuan di
 `src/js/data/chat-models.js`.
 
 `actions` selalu dikonfirmasi user lewat tombol sebelum dijalankan. Backend LLM sebaiknya memakai
