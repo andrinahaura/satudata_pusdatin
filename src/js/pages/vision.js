@@ -1,3 +1,4 @@
+import { createDateRange } from '../components/date-range.js';
 import { mountLayout } from '../components/layout.js';
 import { lineLegendHtml } from '../components/line-chart.js';
 import { createTrendChart } from '../components/trend-chart.js';
@@ -9,13 +10,23 @@ import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-tog
 import { errorState, segmentedHtml, statTile } from '../components/ui.js';
 import { VEHICLE_TYPES } from '../data/device-types.js';
 import { api } from '../services/api.js';
-import { summarizeParking, summarizeVisits } from '../services/selectors.js';
+import { parkingRange, summarizeParking, visitMinutes } from '../services/selectors.js';
 import { $, esc } from '../utils/dom.js';
-import { fmtDuration, fmtInt, fmtPct, fmtTime } from '../utils/format.js';
+import { fmtDateTime, fmtDuration, fmtInt, fmtPct, fmtTime } from '../utils/format.js';
+import { rangeQuery } from '../utils/range.js';
 
 mountLayout({ page: 'vision' });
 
-const state = { parking: null, zoneId: 'A', view: getViewMode(), chartPeriod: 'day', visitFilter: 'all', visitSearch: '' };
+const state = { parking: null, stats: null, visits: null, zoneId: 'A', view: getViewMode(), visitFilter: 'all', visitSearch: '' };
+
+// Rentang waktu berlaku untuk jumlah masuk/keluar, grafik okupansi, dan riwayat kendaraan.
+// Peta slot, rekap zona, kamera, dan deteksi gerbang terbaru selalu kondisi saat ini.
+const picker = createDateRange($('[data-range]'), {
+  onChange: async () => {
+    await loadRanged();
+    render();
+  },
+});
 const maps = {
   '3d': createParking3D($('[data-map-3d]')),
   '2d': createParkingMap($('[data-map-2d]')),
@@ -41,14 +52,15 @@ $('[data-zone-tabs]').addEventListener('click', (e) => {
 const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 
 function renderKpis(p) {
-  const { today } = state.parking;
+  const range = picker.range;
+  const r = state.stats ? parkingRange(state.stats, range) : null;
   $('[data-kpis]').innerHTML = [
     statTile({ label: 'Kapasitas', value: p.total, unit: ' slot', sub: `${p.car.total} mobil · ${p.motorcycle.total} motor` }),
-    statTile({ label: 'Terisi', value: p.occupied }),
-    statTile({ label: 'Kosong', value: p.free, sub: `${p.car.free} mobil · ${p.motorcycle.free} motor` }),
-    statTile({ label: 'Okupansi', value: fmtPct(p.rate) }),
-    statTile({ label: 'Masuk hari ini', value: fmtInt(sum(today.in)) }),
-    statTile({ label: 'Keluar hari ini', value: fmtInt(sum(today.out)) }),
+    statTile({ label: 'Terisi', value: p.occupied, sub: 'Saat ini' }),
+    statTile({ label: 'Kosong', value: p.free, sub: `Saat ini · ${p.car.free} mobil, ${p.motorcycle.free} motor` }),
+    statTile({ label: 'Okupansi', value: fmtPct(p.rate), sub: 'Saat ini' }),
+    statTile({ label: `Masuk ${range.short}`, value: r ? fmtInt(r.in) : '–', sub: r ? `Rata-rata parkir ${fmtDuration(r.avgDurationMin)}` : '' }),
+    statTile({ label: `Keluar ${range.short}`, value: r ? fmtInt(r.out) : '–' }),
   ].join('');
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(state.parking.updatedAt)}`;
 }
@@ -94,83 +106,74 @@ function renderCameras() {
   $('[data-cameras]').innerHTML = cams.map(cameraCardHtml).join('');
 }
 
-const WEEKDAY_SHORT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
-
 function renderChart() {
-  $('[data-chart-period]').innerHTML = segmentedHtml([{ value: 'day', label: 'Per jam' }, { value: 'week', label: '7 hari' }], state.chartPeriod, 'data-chart-period-id');
-  let opts;
-  let peak;
-  if (state.chartPeriod === 'week') {
-    const week = state.parking.historyWeek;
-    const labels = week.map((d) => WEEKDAY_SHORT[new Date(`${d.date}T00:00`).getDay()]);
-    const series = [
-      { label: 'Puncak', values: week.map((d) => Math.round(d.peak * 100)), style: 'current' },
-      { label: 'Rata-rata', values: week.map((d) => Math.round(d.avg * 100)), style: 'previous' },
-    ];
-    peak = Math.max(...series[0].values);
-    opts = { labels, series, height: 260, format: (v) => `${v}%`, selected: labels.length - 1 };
-    $('[data-chart-legend]').innerHTML = lineLegendHtml(series);
-  } else {
-    const { history } = state.parking;
-    const labels = history.map((h) => h.hour.slice(0, 2));
-    const values = history.map((h) => Math.round(h.occupancy * 100));
-    const now = labels.indexOf(String(new Date().getHours()).padStart(2, '0'));
-    peak = Math.max(...values);
-    opts = { labels, series: [{ label: 'Okupansi', values, style: 'current' }], height: 260, format: (v) => `${v}% terisi`, selected: now >= 0 ? now : undefined };
-  }
-  $('[data-chart-legend]').classList.toggle('hidden', state.chartPeriod !== 'week');
-  $('[data-chart-title]').textContent = state.chartPeriod === 'week' ? 'Okupansi parkir 7 hari' : 'Okupansi parkir per jam';
-  $('[data-chart-summary]').innerHTML = `<span class="text-ink/80">Puncak</span><span class="font-semibold tabular-nums">${peak}%</span>`;
+  if (!state.stats) return;
+  const range = picker.range;
+  const r = parkingRange(state.stats, range);
+  const lines = r.series.second
+    ? [{ label: 'Puncak', values: r.series.main, style: 'current' }, { label: 'Rata-rata', values: r.series.second, style: 'previous' }]
+    : [{ label: 'Okupansi', values: r.series.main, style: 'current' }];
+  const now = r.series.labels.indexOf(String(new Date().getHours()).padStart(2, '0'));
+  const opts = { labels: r.series.labels, series: lines, height: 260, format: (v) => `${v}% terisi`, selected: range.preset === 'today' && now >= 0 ? now : undefined };
+  $('[data-chart-legend]').classList.toggle('hidden', lines.length < 2);
+  $('[data-chart-legend]').innerHTML = lines.length > 1 ? lineLegendHtml(lines) : '';
+  $('[data-chart-desc]').textContent = `${range.single ? 'Per jam' : 'Puncak dan rata-rata per hari'}, ${range.label}`;
+  $('[data-chart-summary]').innerHTML = `<span class="text-ink/80">Puncak</span><span class="font-semibold tabular-nums">${Math.round(r.peak * 100)}%</span>`;
   if (chart) chart.update(opts);
   else chart = createTrendChart($('[data-chart]'), opts);
 }
 
-$('[data-chart-period]').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-chart-period-id]');
-  if (!btn) return;
-  state.chartPeriod = btn.dataset.chartPeriodId;
-  renderChart();
-});
-
 /* --------------------------- riwayat kendaraan --------------------------- */
 
 function renderVisits() {
-  const v = summarizeVisits(state.parking);
+  if (!state.visits) return;
+  const { items, counts } = state.visits;
   const filters = [
-    { value: 'all', label: `Semua (${v.total})` },
-    { value: 'inside', label: `Di dalam (${v.inside})` },
-    { value: 'out', label: `Sudah keluar (${v.done})` },
+    { value: 'all', label: `Semua (${fmtInt(counts.all)})` },
+    { value: 'inside', label: `Di dalam (${fmtInt(counts.inside)})` },
+    { value: 'out', label: `Sudah keluar (${fmtInt(counts.out)})` },
   ];
   $('[data-visits-filter]').innerHTML = segmentedHtml(filters, state.visitFilter, 'data-visits-filter-id');
+  const shown = counts[state.visitFilter];
+  $('[data-visits-title]').innerHTML = `Riwayat kendaraan <span class="font-normal text-mid-gray">${shown > items.length ? `${items.length} terbaru dari ${fmtInt(shown)}` : fmtInt(shown)}</span>`;
   const zones = new Map(state.parking.zones.map((z) => [z.id, z]));
-  const q = state.visitSearch.replace(/\s+/g, '');
-  const list = state.parking.visits
-    .filter((x) => state.visitFilter === 'all' || (state.visitFilter === 'inside' ? !x.outAt : x.outAt))
-    .filter((x) => !q || x.plate.replace(/\s+/g, '').toLowerCase().includes(q))
-    .slice(0, 120);
+  // Rentang lebih dari satu hari: tampilkan tanggal di jam masuk/keluar.
+  const when = picker.range.single ? fmtTime : fmtDateTime;
   $('[data-visits]').innerHTML =
-    list
+    items
       .map((x) => `<tr>
           <td class="font-mono font-medium whitespace-nowrap">${esc(x.plate)}</td>
           <td>${VEHICLE_TYPES[x.vehicleType].label}</td>
           <td class="whitespace-nowrap">${esc(zones.get(x.zoneId)?.name ?? '–')}${x.slotId ? ` <span class="text-mid-gray">· ${esc(x.slotId)}</span>` : ''}</td>
-          <td class="whitespace-nowrap">${fmtTime(x.inAt)} <span class="text-caption tracking-normal text-mid-gray">${esc(x.gateIn)}</span></td>
-          <td class="whitespace-nowrap">${x.outAt ? `${fmtTime(x.outAt)} <span class="text-caption tracking-normal text-mid-gray">${esc(x.gateOut)}</span>` : '<span class="badge badge-solid">Masih parkir</span>'}</td>
-          <td class="num">${fmtDuration(v.minutes(x))}</td>
+          <td class="whitespace-nowrap">${when(x.inAt)} <span class="text-caption tracking-normal text-mid-gray">${esc(x.gateIn)}</span></td>
+          <td class="whitespace-nowrap">${x.outAt ? `${when(x.outAt)} <span class="text-caption tracking-normal text-mid-gray">${esc(x.gateOut)}</span>` : '<span class="badge badge-solid">Masih parkir</span>'}</td>
+          <td class="num">${fmtDuration(visitMinutes(x))}</td>
           <td class="num text-mid-gray">${Math.round(x.confidence * 100)}%</td>
         </tr>`)
       .join('') || '<tr><td colspan="7" class="py-6 text-center text-mid-gray">Tidak ada kendaraan yang cocok.</td></tr>';
 }
 
-$('[data-visits-filter]').addEventListener('click', (e) => {
+async function loadVisits() {
+  const range = picker.range;
+  const res = await api.getParkingVisits({ ...rangeQuery(range), status: state.visitFilter, q: state.visitSearch });
+  if (picker.range.label === range.label) state.visits = res;
+}
+
+$('[data-visits-filter]').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-visits-filter-id]');
   if (!btn) return;
   state.visitFilter = btn.dataset.visitsFilterId;
+  await loadVisits();
   renderVisits();
 });
+let searchTimer = null;
 $('[data-visits-search]').addEventListener('input', (e) => {
-  state.visitSearch = e.target.value.trim().toLowerCase();
-  renderVisits();
+  state.visitSearch = e.target.value.trim();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async () => {
+    await loadVisits();
+    renderVisits();
+  }, 250);
 });
 
 // Jumlah baris riwayat yang muat utuh di kartu (tinggi kartu mengikuti grafik di sebelahnya).
@@ -217,18 +220,26 @@ function render() {
   renderIcons($('main'));
 }
 
+// Data berentang waktu dimuat ulang saat rentang berganti dan tiap pembaruan realtime.
+async function loadRanged() {
+  const range = picker.range;
+  const [stats] = await Promise.all([api.getParkingStats(rangeQuery(range)), loadVisits()]);
+  if (picker.range.label === range.label) state.stats = stats;
+}
+
 async function load() {
   try {
-    state.parking = await api.getParking();
+    [state.parking] = await Promise.all([api.getParking(), loadRanged()]);
     render();
   } catch (err) {
     $('[data-kpis]').innerHTML = `<div class="col-span-full bg-paper p-3">${errorState(`Gagal memuat data parkir: ${err.message}`)}</div>`;
   }
 }
 
-api.subscribe((next) => {
+api.subscribe(async (next) => {
   if (!next.parking) return;
   state.parking = next.parking;
+  await loadRanged();
   render();
 });
 

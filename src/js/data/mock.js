@@ -3,6 +3,7 @@
 // Gedung, ruang, dan jenis perangkat mengikuti kondisi Gedung Pusdatin di Sinatra
 // (BGC untuk ruang & perangkat, ICC untuk meter listrik); angkanya simulasi.
 import { DEVICE_TYPES, NON_WORKSPACE } from './device-types.js';
+import { rngFor } from './mock-util.js';
 
 // PRNG deterministik supaya denah & status sama di setiap halaman/reload.
 function createRng(seed) {
@@ -174,7 +175,6 @@ function peakKw(floorId, devices) {
 }
 
 const isWeekend = (date) => date.getDay() === 0 || date.getDay() === 6;
-const dayKwh = (peak, date, rand) => LOAD_CURVE.reduce((s, f) => s + f, 0) * peak * (isWeekend(date) ? WEEKEND : 1) * (0.92 + rand() * 0.16);
 const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
 
 function hourly(peak, date, rand, untilHour = 24, partial = 1) {
@@ -190,8 +190,20 @@ function sumSeries(list) {
   return list.reduce((s, v) => s + (v ?? 0), 0);
 }
 
+/** Pemakaian per jam satu lantai pada hari yang sudah lewat (deterministik dari tanggal). */
+export function energyDayHourly(floorId, peak, key) {
+  const rand = rngFor(`energy:${floorId}:${key}`);
+  peak = round2(peak); // sama dengan peakKw yang disimpan, supaya hasil di state dan di riwayat identik
+  const date = new Date(`${key}T00:00:00`);
+  const level = 0.92 + rand() * 0.16;
+  return hourly(peak * level, date, rand);
+}
+
+const dayTotal = (floorId, peak, date) => round1(sumSeries(energyDayHourly(floorId, peak, localDate(date))));
+
 export function createEnergyState(devices, now = new Date(), seed = 4410) {
   const rand = createRng(seed + now.getDate());
+  // Hari ini acak dari seed; hari-hari lalu dari energyDayHourly() supaya sama dengan riwayat rentang waktu.
   const h = now.getHours();
   const partial = now.getMinutes() / 60;
   const yesterday = new Date(now);
@@ -208,19 +220,19 @@ export function createEnergyState(devices, now = new Date(), seed = 4410) {
       if (i > weekday) return null;
       const d = new Date(now);
       d.setDate(now.getDate() - weekday + i);
-      return i === weekday ? null : round1(dayKwh(peak, d, rand));
+      return i === weekday ? null : dayTotal(def.id, peak, d);
     });
     const lastWeek = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(now);
       d.setDate(now.getDate() - weekday - 7 + i);
-      return round1(dayKwh(peak, d, rand));
+      return dayTotal(def.id, peak, d);
     });
-    const month = Array.from({ length: daysInMonth(y, m) }, (_, i) => (i + 1 >= now.getDate() ? null : round1(dayKwh(peak, new Date(y, m, i + 1), rand))));
-    const lastMonth = Array.from({ length: daysInMonth(y, m - 1) }, (_, i) => round1(dayKwh(peak, new Date(y, m - 1, i + 1), rand)));
+    const month = Array.from({ length: daysInMonth(y, m) }, (_, i) => (i + 1 >= now.getDate() ? null : dayTotal(def.id, peak, new Date(y, m, i + 1))));
+    const lastMonth = Array.from({ length: daysInMonth(y, m - 1) }, (_, i) => dayTotal(def.id, peak, new Date(y, m - 1, i + 1)));
     floors[def.id] = {
       peakKw: round2(peak),
       today,
-      yesterday: hourly(peak, yesterday, rand),
+      yesterday: energyDayHourly(def.id, peak, localDate(yesterday)),
       target: LOAD_CURVE.map((f) => round2(f * peak * 0.95)),
       week,
       lastWeek,
@@ -505,22 +517,63 @@ function seedVisits(zones, rand) {
 // Waktu gerakan terakhir kunjungan (keluar bila sudah keluar, selain itu masuk).
 const lastMove = (v) => v.outAt ?? v.inAt;
 
-// Okupansi 7 hari terakhir: rata-rata dan puncak per hari. Hari ini dihitung dari `history`.
-function seedWeek(history, rand) {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    const weekend = d.getDay() === 0 || d.getDay() === 6;
-    const peak = weekend ? 0.18 + rand() * 0.12 : 0.82 + rand() * 0.14;
-    return { date: localDate(d), peak: Math.min(1, peak), avg: peak * (0.62 + rand() * 0.08) };
-  }).map((day, i, list) => (i === list.length - 1 ? { ...day, ...weekFromHourly(history) } : day));
+/* Hari-hari lalu: kunjungan dibuat ulang dari tanggalnya, lalu okupansi & jumlah masuk/keluar
+   dihitung dari kunjungan itu supaya angka grafik, KPI, dan tabel saling cocok. */
+
+const CAPACITY = ZONES.reduce((s, z) => s + z.rows * z.cols, 0);
+const HOURS = Array.from({ length: 15 }, (_, i) => 6 + i); // 06.00–20.00
+
+/** Kunjungan kendaraan pada hari yang sudah lewat, terbaru di depan. */
+export function parkingDayVisits(key) {
+  const rand = rngFor(`visits:${key}`);
+  const day = new Date(`${key}T00:00:00`).getTime();
+  const weekend = [0, 6].includes(new Date(day).getDay());
+  const n = weekend ? 30 + Math.floor(rand() * 20) : 135 + Math.floor(rand() * 30);
+  const visits = [];
+  for (let i = 0; i < n; i++) {
+    const kind = rand() < 0.55 ? 'motorcycle' : rand() < 0.95 ? 'car' : 'truck';
+    const zoneId = kind === 'motorcycle' ? 'M' : rand() < 0.62 ? 'A' : 'B';
+    const allDay = rand() < 0.55;
+    const arrive = allDay ? 6.5 + rand() * 2.5 : 8 + rand() * 8;
+    const stay = allDay ? 7 + rand() * 2.5 : 0.5 + rand() * 2.5;
+    const leave = Math.min(21.5, arrive + stay);
+    visits.push({
+      id: `VS-${key}-${i}`,
+      plate: plate(rand),
+      vehicleType: kind,
+      zoneId,
+      slotId: null,
+      gateIn: GATES[Math.floor(rand() * 2)],
+      gateOut: GATES[Math.floor(rand() * 2)],
+      inAt: new Date(day + arrive * 3600000).toISOString(),
+      outAt: new Date(day + leave * 3600000).toISOString(),
+      confidence: confidence(rand),
+    });
+  }
+  return visits.sort((a, b) => lastMove(b).localeCompare(lastMove(a)));
 }
 
-function weekFromHourly(history) {
-  const hour = new Date().getHours();
-  const passed = history.filter((h) => Number(h.hour.slice(0, 2)) <= hour).map((h) => h.occupancy);
-  if (!passed.length) return { peak: 0, avg: 0 };
-  return { peak: Math.max(...passed), avg: passed.reduce((s, v) => s + v, 0) / passed.length };
+const countByType = (list) => {
+  const out = { car: 0, motorcycle: 0, truck: 0 };
+  list.forEach((v) => (out[v.vehicleType] += 1));
+  return out;
+};
+
+/**
+ * Statistik parkir satu hari dari daftar kunjungannya.
+ * `untilHour` membatasi jam yang dihitung (hari ini: jam sekarang); jam sesudahnya bernilai null.
+ */
+export function parkingStatsFromVisits(key, visits, untilHour = 24) {
+  const day = new Date(`${key}T00:00:00`).getTime();
+  const hourly = HOURS.map((h) => {
+    if (h > untilHour) return { hour: `${pad2(h)}:00`, occupancy: null };
+    const t = day + (h + 0.5) * 3600000;
+    const inside = visits.filter((v) => new Date(v.inAt).getTime() <= t && (!v.outAt || new Date(v.outAt).getTime() > t)).length;
+    return { hour: `${pad2(h)}:00`, occupancy: Math.min(1, inside / CAPACITY) };
+  });
+  const done = visits.filter((v) => v.outAt);
+  const minutes = done.reduce((s, v) => s + (new Date(v.outAt) - new Date(v.inAt)) / 60000, 0);
+  return { date: key, hourly, in: countByType(visits), out: countByType(done), avgDurationMin: done.length ? minutes / done.length : 0 };
 }
 
 export function createParkingState(seed = 7310) {
@@ -569,17 +622,22 @@ export function createParkingState(seed = 7310) {
   // Pola okupansi per jam, 06:00–20:00.
   const curve = [0.08, 0.22, 0.58, 0.82, 0.88, 0.86, 0.71, 0.79, 0.84, 0.8, 0.66, 0.43, 0.24, 0.13, 0.08];
   const history = curve.map((v, i) => ({ hour: `${pad2(6 + i)}:00`, occupancy: Math.min(1, Math.max(0, v + (rand() - 0.5) * 0.05)) }));
+  const visits = seedVisits(zones, rand);
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
 
   return {
+    // Lokasi parkir yang dipantau. Saat ini satu lokasi piloting: Smart Parking (parkir susun).
+    site: { id: 'smart-parking', name: 'Smart Parking', kind: 'Parkir susun', status: 'Piloting' },
     zones,
     cameras,
     events,
-    visits: seedVisits(zones, rand),
+    visits,
     history,
-    historyWeek: seedWeek(history, rand),
+    // Jumlah masuk/keluar hari ini mengikuti kunjungan yang tercatat sejak tengah malam.
     today: {
-      in: { car: 148, motorcycle: 263, truck: 6 },
-      out: { car: 97, motorcycle: 171, truck: 4 },
+      in: countByType(visits.filter((v) => new Date(v.inAt) >= midnight)),
+      out: countByType(visits.filter((v) => v.outAt && new Date(v.outAt) >= midnight)),
     },
     updatedAt: new Date().toISOString(),
   };
@@ -626,11 +684,5 @@ export function stepParking(state, rand = Math.random) {
     const all = state.zones.flatMap((z) => z.slots);
     point.occupancy = all.filter((s) => s.occupied).length / all.length;
   }
-  const week = state.historyWeek;
-  if (week.at(-1).date !== localDate()) {
-    week.push({ date: localDate(), peak: 0, avg: 0 });
-    week.splice(0, week.length - 7);
-  }
-  Object.assign(week.at(-1), weekFromHourly(state.history));
   state.updatedAt = new Date().toISOString();
 }

@@ -35,32 +35,21 @@ export function barListHtml(bars, { format = String, max = null } = {}) {
 }
 
 /**
- * Cincin per item: angka utama di tengah, busur = `ratio`. Untuk 2–4 item yang masing-masing
- * punya kapasitas sendiri (mis. zona parkir). `alert` = tandai dengan teks + warna.
- * items: [{ label, sub, value, unit, ratio, caption, alert?, alertLabel? }]
+ * Satu cincin SVG: angka utama di tengah, busur = `ratio` (0–1). `alert` = warna peringatan.
+ * Teks di luar cincin (nama, keterangan) diletakkan pemanggil.
  */
-export function ringGaugesHtml(items) {
+export function ringSvg({ value, unit, ratio, alert = false, label = '', className = 'w-full max-w-32' }) {
   const r = 42;
   const c = 2 * Math.PI * r;
-  return `<ul class="grid gap-4" style="grid-template-columns:repeat(${items.length},minmax(0,1fr))">${items
-    .map((it) => {
-      const ratio = Math.max(0, Math.min(1, it.ratio));
-      const color = it.alert ? COLORS.ember : COLORS.ink;
-      return `<li class="flex min-w-0 flex-col items-center text-center">
-        <svg viewBox="0 0 100 100" class="w-full max-w-32" role="img" aria-label="${esc(`${it.label}: ${it.value} ${it.unit}, ${it.caption}`)}">
-          <circle cx="50" cy="50" r="${r}" fill="none" stroke="${COLORS.canvas}" stroke-width="8"/>
-          ${ratio > 0 ? `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round"
-            stroke-dasharray="${(c * ratio).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 50 50)"/>` : ''}
-          <text x="50" y="52" text-anchor="middle" font-size="24" font-weight="600" fill="${it.alert ? COLORS.ember : COLORS.ink}" font-family="Inter, system-ui, sans-serif">${esc(it.value)}</text>
-          <text x="50" y="66" text-anchor="middle" font-size="9" fill="${COLORS.muted}" font-family="Inter, system-ui, sans-serif">${esc(it.unit)}</text>
-        </svg>
-        <p class="mt-2 w-full truncate font-medium">${esc(it.label)}</p>
-        ${it.sub ? `<p class="w-full truncate text-caption tracking-normal text-mid-gray">${esc(it.sub)}</p>` : ''}
-        <p class="mt-1 tabular-nums">${esc(it.caption)}</p>
-        ${it.alert ? `<span class="badge badge-alert mt-1.5">${esc(it.alertLabel ?? 'Perhatian')}</span>` : ''}
-      </li>`;
-    })
-    .join('')}</ul>`;
+  const part = Math.max(0, Math.min(1, ratio));
+  const color = alert ? COLORS.ember : COLORS.ink;
+  return `<svg viewBox="0 0 100 100" class="${className}" role="img" aria-label="${esc(label || `${value} ${unit}`)}">
+      <circle cx="50" cy="50" r="${r}" fill="none" stroke="${COLORS.canvas}" stroke-width="8"/>
+      ${part > 0 ? `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round"
+        stroke-dasharray="${(c * part).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 50 50)"/>` : ''}
+      <text x="50" y="52" text-anchor="middle" font-size="24" font-weight="600" fill="${color}" font-family="Inter, system-ui, sans-serif">${esc(value)}</text>
+      <text x="50" y="66" text-anchor="middle" font-size="9" fill="${COLORS.muted}" font-family="Inter, system-ui, sans-serif">${esc(unit)}</text>
+    </svg>`;
 }
 
 /** Judul bagian di halaman, dengan tautan opsional di kanan. */

@@ -14,21 +14,36 @@ async function request(path, { method = 'GET', body } = {}) {
   return res.json();
 }
 
+// { from: '2026-10-01', to: '2026-10-07', status: 'all' } -> '?from=2026-10-01&to=2026-10-07&status=all'
+const qs = (params) => `?${new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString()}`;
+
 export const api = {
   /** @returns {Promise<{building, devices, updatedAt}>} */
   getIot: () => (config.useMock ? mock.getIot() : request('/iot')),
 
-  /** @returns {Promise<{zones, cameras, events, history, today, updatedAt}>} */
+  /** Kondisi parkir saat ini. @returns {Promise<{zones, cameras, events, visits, history, today, updatedAt}>} */
   getParking: () => (config.useMock ? mock.getParking() : request('/parking')),
 
   /** Ubah status on/off banyak perangkat sekaligus. @returns {Promise<{updated:number}>} */
   setDevices: (ids, on) => (config.useMock ? mock.setDevices(ids, on) : request('/iot/devices', { method: 'PATCH', body: { ids, on } })),
 
-  /** Riwayat status (aktif/tidak aktif) dan konektivitas perangkat. @returns {Promise<{statusLog, outages, windowDays, updatedAt}>} */
-  getIotHistory: () => (config.useMock ? mock.getIotHistory() : request('/iot/history')),
+  // Endpoint berentang waktu menerima `q` = { from, to } (kunci tanggal 'YYYY-MM-DD', inklusif),
+  // biasanya dari rangeQuery(range) di utils/range.js.
 
-  /** Kanal Telegram, pengaturan, dan log notifikasi peringatan. @returns {Promise<{channel, settings, items, updatedAt}>} */
-  getNotifications: () => (config.useMock ? mock.getNotifications() : request('/notifications')),
+  /** Riwayat status (aktif/tidak aktif) dan konektivitas perangkat. @returns {Promise<{statusLog, statusTotal, outages, updatedAt}>} */
+  getIotHistory: (q) => (config.useMock ? mock.getIotHistory(q) : request(`/iot/history${qs(q)}`)),
+
+  /** Pemakaian listrik per jam per lantai untuk setiap hari. @returns {Promise<{tariff, days: {[date]: {[floorId]: number[]}}, target}>} */
+  getEnergyHistory: (q) => (config.useMock ? mock.getEnergyHistory(q) : request(`/iot/energy${qs(q)}`)),
+
+  /** Kanal Telegram, pengaturan, dan log notifikasi peringatan di rentang. @returns {Promise<{channel, settings, items, updatedAt}>} */
+  getNotifications: (q) => (config.useMock ? mock.getNotifications(q) : request(`/notifications${qs(q)}`)),
+
+  /** Okupansi per jam, masuk/keluar, dan lama parkir per hari. @returns {Promise<{days: {date, hourly, in, out, avgDurationMin}[]}>} */
+  getParkingStats: (q) => (config.useMock ? mock.getParkingStats(q) : request(`/parking/stats${qs(q)}`)),
+
+  /** q: { from, to, status?: 'all'|'inside'|'out', q?: nomor polisi, limit? } @returns {Promise<{items, counts: {all, inside, out}}>} */
+  getParkingVisits: (q) => (config.useMock ? mock.getParkingVisits(q) : request(`/parking/visits${qs(q)}`)),
 
   /** patch: { enabled?, critical?, warning? } @returns {Promise<{enabled, critical, warning}>} */
   updateNotificationSettings: (patch) =>
@@ -47,8 +62,8 @@ export const api = {
   /** Penilaian jawaban. payload: { messageId, rating: 'up'|'down'|null, previous, model, question, answer } */
   rateAnswer: (payload) => (config.useMock ? mock.rateAnswer(payload) : request('/chat/feedback', { method: 'POST', body: payload })),
 
-  /** Pengguna, pemakaian token per hari, dan riwayat chat. @returns {Promise<{users, daily, history, updatedAt}>} */
-  getChatAnalytics: () => (config.useMock ? mock.getChatAnalytics() : request('/chat/analytics')),
+  /** q: { from, to, rating?: 'down' }. Pengguna, pemakaian per hari, dan riwayat chat di rentang. @returns {Promise<{users, days, history, counts: {all, down}, updatedAt}>} */
+  getChatAnalytics: (q) => (config.useMock ? mock.getChatAnalytics(q) : request(`/chat/analytics${qs(q)}`)),
 
   /**
    * Update realtime. handler menerima { iot?, parking? }.

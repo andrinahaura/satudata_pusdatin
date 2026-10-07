@@ -17,8 +17,12 @@
       <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
         <!-- Dua tampilan: percakapan (chatbot TEJAS) dan analitik pemakaian. Pilihan disimpan di hash URL. -->
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div class="segmented" role="tablist" aria-label="Tampilan chatbot" data-view-tabs></div>
-          <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated></span>
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="segmented" role="tablist" aria-label="Tampilan chatbot" data-view-tabs></div>
+            <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated></span>
+          </div>
+          <!-- Rentang waktu hanya untuk tab Analitik. -->
+          <div class="hidden" data-view="analytics" data-range></div>
         </div>
 
         <!-- Chatbot TEJAS di dalam dashboard: riwayat percakapan di kiri, percakapan di kanan. -->
@@ -57,7 +61,7 @@
             <article class="card min-w-0">
               <div class="card-header">
                 <div>
-                  <h2 class="card-title">Tren 7 hari</h2>
+                  <h2 class="card-title">Tren</h2>
                   <p class="text-caption tracking-normal text-mid-gray" data-trend-desc></p>
                 </div>
                 <div class="segmented" role="tablist" aria-label="Pilih data" data-trend-tabs></div>
@@ -68,7 +72,7 @@
               <div class="card-header">
                 <div>
                   <h2 class="card-title">Biaya per model</h2>
-                  <p class="text-caption tracking-normal text-mid-gray">30 hari terakhir</p>
+                  <p class="text-caption tracking-normal text-mid-gray" data-model-desc></p>
                 </div>
               </div>
               <div class="card-body flex flex-1 flex-col" data-model-usage></div>

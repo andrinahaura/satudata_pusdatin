@@ -7,8 +7,8 @@ Tema visual mengikuti [`design.md`](design.md).
 
 | Menu | Halaman | Isi |
 |------|---------|-----|
-| Home | `index.html` | KPI dan grafik dari tiga menu: IoT (perangkat, uptime, peringatan, Telegram, listrik), AI Vision (slot, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
-| IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang, kontrol perangkat, peringatan + notifikasi Telegram, riwayat status perangkat dan uptime, listrik |
+| Home | `index.html` | KPI dan grafik dari tiga menu: IoT (perangkat, uptime, peringatan, Telegram, listrik), AI Vision (slot tersedia di Smart Parking, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
+| IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang, kontrol perangkat, peringatan + notifikasi Telegram, riwayat status perangkat dan uptime, listrik per lantai dan panel distribusi |
 | Chatbot | `chatbot.html` | Chatbot TEJAS (pintas unit PU, SITABA, rujukan dokumen, analisis lampiran, grafik, penilaian jawaban) dan tab Analitik (tren pertanyaan/token/biaya, pengguna, riwayat chat) |
 | AI Vision | `vision.html` | Peta parkir 3D/2D, kamera + bounding box, okupansi per jam dan 7 hari, riwayat ALPR, riwayat kendaraan (jam masuk/keluar, lama parkir) |
 
@@ -59,6 +59,30 @@ src/
 
 Aturan utama: halaman dan komponen **tidak pernah memanggil `fetch` langsung**; semua lewat `api` di
 `src/js/services/api.js`. Pindah ke backend asli cukup dengan `VITE_USE_MOCK=false`.
+
+## Rentang waktu
+
+Setiap dashboard **wajib** punya pemilih rentang waktu: satu tombol kalender di kanan judul halaman
+yang membuka panel Hari ini, Kemarin, 7 hari terakhir, 30 hari terakhir, dan Custom (maksimal 90 hari).
+Baris judul memakai kelas `.page-toolbar`, jadi di layar lebar menempel di bawah navbar saat digulir. Pilihan disimpan di URL (`?range=7d`,
+`?range=custom&from=2026-09-10&to=2026-09-20`) dan localStorage, jadi terbawa saat pindah halaman.
+
+```js
+import { createDateRange } from '../components/date-range.js';
+import { rangeQuery } from '../utils/range.js';
+
+const picker = createDateRange($('[data-range]'), { onChange: async () => { await load(); render(); } });
+const data = await api.getIotHistory(rangeQuery(picker.range));   // { from, to } kunci tanggal
+```
+
+- `picker.range` (dari `resolveRange()` di `utils/range.js`) berisi `from`, `to`, `keys`, `single`,
+  `label` ("1 Okt – 7 Okt 2026"), `short` ("7 hari", untuk label KPI), dan `previous` (periode sebelumnya
+  dengan panjang sama, untuk perbandingan).
+- Satu hari: grafik per jam. Lebih dari satu hari: grafik per hari.
+- KPI dan tabel yang menampilkan kondisi sekarang (perangkat online, slot kosong, peringatan aktif)
+  tidak ikut rentang dan diberi keterangan **"Saat ini"**.
+- Endpoint berentang menerima `?from=YYYY-MM-DD&to=YYYY-MM-DD` (inklusif). Di mode mock, hari ini
+  diambil dari state realtime dan hari-hari lalu dibuat ulang per tanggal (deterministik).
 
 ## Variabel lingkungan
 
@@ -134,8 +158,8 @@ Bentuk JSON persis sama dengan objek yang dibuat `src/js/data/mock.js`. Semua wa
 ```
 
 Ruang, jenis perangkat, dan meter listrik mengikuti kondisi gedung di Sinatra (BGC dan ICC).
-Angkanya simulasi. Ringkasan listrik, peringkat ruang, dan pemakaian per ruang dihitung di
-`src/js/services/selectors.js` dari objek `energy` ini.
+Angkanya simulasi. Pemakaian listrik dilaporkan per lantai (meter panel), tidak per ruang; ringkasannya
+dihitung di `src/js/services/selectors.js` dari objek `energy` ini.
 
 Koordinat denah bisa digambar sekali (dari CAD/denah asli) lalu disimpan di database.
 
@@ -147,6 +171,7 @@ Request `{ "ids": ["L1-R01-LMP1"], "on": false }`, response `{ "updated": 1 }`.
 
 ```jsonc
 {
+  "site": { "id": "smart-parking", "name": "Smart Parking", "kind": "Parkir susun", "status": "Piloting" },  // lokasi yang dipantau
   "zones": [{
     "id": "A", "name": "Area A", "location": "Basement", "kind": "car",  // car | motorcycle
     "rows": 2, "cols": 16,
@@ -166,21 +191,30 @@ Request `{ "ids": ["L1-R01-LMP1"], "on": false }`, response `{ "updated": 1 }`.
 }
 ```
 
-### `GET /iot/history`
+### `GET /iot/history?from=&to=`
 
-Riwayat 7 hari. Uptime per hari dan per perangkat dihitung di `deviceUptime()` (`selectors.js`).
+Riwayat di rentang. Uptime per jam/hari dan per perangkat dihitung di `deviceUptime()` (`selectors.js`).
 
 ```jsonc
 {
   "statusLog": [{ "id": "ST-1", "time": "...", "deviceId": "L1-R01-LMP1", "floorId": "L1", "roomId": "L1-R01", "type": "light", "on": true }],
+  "statusTotal": 2129,   // jumlah seluruhnya; statusLog boleh dipotong (terbaru dulu)
   "outages": [{ "id": "OUT-1", "deviceId": "L1-R03-LMP1", "floorId": "L1", "roomId": "L1-R03", "type": "light",
                 "start": "...", "end": null }],   // end null = masih terputus
-  "windowDays": 7,
   "updatedAt": "..."
 }
 ```
 
-### `GET /notifications`, `PATCH /notifications/settings`, `POST /notifications/test`
+### `GET /iot/energy?from=&to=`
+
+Pemakaian per jam (kWh) per lantai untuk setiap hari di rentang. Dashboard meminta rentang ditambah
+periode sebelumnya, lalu `energyRange()` menghitung total, biaya, perbandingan, dan seri grafik.
+
+```jsonc
+{ "tariff": 1727, "days": { "2026-10-07": { "B": [0.6, 0.5, null], "L1": [], "L2": [] } }, "target": { "B": [0.57] } }
+```
+
+### `GET /notifications?from=&to=`, `PATCH /notifications/settings`, `POST /notifications/test`
 
 Log pesan peringatan ke Telegram. Backend mengirim lewat Telegram Bot API (`sendMessage`) setiap ada
 peringatan baru dari aturan yang sama dengan `getAlerts()`, dan pesan "pulih" saat peringatan hilang.
@@ -194,8 +228,18 @@ peringatan baru dari aturan yang sama dengan `getAlerts()`, dan pesan "pulih" sa
 }
 ```
 
-`GET /parking` juga memuat `visits` (satu baris per kendaraan: `plate`, `inAt`, `outAt`, `gateIn`, `gateOut`,
-`zoneId`, `slotId`, `confidence`; `outAt` null = masih parkir) dan `historyWeek` (`[{ date, avg, peak }]`, 7 hari).
+`GET /parking` (kondisi saat ini) juga memuat `visits` hari ini (satu baris per kendaraan: `plate`, `inAt`,
+`outAt`, `gateIn`, `gateOut`, `zoneId`, `slotId`, `confidence`; `outAt` null = masih parkir).
+
+### `GET /parking/stats?from=&to=`, `GET /parking/visits?from=&to=&status=&q=&limit=`
+
+```jsonc
+// stats: satu baris per hari
+{ "days": [{ "date": "2026-10-06", "hourly": [{ "hour": "06:00", "occupancy": 0.12 }],   // 06.00–20.00, null = belum lewat
+             "in": { "car": 60, "motorcycle": 78, "truck": 4 }, "out": { }, "avgDurationMin": 318 }] }
+// visits: status = all | inside | out, q = potongan nomor polisi; terbaru dulu
+{ "items": [{ "plate": "B 1552 SX", "inAt": "...", "outAt": "..." }], "counts": { "all": 142, "inside": 0, "out": 142 } }
+```
 
 ### `POST /chat`
 
@@ -235,10 +279,11 @@ Untuk lampiran teks (.txt/.md/.csv) dashboard mengirim isinya di `attachment.tex
 
 `POST /chat/feedback` menerima `{ messageId, rating: "up" | "down" | null, previous, model, question, answer }`.
 `POST /chat` juga mengirim `messageId` (id jawaban yang akan datang) supaya penilaian bisa dicocokkan ke riwayat.
-`GET /chat/analytics` mengembalikan `users` (nama, unit, `lastLogin`, `questions`, `ratings`), `daily` (30 hari,
-pertanyaan dan token per model), dan `history` (riwayat chat semua pengguna: `question`, `answer`, `model`,
-`inputTokens`, `outputTokens`, `rating`). Biaya dihitung di dashboard dari harga acuan di
-`src/js/data/chat-models.js`.
+`GET /chat/analytics?from=&to=&rating=` mengembalikan `users` (nama, unit, `lastLogin`), `days` (satu baris
+per hari: `questions`, token per model di `byModel`, per jam di `hours`, dan per pengguna di `users`:
+`{ questions, up, down }`), `history` (riwayat chat terbaru di rentang: `question`, `answer`, `model`,
+`inputTokens`, `outputTokens`, `rating`; `rating=down` menyaring jawaban Tidak sesuai), dan
+`counts` (`{ all, down }`). Biaya dihitung di dashboard dari harga acuan di `src/js/data/chat-models.js`.
 
 `actions` selalu dikonfirmasi user lewat tombol sebelum dijalankan. Backend LLM sebaiknya memakai
 tool/function calling ke data `/iot` dan `/parking`, lalu mengembalikan bentuk respons di atas.
@@ -259,3 +304,4 @@ dengan bentuk yang sama seperti endpoint GET. Tanpa WebSocket, dashboard melakuk
   daftarkan di `answer()`.
 - **Halaman baru:** buat `nama.html` (salin kerangka halaman lain), entry `src/js/pages/nama.js`,
   daftarkan di `vite.config.js` (`build.rollupOptions.input`) dan menu `NAV` di `components/layout.js`.
+  Pasang pemilih rentang waktu (`<div data-range>` + `createDateRange()`, lihat bagian "Rentang waktu").

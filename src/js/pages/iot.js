@@ -3,18 +3,20 @@ import { createFloorPlan, floorPlanLegend } from '../components/floor-plan.js';
 import { createFloorPlan3D } from '../components/three/floor-plan-3d.js';
 import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-toggle.js';
 import { icon, renderIcons } from '../components/icons.js';
-import { lineLegendHtml, miniLineChartSvg } from '../components/line-chart.js';
+import { lineLegendHtml } from '../components/line-chart.js';
 import { createTrendChart } from '../components/trend-chart.js';
 import { createAlertPanel } from '../components/alert-panel.js';
+import { createDateRange } from '../components/date-range.js';
 import { errorState, floorTargetCell, segmentedHtml, statTile } from '../components/ui.js';
 import { DEVICE_TYPES } from '../data/device-types.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
-  devicePowerW, devicesInRoom, deviceUptime, ENERGY_PERIODS, energyByFloor, energySeries, findWasteRooms, getAlerts, indexIot,
-  roomActivity, roomEnergy, roomRanking, summarizeIot,
+  devicePowerW, devicesInRoom, deviceUptime, energyByFloor, energyRange, findWasteRooms, getAlerts, indexIot,
+  roomActivity, summarizeIot,
 } from '../services/selectors.js';
 import { $, esc, getParam, setParams } from '../utils/dom.js';
 import { fmt1, fmtDateTime, fmtDuration, fmtInt, fmtRelative, fmtTime } from '../utils/format.js';
+import { rangeQuery } from '../utils/range.js';
 
 mountLayout({ page: 'iot' });
 
@@ -32,14 +34,21 @@ const state = {
   search: '',
   pending: new Set(),
   view: getViewMode(),
-  period: 'harian',
+  energy: null,
   energyScope: 'all',
-  rankOrder: 'top',
 };
 
 const rupiah = (v) => `Rp ${fmtInt(Math.round(v))}`;
 const pct = (ratio) => `${ratio > 0 ? '+' : ratio < 0 ? '−' : ''}${Math.abs(Math.round(ratio * 100))}%`;
-const periodMeta = () => ENERGY_PERIODS.find((p) => p.value === state.period);
+
+// Rentang waktu berlaku untuk log notifikasi, riwayat perangkat, dan listrik.
+// Denah, tabel perangkat, KPI atas, dan peringatan aktif selalu menampilkan kondisi saat ini.
+const picker = createDateRange($('[data-range]'), {
+  onChange: async () => {
+    await loadExtras();
+    render();
+  },
+});
 
 $('[data-floor-legend]').innerHTML = floorPlanLegend();
 
@@ -211,7 +220,6 @@ function renderRoomPanel(floor) {
   const power = devices.reduce((a, d) => a + devicePowerW(d), 0);
   const stat = (label, value) => `<div class="rounded-nested bg-canvas p-3"><dt class="text-caption tracking-normal text-mid-gray">${label}</dt><dd class="mt-0.5 text-subheading font-semibold tabular-nums">${value}</dd></div>`;
   const presence = room.occupancy == null ? '–' : room.occupancy > 0 ? (room.capacity ? `${room.occupancy} orang` : 'Ada orang') : 'Kosong';
-  const energy = devices.length ? roomEnergy(state.iot, room.id) : null;
   const activity = roomActivity(state.iot, room.id, 8);
   const controllable = devices.filter((d) => DEVICE_TYPES[d.type].controllable);
   panel.innerHTML = `
@@ -227,18 +235,6 @@ function renderRoomPanel(floor) {
         ${stat('Daya', `${power} W`)}
       </dl>
       ${!room.equipped ? '<p class="mt-4 rounded-nested border border-hairline px-3 py-2.5 text-mid-gray">Sensor belum terpasang di ruang ini.</p>' : ''}
-      ${energy ? `
-        <h3 class="mt-5 mb-2 font-semibold">Pemakaian listrik</h3>
-        <dl class="grid grid-cols-2 gap-x-4 gap-y-1">
-          <div><dt class="text-caption tracking-normal text-mid-gray">Hari ini</dt><dd class="font-semibold tabular-nums">${fmt1(energy.today)} kWh <span class="font-normal text-mid-gray">${rupiah(energy.todayRupiah)}</span></dd></div>
-          <div><dt class="text-caption tracking-normal text-mid-gray">Kemarin</dt><dd class="font-semibold tabular-nums">${fmt1(energy.yesterday)} kWh <span class="font-normal text-mid-gray">${rupiah(energy.yesterdayRupiah)}</span></dd></div>
-        </dl>
-        <div class="mt-3">${miniLineChartSvg({ series: [
-          { style: 'target', values: energy.series.target },
-          { style: 'previous', values: energy.series.previous },
-          { style: 'current', values: energy.series.current },
-        ] })}</div>
-        <div class="mt-2">${lineLegendHtml([{ label: 'Hari ini', style: 'current' }, { label: 'Kemarin', style: 'previous' }, { label: 'Target', style: 'target' }])}</div>` : ''}
       <h3 class="mt-5 mb-1 font-semibold">Perangkat <span class="font-normal text-mid-gray">${devices.length}</span></h3>
       <ul class="divide-y divide-hairline">
         ${devices.map((d) => `
@@ -295,37 +291,38 @@ function renderTable() {
 let energyChart = null;
 
 function renderEnergy() {
-  const period = periodMeta();
-  const e = energyByFloor(state.iot, state.period);
+  if (!state.energy) return;
+  const range = picker.range;
+  const e = energyRange(state.iot, state.energy, range);
   const trafo = state.iot.energy.panels.find((p) => p.source);
-  $('[data-period-tabs]').innerHTML = segmentedHtml(ENERGY_PERIODS, state.period, 'data-period');
+  const prev = range.previousLabel.toLowerCase();
 
-  const diff = e.rupiah - e.previousToDate * e.tariff;
+  const diff = e.rupiah - e.previousRupiah;
   $('[data-energy-kpis]').innerHTML = [
-    statTile({ label: `Pemakaian ${period.current.toLowerCase()}`, value: fmt1(e.kwh), unit: ' kWh', sub: `${pct(e.change)} vs ${period.previous.toLowerCase()}` }),
-    statTile({ label: 'Biaya', value: rupiah(e.rupiah) }),
-    statTile({ label: diff <= 0 ? `Hemat vs ${period.previous.toLowerCase()}` : `Naik vs ${period.previous.toLowerCase()}`, value: rupiah(Math.abs(diff)) }),
-    statTile({ label: 'Beban saat ini', value: fmt1(trafo.kw), unit: ' kW' }),
+    statTile({ label: `Pemakaian ${range.short}`, value: fmt1(e.kwh), unit: ' kWh', sub: `${pct(e.change)} vs ${prev}` }),
+    statTile({ label: 'Biaya', value: rupiah(e.rupiah), sub: range.label }),
+    statTile({ label: diff <= 0 ? `Hemat vs ${prev}` : `Naik vs ${prev}`, value: rupiah(Math.abs(diff)) }),
+    statTile({ label: 'Beban saat ini', value: fmt1(trafo.kw), unit: ' kW', sub: 'Saat ini' }),
   ].join('');
 
   const scopes = [{ value: 'all', label: 'Gedung' }, ...state.iot.building.floors.map((f) => ({ value: f.id, label: f.short }))];
   $('[data-energy-scope]').innerHTML = segmentedHtml(scopes, state.energyScope, 'data-energy-scope-id');
   const scopeFloor = state.iot.building.floors.find((f) => f.id === state.energyScope);
-  const series = energySeries(state.iot, state.period, scopeFloor?.id ?? null);
+  const series = e.seriesFor(scopeFloor?.id ?? null);
   const lines = [
     series.target && { label: 'Target', values: series.target, style: 'target' },
-    { label: period.previous, values: series.previous, style: 'previous' },
-    { label: period.current, values: series.current, style: 'current' },
+    { label: range.previousLabel, values: series.previous, style: 'previous' },
+    { label: range.currentLabel, values: series.current, style: 'current' },
   ].filter(Boolean);
   const chartOpts = { labels: series.labels, series: lines, height: 260, format: (v) => `${fmt1(v)} kWh` };
   if (energyChart) energyChart.update(chartOpts);
   else energyChart = createTrendChart($('[data-energy-chart]'), chartOpts);
   $('[data-energy-legend]').innerHTML = lineLegendHtml([...lines].reverse());
 
-  $('[data-prev-head]').textContent = `vs ${period.previous.toLowerCase()}`;
+  $('[data-prev-head]').textContent = `vs ${prev}`;
   $('[data-energy-floors]').innerHTML = e.floors
     .map((f) => `<tr>
-        <td>${state.period === 'harian' ? floorTargetCell(f, { fmt: fmt1 }) : `<span class="font-medium">${esc(f.floor.name)}</span>`}</td>
+        <td>${range.preset === 'today' ? floorTargetCell(f, { fmt: fmt1 }) : `<span class="font-medium">${esc(f.floor.name)}</span>`}</td>
         <td class="num">${fmt1(f.kwh)}</td>
         <td class="num">${rupiah(f.rupiah)}</td>
         <td class="num">${Math.round(f.share * 100)}%</td>
@@ -347,33 +344,7 @@ function renderEnergy() {
         <td class="num">${fmt2(p.pf)}</td>
       </tr>`)
     .join('');
-
-  const ranking = roomRanking(state.iot, state.period);
-  const rows = state.rankOrder === 'top' ? ranking.slice(0, 5) : ranking.slice(-5).reverse();
-  $('[data-rank-order]').innerHTML = segmentedHtml([{ value: 'top', label: 'Tertinggi' }, { value: 'low', label: 'Terendah' }], state.rankOrder, 'data-rank-order-id');
-  $('[data-rank]').innerHTML = rows
-    .map((r) => `<tr class="cursor-pointer transition-colors hover:bg-canvas" data-rank-room="${r.room.id}" data-rank-floor="${r.floor.id}">
-        <td class="font-medium">${esc(r.room.name)}</td>
-        <td class="text-mid-gray">${esc(r.floor.short)}</td>
-        <td class="num">${fmt1(r.kwh)}</td>
-        <td class="num">${rupiah(r.rupiah)}</td>
-      </tr>`)
-    .join('');
 }
-
-$('[data-rank-order]').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-rank-order-id]');
-  if (!btn) return;
-  state.rankOrder = btn.dataset.rankOrderId;
-  renderEnergy();
-});
-
-$('[data-period-tabs]').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-period]');
-  if (!btn) return;
-  state.period = btn.dataset.period;
-  renderEnergy();
-});
 
 $('[data-energy-scope]').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-energy-scope-id]');
@@ -381,18 +352,6 @@ $('[data-energy-scope]').addEventListener('click', (e) => {
   state.energyScope = btn.dataset.energyScopeId;
   renderEnergy();
 });
-
-[$('[data-rank]')].forEach((list) =>
-  list.addEventListener('click', (e) => {
-    const link = e.target.closest('[data-rank-room]');
-    if (!link) return;
-    state.floorId = link.dataset.rankFloor;
-    state.roomId = link.dataset.rankRoom;
-    setParams({ floor: state.floorId, room: state.roomId });
-    render();
-    $('[data-room-panel]').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }),
-);
 
 /* ------------------------- peringatan & telegram ------------------------- */
 
@@ -435,9 +394,8 @@ function renderTelegram() {
     row('critical', 'Tingkat Kritis', 'Perangkat offline, suhu tinggi', !settings.enabled),
     row('warning', 'Tingkat Perhatian', 'Listrik di atas target, ruang kosong menyala', !settings.enabled),
   ].join('');
-  const today = new Date().toDateString();
-  const sentToday = n.items.filter((i) => i.status === 'sent' && new Date(i.time).toDateString() === today).length;
-  $('[data-tg-count]').textContent = `${sentToday} pesan terkirim hari ini`;
+  const sent = n.items.filter((i) => i.status === 'sent').length;
+  $('[data-tg-count]').textContent = `${fmtInt(sent)} pesan terkirim ${picker.range.short}`;
   $('[data-tg-log]').innerHTML =
     n.items
       .slice(0, 40)
@@ -471,7 +429,7 @@ $('[data-tg-test]').addEventListener('click', async (e) => {
   btn.textContent = 'Mengirim…';
   try {
     await api.sendTestNotification();
-    state.notifications = await api.getNotifications();
+    state.notifications = await api.getNotifications(rangeQuery(picker.range));
     btn.textContent = 'Pesan uji terkirim';
   } catch (err) {
     btn.textContent = 'Gagal mengirim';
@@ -491,20 +449,22 @@ const pct2 = (ratio) => `${(ratio * 100).toLocaleString('id-ID', { minimumFracti
 
 function renderHistory() {
   if (!state.history) return;
-  const u = deviceUptime(state.history, state.iot);
+  const range = picker.range;
+  const u = deviceUptime(state.history, state.iot, range);
   const { rooms } = indexIot(state.iot);
   const roomName = (id) => rooms.get(id)?.name ?? '–';
 
   $('[data-uptime-kpis]').innerHTML = [
-    statTile({ label: `Uptime ${u.days} hari`, value: pct2(u.overall), sub: `${state.iot.devices.length} perangkat` }),
-    statTile({ label: 'Gangguan koneksi', value: fmtInt(u.outages), sub: `${u.days} hari terakhir` }),
+    statTile({ label: `Uptime ${range.short}`, value: pct2(u.overall), sub: `${state.iot.devices.length} perangkat` }),
+    statTile({ label: 'Gangguan koneksi', value: fmtInt(u.outages), sub: range.label }),
     statTile({ label: 'Terputus saat ini', value: u.disconnected, unit: ' perangkat', alert: u.disconnected > 0 }),
     statTile({ label: 'Total waktu terputus', value: fmtDuration(u.downMs / 60000), sub: 'Dijumlah dari semua perangkat' }),
   ].join('');
 
+  $('[data-uptime-desc]').textContent = `Porsi waktu perangkat terhubung ${range.single ? 'per jam' : 'per hari'}, ${range.label}`;
   const opts = {
-    labels: u.daily.map((d) => d.label),
-    series: [{ label: 'Uptime', values: u.daily.map((d) => d.ratio * 100), style: 'current' }],
+    labels: u.buckets.map((b) => b.label),
+    series: [{ label: 'Uptime', values: u.buckets.map((b) => (b.ratio == null ? null : b.ratio * 100)), style: 'current' }],
     height: 240,
     format: (v) => `${v.toLocaleString('id-ID', { maximumFractionDigits: 2 })}% terhubung`,
   };
@@ -522,6 +482,13 @@ function renderHistory() {
     .join('');
 
   renderLog();
+}
+
+// Tabel menampilkan baris terbaru saja; judul menyebut jumlah seluruhnya.
+const LOG_ROWS = 150;
+function logCount(total, truncated = false) {
+  const n = `${fmtInt(total)}${truncated ? '+' : ''}`;
+  return total > LOG_ROWS ? `${n} · ${LOG_ROWS} terbaru` : n;
 }
 
 function renderLog() {
@@ -542,8 +509,9 @@ function renderLog() {
   const roomCell = (e) => `${esc(rooms.get(e.roomId)?.name ?? '–')} <span class="text-mid-gray">· ${esc(state.iot.building.floors.find((f) => f.id === e.floorId)?.short ?? '')}</span>`;
 
   if (state.logKind === 'status') {
-    const list = state.history.statusLog.filter(match).slice(0, 150);
-    $('[data-log-title]').innerHTML = `Riwayat <span class="font-normal text-mid-gray">${list.length}</span>`;
+    const all = state.history.statusLog.filter(match);
+    const list = all.slice(0, LOG_ROWS);
+    $('[data-log-title]').innerHTML = `Riwayat <span class="font-normal text-mid-gray">${logCount(all.length, state.history.statusTotal > state.history.statusLog.length)}</span>`;
     $('[data-log-head]').innerHTML = '<tr><th>Waktu</th><th>Perangkat</th><th>Ruangan</th><th>Status</th></tr>';
     $('[data-log-body]').innerHTML =
       list
@@ -561,8 +529,9 @@ function renderLog() {
   }
 
   const now = Date.now();
-  const list = state.history.outages.filter(match).slice(0, 150);
-  $('[data-log-title]').innerHTML = `Riwayat <span class="font-normal text-mid-gray">${list.length}</span>`;
+  const all = state.history.outages.filter(match);
+  const list = all.slice(0, LOG_ROWS);
+  $('[data-log-title]').innerHTML = `Riwayat <span class="font-normal text-mid-gray">${logCount(all.length)}</span>`;
   $('[data-log-head]').innerHTML = '<tr><th>Terputus</th><th>Perangkat</th><th>Ruangan</th><th>Tersambung lagi</th><th class="num">Durasi</th></tr>';
   $('[data-log-body]').innerHTML =
     list
@@ -611,7 +580,12 @@ function render() {
 
 // Data pendukung (parkir untuk peringatan, riwayat, notifikasi) dimuat bersama dan tiap pembaruan.
 async function loadExtras() {
-  [state.parking, state.history, state.notifications] = await Promise.all([api.getParking(), api.getIotHistory(), api.getNotifications()]);
+  const range = picker.range;
+  const q = rangeQuery(range);
+  const res = await Promise.all([api.getParking(), api.getIotHistory(q), api.getNotifications(q), api.getEnergyHistory(rangeQuery(range, { withPrevious: true }))]);
+  // Rentang sudah diganti lagi selama memuat: hasil ini sudah basi.
+  if (picker.range.label !== range.label) return;
+  [state.parking, state.history, state.notifications, state.energy] = res;
 }
 
 async function load() {

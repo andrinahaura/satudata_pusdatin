@@ -15,9 +15,13 @@
     <div class="flex min-h-dvh flex-col">
       <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
       <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
-        <section class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h1 class="text-heading font-semibold">Ringkasan gedung</h1>
-          <p class="text-mid-gray tabular-nums"><span data-today></span> · <span data-updated>Memuat…</span></p>
+        <!-- Rentang waktu berlaku untuk KPI dan grafik riwayat; KPI bertanda "Saat ini" selalu realtime. -->
+        <section class="page-toolbar flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <div>
+            <h1 class="text-heading font-semibold">Ringkasan gedung</h1>
+            <p class="text-mid-gray tabular-nums" data-updated>Memuat…</p>
+          </div>
+          <div data-range></div>
         </section>
 
         <!-- Home: KPI dan grafik dari tiga menu (IoT, AI Vision, Chatbot). Detail ada di halaman masing-masing. -->
@@ -27,7 +31,7 @@
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
             <article class="card min-w-0">
               <div class="card-header">
-                <h3 class="card-title">Listrik hari ini</h3>
+                <h3 class="card-title">Listrik <span class="font-normal text-mid-gray" data-range-short></span></h3>
                 <a href="/iot.html#listrik" class="btn btn-ghost btn-sm">Detail</a>
               </div>
               <div class="card-body" data-energy-chart></div>
@@ -35,7 +39,7 @@
             </article>
             <article class="card min-w-0">
               <div class="card-header">
-                <h3 class="card-title">Uptime perangkat 7 hari</h3>
+                <h3 class="card-title">Uptime perangkat <span class="font-normal text-mid-gray" data-range-short></span></h3>
                 <a href="/iot.html#riwayat" class="btn btn-ghost btn-sm">Riwayat</a>
               </div>
               <div class="card-body" data-uptime-chart></div>
@@ -50,29 +54,33 @@
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
             <article class="card min-w-0">
               <div class="card-header">
-                <h3 class="card-title">Okupansi parkir per jam</h3>
+                <h3 class="card-title">Okupansi parkir <span class="font-normal text-mid-gray" data-range-short></span></h3>
                 <span class="inline-flex items-baseline gap-2 rounded-pill border border-ink/15 bg-ink/5 px-3 py-1.5 text-ink" data-parking-peak></span>
               </div>
               <div class="card-body" data-parking-chart></div>
+              <div class="card-footer hidden" data-parking-legend></div>
             </article>
+            <!-- Satu lokasi parkir (piloting Smart Parking, parkir susun): cincin slot tersedia + rincian. -->
             <article class="card flex min-w-0 flex-col">
               <div class="card-header">
-                <h3 class="card-title">Slot tersedia per zona</h3>
+                <div class="min-w-0">
+                  <h3 class="card-title">Slot tersedia</h3>
+                  <p class="truncate text-caption tracking-normal text-mid-gray" data-site-name></p>
+                </div>
                 <a href="/vision.html" class="btn btn-ghost btn-sm">Peta parkir</a>
               </div>
-              <div class="card-body flex flex-1 flex-col justify-center" data-zone-rings></div>
+              <div class="card-body flex flex-1 flex-col justify-center" data-site-slots></div>
             </article>
           </div>
         </section>
 
         <section class="mt-10" aria-labelledby="home-chatbot">
           <div data-head-chatbot></div>
-          <div class="stat-strip mt-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis-chatbot aria-label="Ringkasan chatbot"></div>
+          <div class="stat-strip mt-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-5" data-kpis-chatbot aria-label="Ringkasan chatbot"></div>
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
             <article class="card min-w-0">
               <div class="card-header">
-                <h3 class="card-title">Pertanyaan per hari</h3>
-                <span class="text-caption tracking-normal text-mid-gray">30 hari terakhir</span>
+                <h3 class="card-title">Pertanyaan <span class="font-normal text-mid-gray" data-range-short></span></h3>
               </div>
               <div class="card-body" data-question-chart></div>
               <div class="card-footer" data-question-legend></div>
@@ -83,7 +91,7 @@
               <div class="card-header">
                 <div>
                   <h3 class="card-title">Pemakaian model AI</h3>
-                  <p class="text-caption tracking-normal text-mid-gray">30 hari terakhir</p>
+                  <p class="text-caption tracking-normal text-mid-gray" data-period-label></p>
                 </div>
                 <a href="/chatbot.html#analitik" class="btn btn-ghost btn-sm">Analitik</a>
               </div>

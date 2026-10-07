@@ -15,16 +15,19 @@
     <div class="flex min-h-dvh flex-col">
       <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
       <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
-        <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <!-- Rentang waktu berlaku untuk notifikasi, riwayat perangkat, dan listrik.
+             KPI atas, denah, tabel perangkat, dan peringatan aktif selalu kondisi saat ini. -->
+        <section class="page-toolbar flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div>
             <h1 class="text-heading font-semibold">Monitoring gedung</h1>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <a href="#peringatan" class="btn btn-secondary btn-sm">Peringatan</a>
+              <a href="#riwayat" class="btn btn-secondary btn-sm">Riwayat</a>
+              <a href="#listrik" class="btn btn-secondary btn-sm">Listrik</a>
+              <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated>Memuat…</span>
+            </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-            <a href="#peringatan" class="btn btn-secondary btn-sm">Peringatan</a>
-            <a href="#riwayat" class="btn btn-secondary btn-sm">Riwayat</a>
-            <a href="#listrik" class="btn btn-secondary btn-sm">Listrik</a>
-            <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated>Memuat…</span>
-          </div>
+          <div data-range></div>
         </section>
 
         <section class="stat-strip mt-6 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan gedung"></section>
@@ -81,7 +84,7 @@
         </section>
 
         <!-- Peringatan di dashboard + notifikasi ke Telegram: dua kartu, tinggi sama di layar lebar. -->
-        <section id="peringatan" class="mt-8 scroll-mt-24" aria-labelledby="peringatan-title">
+        <section id="peringatan" class="mt-8 scroll-mt-24 lg:scroll-mt-48" aria-labelledby="peringatan-title">
           <h2 id="peringatan-title" class="text-heading-sm font-semibold">Peringatan &amp; notifikasi</h2>
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
             <article class="card flex min-w-0 flex-col overflow-hidden xl:h-[600px]">
@@ -113,14 +116,14 @@
         </section>
 
         <!-- Data historis: riwayat status (aktif / tidak aktif) dan uptime (terhubung / terputus). -->
-        <section id="riwayat" class="mt-8 scroll-mt-24" aria-labelledby="riwayat-title">
+        <section id="riwayat" class="mt-8 scroll-mt-24 lg:scroll-mt-48" aria-labelledby="riwayat-title">
           <h2 id="riwayat-title" class="text-heading-sm font-semibold">Riwayat perangkat</h2>
           <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-uptime-kpis aria-label="Ringkasan konektivitas"></div>
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
             <article class="card min-w-0">
               <div class="card-header">
-                <h3 class="card-title">Uptime perangkat per hari</h3>
-                <span class="text-caption tracking-normal text-mid-gray">Porsi waktu perangkat terhubung, 7 hari</span>
+                <h3 class="card-title">Uptime perangkat</h3>
+                <span class="text-caption tracking-normal text-mid-gray" data-uptime-desc></span>
               </div>
               <div class="card-body" data-uptime-chart></div>
             </article>
@@ -159,13 +162,8 @@
           </article>
         </section>
 
-        <section id="listrik" class="mt-8 scroll-mt-24" aria-labelledby="listrik-title">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 id="listrik-title" class="text-heading-sm font-semibold">Listrik</h2>
-            </div>
-            <div class="segmented self-start sm:self-auto" role="tablist" aria-label="Pilih periode" data-period-tabs></div>
-          </div>
+        <section id="listrik" class="mt-8 scroll-mt-24 lg:scroll-mt-48" aria-labelledby="listrik-title">
+          <h2 id="listrik-title" class="text-heading-sm font-semibold">Listrik</h2>
 
           <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-energy-kpis aria-label="Ringkasan listrik"></div>
 
@@ -192,32 +190,19 @@
               </div>
             </article>
           </div>
-          <!-- Panel distribusi dan pemakaian per ruang: dua kartu, tinggi sama, tabel mengisi kartunya. -->
-          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-            <article class="card flex min-w-0 flex-col overflow-hidden">
-              <div class="card-header">
-                <h3 class="card-title">Panel distribusi</h3>
-              </div>
-              <div class="scroll-thin mt-3 flex-1 overflow-x-auto pb-2">
-                <table class="data-table data-table-fill h-full min-w-[640px]">
-                  <thead><tr><th>Meter</th><th class="num">Beban</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">Tegangan</th><th class="num">Arus</th><th class="num">cos φ</th></tr></thead>
-                  <tbody data-power-panels></tbody>
-                </table>
-              </div>
-            </article>
-            <article class="card flex min-w-0 flex-col overflow-hidden">
-              <div class="card-header">
-                <h3 class="card-title">Pemakaian per ruang</h3>
-                <div class="segmented" role="tablist" aria-label="Urutan" data-rank-order></div>
-              </div>
-              <div class="mt-3 flex-1 pb-2">
-                <table class="data-table data-table-fill h-full">
-                  <thead><tr><th>Ruang</th><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th></tr></thead>
-                  <tbody data-rank></tbody>
-                </table>
-              </div>
-            </article>
-          </div>
+          <!-- Panel distribusi: meter per lantai dari trafo induk. Pemakaian dilaporkan per lantai, bukan per ruang. -->
+          <article class="card mt-4 flex min-w-0 flex-col overflow-hidden">
+            <div class="card-header">
+              <h3 class="card-title">Panel distribusi</h3>
+              <span class="text-caption tracking-normal text-mid-gray">Saat ini · kWh hari ini</span>
+            </div>
+            <div class="scroll-thin mt-3 flex-1 overflow-x-auto pb-2">
+              <table class="data-table min-w-[640px]">
+                <thead><tr><th>Meter</th><th class="num">Beban</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">Tegangan</th><th class="num">Arus</th><th class="num">cos φ</th></tr></thead>
+                <tbody data-power-panels></tbody>
+              </table>
+            </div>
+          </article>
         </section>
       </main>
     </div>

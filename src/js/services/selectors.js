@@ -2,6 +2,7 @@
 import { MODELS, tokenCostRupiah } from '../data/chat-models.js';
 import { DEVICE_TYPES, DEVICE_TYPE_KEYS, NON_WORKSPACE } from '../data/device-types.js';
 import { fmt1 } from '../utils/format.js';
+import { dayLabels, hourLabels } from '../utils/range.js';
 
 export const isWorkspace = (room) => !NON_WORKSPACE.has(room.type);
 
@@ -128,12 +129,6 @@ export function getAlerts(iot, parking) {
 
 const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 
-export const ENERGY_PERIODS = [
-  { value: 'harian', label: 'Hari', current: 'Hari ini', previous: 'Kemarin' },
-  { value: 'mingguan', label: 'Minggu', current: 'Minggu ini', previous: 'Minggu lalu' },
-  { value: 'bulanan', label: 'Bulan', current: 'Bulan ini', previous: 'Bulan lalu' },
-];
-
 const sumOf = (list) => list.reduce((s, v) => s + (v ?? 0), 0);
 // Jumlah sampai titik yang sama (jam/hari berjalan) supaya perbandingan adil.
 const sumUntil = (list, n) => sumOf(list.slice(0, n));
@@ -206,56 +201,80 @@ export function energySeries(iot, period = 'harian', floorId = null) {
   return { labels, current, previous: add('previous'), target: add('target') };
 }
 
-// Porsi ruang terhadap beban lantai, dari daya terpasang perangkatnya.
-function roomShares(iot, floorId) {
-  const watt = (d) => DEVICE_TYPES[d.type].watt;
-  const floorW = iot.devices.filter((d) => d.floorId === floorId).reduce((s, d) => s + watt(d), 0);
-  const peak = iot.energy.floors[floorId].peakKw * 1000;
-  const shares = new Map();
-  for (const d of iot.devices.filter((x) => x.floorId === floorId)) {
-    shares.set(d.roomId, (shares.get(d.roomId) ?? 0) + (watt(d) * 0.7) / peak);
-  }
-  return { shares, floorW };
-}
-
-/** Pemakaian listrik satu ruang: hari ini, kemarin, dan seri per jam. */
-export function roomEnergy(iot, roomId) {
-  const { rooms } = indexIot(iot);
-  const room = rooms.get(roomId);
-  const f = iot.energy.floors[room.floorId];
-  const share = roomShares(iot, room.floorId).shares.get(roomId) ?? 0;
-  const scale = (list) => list.map((v) => (v == null ? null : v * share));
-  const current = scale(f.today);
-  const last = current.findLastIndex((v) => v != null);
-  if (last >= 0) current[last] = null;
-  const today = sumOf(f.today) * share;
-  const yesterday = sumOf(f.yesterday) * share;
-  return {
-    today,
-    yesterday,
-    todayRupiah: today * iot.energy.tariff,
-    yesterdayRupiah: yesterday * iot.energy.tariff,
-    series: { labels: f.today.map((_, i) => `${String(i).padStart(2, '0')}.00`), current, previous: scale(f.yesterday), target: scale(f.target) },
-  };
-}
-
-/** Ruang diurutkan dari pemakaian terbesar, untuk periode tertentu. */
-export function roomRanking(iot, period = 'harian') {
-  const totals = Object.fromEntries(energyByFloor(iot, period).floors.map((f) => [f.floor.id, f.kwh]));
-  const result = [];
-  for (const floor of iot.building.floors) {
-    const { shares } = roomShares(iot, floor.id);
-    for (const room of floor.rooms) {
-      if (!shares.has(room.id) || room.type === 'corridor') continue;
-      const kwh = totals[floor.id] * shares.get(room.id);
-      result.push({ floor, room, kwh, rupiah: kwh * iot.energy.tariff });
-    }
-  }
-  return result.sort((a, b) => b.kwh - a.kwh);
-}
-
 export function roomActivity(iot, roomId, limit = 20) {
   return iot.activity.filter((a) => a.roomId === roomId).slice(0, limit);
+}
+
+/**
+ * Listrik untuk rentang waktu, dari GET /iot/energy (rentang + periode sebelumnya).
+ * Satu hari: seri per jam (dengan target). Lebih dari satu hari: seri per hari.
+ * Perbandingan dengan periode sebelumnya dihitung sampai titik yang sama (jam berjalan).
+ */
+export function energyRange(iot, hist, range) {
+  const tariff = hist.tariff ?? iot.energy.tariff;
+  const hours = (key, floorId) => hist.days[key]?.[floorId] ?? Array(24).fill(null);
+  const floors = iot.building.floors.map((floor) => {
+    const pairs = range.keys.map((k, i) => {
+      const cur = hours(k, floor.id);
+      const prev = hours(range.previous.keys[i], floor.id);
+      const filled = cur.filter((v) => v != null).length;
+      return { cur, prev, kwh: sumOf(cur), prevKwh: sumOf(prev), prevToDate: sumUntil(prev, filled) };
+    });
+    const kwh = sumOf(pairs.map((p) => p.kwh));
+    const previousToDate = sumOf(pairs.map((p) => p.prevToDate));
+    const series = range.single
+      ? { current: pairs[0].cur, previous: pairs[0].prev, target: hist.target?.[floor.id] ?? null }
+      : {
+          current: pairs.map((p) => (p.cur.some((v) => v != null) ? p.kwh : null)),
+          // Hari yang sedang berjalan dibandingkan sampai jam yang sama, supaya kedua garis turun bersama.
+          previous: pairs.map((p, i) => (range.includesToday && i === pairs.length - 1 ? p.prevToDate : p.prevKwh)),
+          target: null,
+        };
+    // Status target hanya bermakna untuk jam yang sedang berjalan (rentang hari ini).
+    const today = range.preset === 'today' ? energyByFloor(iot, 'harian').floors.find((f) => f.floor.id === floor.id) : null;
+    return {
+      floor,
+      kwh,
+      rupiah: kwh * tariff,
+      previousToDate,
+      change: previousToDate ? (kwh - previousToDate) / previousToDate : 0,
+      anomaly: today?.anomaly ?? false,
+      currentHour: today?.currentHour ?? 0,
+      targetHour: today?.targetHour ?? 0,
+      series,
+    };
+  });
+  const kwh = sumOf(floors.map((f) => f.kwh));
+  const previousToDate = sumOf(floors.map((f) => f.previousToDate));
+  for (const f of floors) f.share = kwh ? f.kwh / kwh : 0;
+  const labels = range.single ? hourLabels() : dayLabels(range.keys);
+
+  /** Seri gabungan gedung, atau satu lantai. Titik berjalan terakhir tidak digambar (belum penuh). */
+  function seriesFor(floorId = null) {
+    const list = floorId ? floors.filter((f) => f.floor.id === floorId) : floors;
+    const add = (key) => {
+      if (list.some((f) => !f.series[key])) return null;
+      return labels.map((_, i) => (list.every((f) => f.series[key][i] == null) ? null : sumOf(list.map((f) => f.series[key][i]))));
+    };
+    const current = add('current');
+    if (range.includesToday) {
+      const last = current.findLastIndex((v) => v != null);
+      if (last >= 0 && range.single) current[last] = null;
+    }
+    return { labels, current, previous: add('previous'), target: add('target') };
+  }
+
+  return {
+    tariff,
+    kwh,
+    rupiah: kwh * tariff,
+    previousToDate,
+    previousRupiah: previousToDate * tariff,
+    change: previousToDate ? (kwh - previousToDate) / previousToDate : 0,
+    floors,
+    totals: Object.fromEntries(floors.map((f) => [f.floor.id, f.kwh])),
+    seriesFor,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -263,22 +282,20 @@ export function roomActivity(iot, roomId, limit = 20) {
 /* ------------------------------------------------------------------ */
 
 const DAY_MS = 86400000;
-const WEEKDAY_SHORT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const HOUR_MS = 3600000;
 
 const overlap = (start, end, from, to) => Math.max(0, Math.min(end, to) - Math.max(start, from));
 
 /**
- * Uptime perangkat dalam jendela riwayat (default 7 hari, sampai sekarang).
- * daily[i].ratio = porsi waktu perangkat terhubung pada hari itu (hari ini sampai jam sekarang).
+ * Uptime perangkat di rentang waktu (sampai sekarang bila rentang memuat hari ini).
+ * buckets: per jam untuk satu hari, per hari untuk rentang lebih panjang.
+ * buckets[i].ratio = porsi waktu perangkat terhubung (null untuk jam yang belum lewat).
  */
-export function deviceUptime(history, iot, now = new Date()) {
-  const days = history.windowDays ?? 7;
-  const to = now.getTime();
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const from = dayStart.getTime() - (days - 1) * DAY_MS;
-  const outages = history.outages.map((o) => ({ ...o, s: new Date(o.start).getTime(), e: o.end ? new Date(o.end).getTime() : to }));
-  const inWindow = outages.filter((o) => o.e > from);
+export function deviceUptime(history, iot, range) {
+  const from = range.from.getTime();
+  const to = Math.min(range.to.getTime(), Date.now());
+  const outages = history.outages.map((o) => ({ ...o, s: new Date(o.start).getTime(), e: o.end ? new Date(o.end).getTime() : Date.now() }));
+  const inWindow = outages.filter((o) => o.e > from && o.s < to);
 
   const perDevice = new Map(iot.devices.map((d) => [d.id, { device: d, downMs: 0, outages: 0, last: null }]));
   for (const o of inWindow) {
@@ -288,32 +305,33 @@ export function deviceUptime(history, iot, now = new Date()) {
     row.outages += 1;
     if (!row.last || o.s > new Date(row.last.start).getTime()) row.last = o;
   }
-  const span = to - from;
-  for (const row of perDevice.values()) row.uptime = span ? 1 - row.downMs / span : 1;
+  const span = Math.max(1, to - from);
+  for (const row of perDevice.values()) row.uptime = 1 - row.downMs / span;
 
-  const daily = Array.from({ length: days }, (_, i) => {
-    const s = from + i * DAY_MS;
-    const e = Math.min(s + DAY_MS, to);
+  const size = range.single ? HOUR_MS : DAY_MS;
+  const count = range.single ? 24 : range.keys.length;
+  const labels = range.single ? hourLabels() : dayLabels(range.keys);
+  const buckets = Array.from({ length: count }, (_, i) => {
+    const s = from + i * size;
+    const e = Math.min(s + size, to);
+    if (e <= s) return { label: labels[i], ratio: null, outages: 0 };
     const down = inWindow.reduce((sum, o) => sum + overlap(o.s, o.e, s, e), 0);
-    const date = new Date(s);
-    return { date, label: WEEKDAY_SHORT[date.getDay()], today: i === days - 1, ratio: 1 - down / (iot.devices.length * Math.max(1, e - s)), outages: inWindow.filter((o) => o.s >= s && o.s < e).length };
+    return { label: labels[i], ratio: 1 - down / (iot.devices.length * (e - s)), outages: inWindow.filter((o) => o.s >= s && o.s < e).length };
   });
 
   const downMs = [...perDevice.values()].reduce((sum, r) => sum + r.downMs, 0);
   return {
-    days,
-    from: new Date(from),
-    overall: 1 - downMs / (iot.devices.length * Math.max(1, span)),
+    overall: 1 - downMs / (iot.devices.length * span),
     outages: inWindow.length,
     downMs,
     disconnected: iot.devices.filter((d) => !d.online).length,
-    daily,
+    buckets,
     devices: [...perDevice.values()].sort((a, b) => a.uptime - b.uptime || b.outages - a.outages),
   };
 }
 
 /* ------------------------------------------------------------------ */
-/* Parkir: kunjungan kendaraan                                         */
+/* Parkir                                                              */
 /* ------------------------------------------------------------------ */
 
 export function summarizeVisits(parking, now = new Date()) {
@@ -325,18 +343,68 @@ export function summarizeVisits(parking, now = new Date()) {
   return { total: visits.length, inside: inside.length, done: done.length, avgDoneMinutes: avg(done), avgInsideMinutes: avg(inside), minutes };
 }
 
+/** Lama parkir satu kunjungan dalam menit (sampai sekarang bila belum keluar). */
+export const visitMinutes = (v, now = new Date()) => ((v.outAt ? new Date(v.outAt) : now) - new Date(v.inAt)) / 60000;
+
+/**
+ * Statistik parkir di rentang, dari GET /parking/stats.
+ * Satu hari: okupansi per jam. Lebih dari satu hari: puncak dan rata-rata okupansi per hari.
+ */
+export function parkingRange(stats, range) {
+  const days = stats.days;
+  const total = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+  const sumType = (key) => days.reduce((acc, d) => {
+    for (const [k, v] of Object.entries(d[key])) acc[k] = (acc[k] ?? 0) + v;
+    return acc;
+  }, {});
+  const inBy = sumType('in');
+  const outBy = sumType('out');
+  const outCount = total(outBy);
+  const avgDurationMin = outCount ? days.reduce((s, d) => s + d.avgDurationMin * total(d.out), 0) / outCount : 0;
+  const values = (d) => d.hourly.map((h) => h.occupancy).filter((v) => v != null);
+  const daily = days.map((d) => {
+    const v = values(d);
+    return v.length ? { peak: Math.max(...v), avg: v.reduce((a, b) => a + b, 0) / v.length } : { peak: null, avg: null };
+  });
+  const series = range.single
+    ? { labels: (days[0]?.hourly ?? []).map((h) => h.hour.slice(0, 2)), main: (days[0]?.hourly ?? []).map((h) => (h.occupancy == null ? null : Math.round(h.occupancy * 100))), second: null }
+    : { labels: dayLabels(range.keys), main: daily.map((d) => (d.peak == null ? null : Math.round(d.peak * 100))), second: daily.map((d) => (d.avg == null ? null : Math.round(d.avg * 100))) };
+  const peaks = daily.map((d) => d.peak).filter((v) => v != null);
+  return { in: total(inBy), out: outCount, inBy, outBy, avgDurationMin, peak: peaks.length ? Math.max(...peaks) : 0, series };
+}
+
 /* ------------------------------------------------------------------ */
 /* Chatbot                                                             */
 /* ------------------------------------------------------------------ */
 
-/** Ringkasan analitik chatbot dari GET /chat/analytics. */
-export function summarizeChat(chat, now = new Date()) {
-  const days = chat.daily;
-  const today = days[days.length - 1];
-  const sumDays = (key) => days.reduce((s, d) => s + d[key], 0);
-  const cost = (d) => Object.entries(d.byModel).reduce((s, [m, v]) => s + tokenCostRupiah(m, v.inputTokens, v.outputTokens), 0);
-  const ratings = chat.users.reduce((acc, u) => ({ up: acc.up + u.ratings.up, down: acc.down + u.ratings.down }), { up: 0, down: 0 });
+const costOf = (byModel) => Object.entries(byModel).reduce((s, [m, v]) => s + tokenCostRupiah(m, v.inputTokens, v.outputTokens), 0);
+
+/**
+ * Ringkasan analitik chatbot dari GET /chat/analytics untuk satu rentang.
+ * Satu hari: seri per jam. Lebih dari satu hari: seri per hari.
+ */
+export function summarizeChat(chat, range) {
+  const { days } = chat;
+  const sum = (key) => days.reduce((s, d) => s + d[key], 0);
+
+  // Per pengguna di rentang: jumlah pertanyaan dan ulasan.
+  const perUser = new Map();
+  for (const d of days) {
+    for (const [id, u] of Object.entries(d.users)) {
+      const row = perUser.get(id) ?? { questions: 0, up: 0, down: 0 };
+      row.questions += u.questions;
+      row.up += u.up;
+      row.down += u.down;
+      perUser.set(id, row);
+    }
+  }
+  const users = chat.users
+    .filter((u) => perUser.get(u.id)?.questions)
+    .map((u) => ({ ...u, ...perUser.get(u.id) }))
+    .sort((a, b) => (b.lastLogin ?? '').localeCompare(a.lastLogin ?? ''));
+  const ratings = users.reduce((acc, u) => ({ up: acc.up + u.up, down: acc.down + u.down }), { up: 0, down: 0 });
   const rated = ratings.up + ratings.down;
+
   const byModel = MODELS.map((model) => {
     const t = days.reduce((acc, d) => {
       const v = d.byModel[model] ?? { questions: 0, inputTokens: 0, outputTokens: 0 };
@@ -344,30 +412,31 @@ export function summarizeChat(chat, now = new Date()) {
     }, { questions: 0, inputTokens: 0, outputTokens: 0 });
     return { model, ...t, tokens: t.inputTokens + t.outputTokens, rupiah: tokenCostRupiah(model, t.inputTokens, t.outputTokens) };
   });
-  const dayKey = now.toDateString();
+
+  const nowHour = new Date().getHours();
+  const buckets = range.single
+    ? (days[0]?.hours ?? []).map((h, i) => (range.includesToday && i > nowHour ? null : h))
+    : days;
+  const pick = (fn) => buckets.map((b) => (b == null ? null : fn(b)));
+  const tokens = sum('inputTokens') + sum('outputTokens');
   return {
-    users: chat.users.filter((u) => u.questions > 0).length,
-    activeToday: chat.users.filter((u) => u.questions > 0 && new Date(u.lastLogin).toDateString() === dayKey).length,
-    questions: sumDays('questions'),
-    questionsToday: today?.questions ?? 0,
-    inputTokens: sumDays('inputTokens'),
-    outputTokens: sumDays('outputTokens'),
-    tokens: sumDays('inputTokens') + sumDays('outputTokens'),
-    tokensToday: today ? today.inputTokens + today.outputTokens : 0,
-    rupiah: days.reduce((s, d) => s + cost(d), 0),
-    rupiahToday: today ? cost(today) : 0,
+    users: users.length,
+    userRows: users,
+    questions: sum('questions'),
+    inputTokens: sum('inputTokens'),
+    outputTokens: sum('outputTokens'),
+    tokens,
+    rupiah: days.reduce((s, d) => s + costOf(d.byModel), 0),
     ratings,
     rated,
     upRate: rated ? ratings.up / rated : 0,
     byModel,
     series: {
-      labels: days.map((d) => String(Number(d.date.slice(8)))),
-      questions: days.map((d) => d.questions),
-      activeUsers: days.map((d) => d.activeUsers),
-      tokens: days.map((d) => d.inputTokens + d.outputTokens),
-      inputTokens: days.map((d) => d.inputTokens),
-      outputTokens: days.map((d) => d.outputTokens),
-      rupiah: days.map(cost),
+      labels: range.single ? hourLabels() : dayLabels(range.keys),
+      questions: pick((b) => b.questions),
+      activeUsers: range.single ? null : days.map((d) => Object.values(d.users).filter((u) => u.questions).length),
+      tokens: pick((b) => b.inputTokens + b.outputTokens),
+      rupiah: pick((b) => costOf(b.byModel)),
     },
   };
 }

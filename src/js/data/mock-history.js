@@ -2,67 +2,70 @@
 // dan riwayat konektivitas (terhubung / terputus). Bentuk objeknya = kontrak GET /iot/history.
 //   statusLog: perubahan nilai status, terbaru di depan
 //   outages  : selang waktu perangkat terputus; end = null berarti masih terputus
+// Hari ini disimpan di state (berubah realtime). Hari-hari lalu dibuat ulang dari tanggalnya
+// lewat statusForDay() dan outagesForDay(), jadi rentang waktu berapa pun bisa dilayani.
 import { DEVICE_TYPES } from './device-types.js';
+import { atHour, isWeekendKey, rngFor } from './mock-util.js';
 
 const STATUS_LIMIT = 600;
-const OUTAGE_DAYS = 7;
 const HOUR = 3600000;
-
-function createRng(seed) {
-  let s = seed % 2147483647;
-  if (s <= 0) s += 2147483646;
-  return () => (s = (s * 16807) % 2147483647) / 2147483647;
-}
 
 const uid = (prefix, time) => `${prefix}-${time}-${Math.round(Math.random() * 1e6)}`;
 
-function statusEntry(d, on, time) {
-  return { id: uid('ST', time.getTime()), time: time.toISOString(), deviceId: d.id, floorId: d.floorId, roomId: d.roomId, type: d.type, on };
+function statusEntry(d, on, time, id = uid('ST', time.getTime())) {
+  return { id, time: time.toISOString(), deviceId: d.id, floorId: d.floorId, roomId: d.roomId, type: d.type, on };
 }
 
-function outageEntry(d, start, end = null, auto = false) {
-  return { id: uid('OUT', start.getTime()), deviceId: d.id, floorId: d.floorId, roomId: d.roomId, type: d.type, start: start.toISOString(), end: end?.toISOString() ?? null, auto };
+function outageEntry(d, start, end = null, auto = false, id = uid('OUT', start.getTime())) {
+  return { id, deviceId: d.id, floorId: d.floorId, roomId: d.roomId, type: d.type, start: start.toISOString(), end: end?.toISOString() ?? null, auto };
 }
 
-export function createHistoryState(iot, now = new Date(), seed = 9071) {
-  const rand = createRng(seed);
-  const statusLog = [];
-  const dayStart = new Date(now);
-  dayStart.setHours(6, 30, 0, 0);
-  const span = Math.max(0, now - dayStart);
-
-  // Status hari ini: 1–3 perubahan per perangkat, perubahan terakhir sama dengan status sekarang.
+/**
+ * Perubahan status satu hari (jam kerja), terbaru di depan. Sensor suhu ikut dicatat:
+ * aktif saat jam kerja, tidak aktif di luar jam kerja.
+ * `until` = batas waktu (hari ini: sekarang).
+ */
+export function statusForDay(iot, key, until = null) {
+  const rand = rngFor(`status:${key}`);
+  const weekend = isWeekendKey(key);
+  const log = [];
   for (const d of iot.devices) {
-    if (d.type === 'sensor' || !span) continue;
-    const n = 1 + Math.floor(rand() * 3);
-    const times = Array.from({ length: n }, () => new Date(dayStart.getTime() + rand() * span)).sort((a, b) => a - b);
-    let on = n % 2 === 1 ? d.on : !d.on;
-    for (const t of times) {
-      statusLog.push(statusEntry(d, on, t));
-      on = !on;
-    }
-  }
-  statusLog.sort((a, b) => b.time.localeCompare(a.time));
-
-  // Gangguan koneksi 7 hari terakhir pada sebagian kecil perangkat.
-  const outages = [];
-  const from = now.getTime() - OUTAGE_DAYS * 24 * HOUR;
-  for (const d of iot.devices) {
-    if (!d.online) {
-      outages.push(outageEntry(d, new Date(d.lastSeen)));
+    if (d.type === 'sensor') {
+      if (weekend) continue;
+      log.push(statusEntry(d, true, atHour(key, 6.5 + rand() * 0.5), `ST-${key}-${d.id}-on`));
+      log.push(statusEntry(d, false, atHour(key, 18 + rand()), `ST-${key}-${d.id}-off`));
       continue;
     }
-    if (rand() > 0.14) continue;
-    const n = 1 + Math.floor(rand() * 2);
-    for (let i = 0; i < n; i++) {
-      const start = from + rand() * (OUTAGE_DAYS * 24 - 2) * HOUR;
-      const minutes = 5 + Math.floor(rand() * 175);
-      outages.push(outageEntry(d, new Date(start), new Date(start + minutes * 60000)));
-    }
+    const n = weekend ? (rand() < 0.3 ? 2 : 0) : 2 + Math.floor(rand() * 3);
+    const times = Array.from({ length: n }, () => 6.5 + rand() * 12).sort((a, b) => a - b);
+    times.forEach((h, i) => log.push(statusEntry(d, i % 2 === 0, atHour(key, h), `ST-${key}-${d.id}-${i}`)));
   }
-  outages.sort((a, b) => b.start.localeCompare(a.start));
+  return log.filter((e) => !until || new Date(e.time) <= until).sort((a, b) => b.time.localeCompare(a.time));
+}
 
-  return { statusLog: statusLog.slice(0, STATUS_LIMIT), outages, windowDays: OUTAGE_DAYS, updatedAt: now.toISOString() };
+/** Gangguan koneksi yang dimulai pada hari itu (± 3 per hari). */
+export function outagesForDay(iot, key, until = null) {
+  const rand = rngFor(`outage:${key}`);
+  const list = [];
+  for (const d of iot.devices) {
+    if (rand() > 0.02) continue;
+    const start = atHour(key, rand() * 23);
+    const end = new Date(start.getTime() + (5 + rand() * 175) * 60000);
+    if (until && start > until) continue;
+    list.push(outageEntry(d, start, until && end > until ? until : end, false, `OUT-${key}-${d.id}`));
+  }
+  return list.sort((a, b) => b.start.localeCompare(a.start));
+}
+
+export function createHistoryState(iot, now = new Date()) {
+  const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // Hari ini: status sampai sekarang, gangguan yang sudah selesai, dan perangkat yang sedang offline.
+  const statusLog = statusForDay(iot, key, now);
+  const outages = [
+    ...iot.devices.filter((d) => !d.online).map((d) => outageEntry(d, new Date(d.lastSeen))),
+    ...outagesForDay(iot, key, now).filter((o) => new Date(o.end) < now),
+  ];
+  return { date: key, statusLog: statusLog.slice(0, STATUS_LIMIT), outages, updatedAt: now.toISOString() };
 }
 
 /** Status setiap perangkat sebelum ada perubahan, untuk dibandingkan dengan recordChanges(). */
@@ -83,8 +86,8 @@ export function recordChanges(history, iot, before, now = new Date()) {
     if (d.online && prev.on !== d.on && d.type !== 'sensor') history.statusLog.unshift(statusEntry(d, d.on, now));
   }
   history.statusLog.length = Math.min(history.statusLog.length, STATUS_LIMIT);
-  // Gangguan yang sudah selesai dan lebih tua dari jendela riwayat dibuang.
-  const cutoff = now.getTime() - (OUTAGE_DAYS + 1) * 24 * HOUR;
+  // Yang disimpan hanya hari ini dan kemarin; hari lebih lama dibuat ulang oleh generator.
+  const cutoff = now.getTime() - 48 * HOUR;
   history.outages = history.outages.filter((o) => !o.end || new Date(o.end).getTime() > cutoff);
   history.updatedAt = now.toISOString();
 }

@@ -1,4 +1,5 @@
 import { createChat } from '../components/chat.js';
+import { createDateRange } from '../components/date-range.js';
 import { renderIcons } from '../components/icons.js';
 import { mountLayout } from '../components/layout.js';
 import { modelUsageHtml } from '../components/model-usage.js';
@@ -11,6 +12,7 @@ import {
 import { summarizeChat } from '../services/selectors.js';
 import { $, esc, getParam, setParams } from '../utils/dom.js';
 import { fmtCompact, fmtDateTime, fmtInt, fmtPct, fmtRelative, fmtRupiah, fmtTime } from '../utils/format.js';
+import { rangeQuery } from '../utils/range.js';
 
 mountLayout({ page: 'chatbot' });
 
@@ -89,14 +91,21 @@ renderIcons($('main'));
 /* ------------------------------- analitik ------------------------------- */
 
 const VIEWS = [{ value: 'chat', label: 'Percakapan' }, { value: 'analytics', label: 'Analitik' }];
-const analytics = { data: null, trend: 'questions', search: '', chatFilter: 'all', chart: null, timer: null };
+const analytics = { data: null, summary: null, trend: 'questions', search: '', chatFilter: 'all', chart: null, timer: null };
 
 // Satu grafik, tiga pilihan data. Satu seri per pilihan supaya tidak ada dua skala di satu sumbu.
 const TRENDS = [
-  { value: 'questions', label: 'Pertanyaan', desc: 'Jumlah pertanyaan per hari', key: 'questions', format: (v) => `${fmtInt(v)} pertanyaan` },
-  { value: 'tokens', label: 'Token', desc: 'Token masuk dan keluar per hari', key: 'tokens', format: (v) => `${fmtCompact(v)} token` },
-  { value: 'cost', label: 'Biaya', desc: 'Estimasi biaya model AI per hari', key: 'rupiah', format: (v) => fmtRupiah(v) },
+  { value: 'questions', label: 'Pertanyaan', desc: 'Jumlah pertanyaan', key: 'questions', format: (v) => `${fmtInt(v)} pertanyaan` },
+  { value: 'tokens', label: 'Token', desc: 'Token masuk dan keluar', key: 'tokens', format: (v) => `${fmtCompact(v)} token` },
+  { value: 'cost', label: 'Biaya', desc: 'Estimasi biaya model AI', key: 'rupiah', format: (v) => fmtRupiah(v) },
 ];
+
+const picker = createDateRange($('[data-range]'), {
+  onChange: async () => {
+    analytics.chatFilter = 'all';
+    await loadAnalytics();
+  },
+});
 
 const CHAT_FILTERS = [{ value: 'all', label: 'Semua' }, { value: 'down', label: 'Tidak sesuai' }];
 
@@ -125,8 +134,12 @@ $('[data-view-tabs]').addEventListener('click', (e) => {
 window.addEventListener('hashchange', showView);
 
 async function loadAnalytics() {
+  const range = picker.range;
   try {
-    analytics.data = await api.getChatAnalytics();
+    const data = await api.getChatAnalytics({ ...rangeQuery(range), rating: analytics.chatFilter === 'down' ? 'down' : null });
+    // Rentang sudah diganti lagi selama memuat: hasil ini sudah basi.
+    if (picker.range.label !== range.label) return;
+    analytics.data = data;
     renderAnalytics();
   } catch (err) {
     $('[data-chat-kpis]').innerHTML = `<div class="col-span-full bg-paper p-3">${errorState(`Gagal memuat analitik: ${err.message}`)}</div>`;
@@ -134,37 +147,37 @@ async function loadAnalytics() {
 }
 
 function renderAnalytics() {
-  const s = summarizeChat(analytics.data);
+  const range = picker.range;
+  const s = summarizeChat(analytics.data, range);
+  analytics.summary = s;
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(analytics.data.updatedAt)}`;
   $('[data-chat-kpis]').innerHTML = [
-    statTile({ label: 'Pengguna', value: fmtInt(s.users), unit: ' orang', sub: `${s.activeToday} aktif hari ini` }),
-    statTile({ label: 'Pertanyaan', value: fmtInt(s.questions), sub: `30 hari · ${fmtInt(s.questionsToday)} hari ini` }),
-    statTile({ label: 'Biaya AI', value: fmtRupiah(s.rupiah), sub: `30 hari · ${fmtCompact(s.tokens)} token` }),
-    statTile({ label: 'Jawaban sesuai', value: fmtPct(s.upRate), sub: `Dari ${fmtInt(s.rated)} ulasan` }),
+    statTile({ label: 'Pengguna', value: fmtInt(s.users), unit: ' orang', sub: `Bertanya ${range.short}` }),
+    statTile({ label: 'Pertanyaan', value: fmtInt(s.questions), sub: range.label }),
+    statTile({ label: 'Biaya AI', value: fmtRupiah(s.rupiah), sub: `${fmtCompact(s.tokens)} token` }),
+    statTile({ label: 'Jawaban sesuai', value: s.rated ? fmtPct(s.upRate) : '–', sub: `Dari ${fmtInt(s.rated)} ulasan` }),
   ].join('');
-  renderTrend(s);
+  renderTrend();
+  $('[data-model-desc]').textContent = range.label;
   $('[data-model-usage]').innerHTML = modelUsageHtml(s);
   renderUsers();
   renderChats();
 }
 
-const TREND_DAYS = 7;
-const WEEKDAY_SHORT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
-
-function renderTrend(s = summarizeChat(analytics.data)) {
+function renderTrend() {
+  const s = analytics.summary;
+  const range = picker.range;
   const t = TRENDS.find((x) => x.value === analytics.trend);
   $('[data-trend-tabs]').innerHTML = segmentedHtml(TRENDS, t.value, 'data-trend-id');
-  $('[data-trend-desc]').textContent = t.desc;
-  const labels = analytics.data.daily.slice(-TREND_DAYS).map((d) => WEEKDAY_SHORT[new Date(`${d.date}T00:00`).getDay()]);
-  const values = s.series[t.key].slice(-TREND_DAYS);
-  const opts = { labels, series: [{ label: t.label, values, style: 'current' }], height: 260, format: t.format };
+  $('[data-trend-desc]').textContent = `${t.desc} ${range.single ? 'per jam' : 'per hari'}, ${range.label}`;
+  const opts = { labels: s.series.labels, series: [{ label: t.label, values: s.series[t.key], style: 'current' }], height: 260, format: t.format };
   if (analytics.chart) analytics.chart.update(opts);
   else analytics.chart = createTrendChart($('[data-trend-chart]'), opts);
 }
 
 $('[data-trend-tabs]').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-trend-id]');
-  if (!btn || !analytics.data) return;
+  if (!btn || !analytics.summary) return;
   analytics.trend = btn.dataset.trendId;
   renderTrend();
 });
@@ -176,20 +189,18 @@ function fmtWhen(iso) {
 
 function renderUsers() {
   const q = analytics.search;
-  const users = analytics.data.users
-    .filter((u) => u.questions > 0)
-    .filter((u) => !q || `${u.name} ${u.unit}`.toLowerCase().includes(q))
-    .sort((a, b) => b.lastLogin.localeCompare(a.lastLogin));
+  // Pengguna yang bertanya di rentang; pertanyaan dan ulasan dihitung di rentang, login terakhir keseluruhan.
+  const users = analytics.summary.userRows.filter((u) => !q || `${u.name} ${u.unit}`.toLowerCase().includes(q));
   $('[data-users-title]').innerHTML = `Pengguna <span class="font-normal text-mid-gray">${users.length}</span>`;
   $('[data-users]').innerHTML =
     users
       .map((u) => {
-        const rated = u.ratings.up + u.ratings.down;
+        const rated = u.up + u.down;
         return `<tr>
           <td><span class="block font-medium">${esc(u.name)}</span><span class="block text-caption tracking-normal text-mid-gray">${esc(u.unit)}</span></td>
-          <td class="whitespace-nowrap text-mid-gray">${fmtWhen(u.lastLogin)}</td>
+          <td class="whitespace-nowrap text-mid-gray">${u.lastLogin ? fmtWhen(u.lastLogin) : '–'}</td>
           <td class="num">${fmtInt(u.questions)}</td>
-          <td class="num whitespace-nowrap">${rated ? `${fmtPct(u.ratings.up / rated)} sesuai<span class="block text-caption tracking-normal text-mid-gray">${rated} ulasan</span>` : '<span class="text-mid-gray">Belum ada</span>'}</td>
+          <td class="num whitespace-nowrap">${rated ? `${fmtPct(u.up / rated)} sesuai<span class="block text-caption tracking-normal text-mid-gray">${rated} ulasan</span>` : '<span class="text-mid-gray">Belum ada</span>'}</td>
         </tr>`;
       })
       .join('') || '<tr><td colspan="4" class="py-6 text-center text-mid-gray">Tidak ada pengguna yang cocok.</td></tr>';
@@ -197,7 +208,7 @@ function renderUsers() {
 
 $('[data-users-search]').addEventListener('input', (e) => {
   analytics.search = e.target.value.trim().toLowerCase();
-  if (analytics.data) renderUsers();
+  if (analytics.summary) renderUsers();
 });
 
 const RATING_BADGE = {
@@ -207,11 +218,11 @@ const RATING_BADGE = {
 
 // Satu baris per pertanyaan. Jawaban lengkap dibuka dengan klik supaya daftar tetap ringkas.
 function renderChats() {
-  const all = analytics.data.history;
-  const list = all.filter((h) => analytics.chatFilter === 'all' || h.rating === analytics.chatFilter);
-  const filters = CHAT_FILTERS.map((f) => ({ ...f, label: f.value === 'all' ? f.label : `${f.label} (${all.filter((h) => h.rating === f.value).length})` }));
+  const { history: list, counts } = analytics.data;
+  const filters = CHAT_FILTERS.map((f) => ({ ...f, label: `${f.label} (${fmtInt(counts[f.value])})` }));
   $('[data-chats-filter]').innerHTML = segmentedHtml(filters, analytics.chatFilter, 'data-chats-filter-id');
-  $('[data-chats-title]').innerHTML = `Riwayat chat <span class="font-normal text-mid-gray">${list.length}</span>`;
+  const total = counts[analytics.chatFilter];
+  $('[data-chats-title]').innerHTML = `Riwayat chat <span class="font-normal text-mid-gray">${total > list.length ? `${list.length} terbaru dari ${fmtInt(total)}` : fmtInt(total)}</span>`;
   const open = new Set([...document.querySelectorAll('[data-chats] details[open]')].map((d) => d.dataset.id));
   $('[data-chats]').innerHTML =
     list
@@ -234,11 +245,11 @@ function renderChats() {
   renderIcons($('[data-chats]'));
 }
 
-$('[data-chats-filter]').addEventListener('click', (e) => {
+$('[data-chats-filter]').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-chats-filter-id]');
   if (!btn || !analytics.data) return;
   analytics.chatFilter = btn.dataset.chatsFilterId;
-  renderChats();
+  await loadAnalytics();
 });
 
 showView();
