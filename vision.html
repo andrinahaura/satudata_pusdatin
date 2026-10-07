@@ -27,7 +27,7 @@
 
         <section class="stat-strip mt-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis aria-label="Ringkasan parkir"></section>
 
-        <!-- Peta slot (3D/2D) dan rekap per zona dalam satu kartu. -->
+        <!-- Peta slot (3D/2D) dan rekap slot tersedia dalam satu kartu. -->
         <section class="card mt-4 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div class="min-w-0 border-b border-hairline xl:border-r xl:border-b-0">
             <div class="card-header">
@@ -45,26 +45,24 @@
             </div>
             <div class="card-footer flex-wrap" data-parking-legend></div>
           </div>
-          <!-- Kolom rekap mengikuti tinggi peta; kedua tabel membagi sisa tinggi ke baris isinya. -->
+          <!-- Kolom rekap mengikuti tinggi peta: slot tersedia satu lokasi (Smart Parking) dan
+               kendaraan yang sedang terparkir per jenis. -->
           <div class="flex min-w-0 flex-col">
             <div class="flex grow flex-col">
-              <div class="card-header"><h2 class="card-title">Per zona</h2></div>
-              <div class="mt-3 grow">
-                <table class="data-table data-table-fill h-full">
-                  <thead><tr><th>Zona</th><th class="num">Terisi</th><th class="num">Kosong</th><th class="num">Okupansi</th></tr></thead>
-                  <tbody data-zones></tbody>
-                  <tfoot data-zones-total></tfoot>
-                </table>
+              <div class="card-header">
+                <div class="min-w-0">
+                  <h2 class="card-title">Slot tersedia</h2>
+                  <p class="truncate text-caption tracking-normal text-mid-gray" data-site-name></p>
+                </div>
               </div>
+              <div class="card-body flex grow flex-col justify-center" data-site-slots></div>
             </div>
             <div class="flex grow flex-col border-t border-hairline">
-              <div class="card-header"><h2 class="card-title">Kendaraan terparkir</h2></div>
-              <div class="mt-3 grow pb-2">
-                <table class="data-table data-table-fill h-full">
-                  <thead><tr><th>Jenis</th><th class="num">Jumlah</th><th class="num">Porsi</th></tr></thead>
-                  <tbody data-vehicle-types></tbody>
-                </table>
+              <div class="card-header">
+                <h2 class="card-title">Kendaraan terparkir</h2>
+                <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-parked-total></span>
               </div>
+              <div class="card-body flex grow flex-col justify-center" data-parked-types></div>
             </div>
           </div>
         </section>
@@ -117,8 +115,8 @@
             </div>
           </div>
           <div class="scroll-thin mt-3 max-h-[480px] overflow-auto pb-2">
-            <table class="data-table min-w-[760px]">
-              <thead class="sticky top-0 bg-paper"><tr><th>Nomor polisi</th><th>Jenis</th><th>Zona</th><th>Jam masuk</th><th>Jam keluar</th><th class="num">Lama parkir</th><th class="num">Akurasi</th></tr></thead>
+            <table class="data-table min-w-[640px]">
+              <thead class="sticky top-0 bg-paper"><tr><th>Nomor polisi</th><th>Jenis</th><th>Jam masuk</th><th>Jam keluar</th><th class="num">Lama parkir</th><th class="num">Akurasi</th></tr></thead>
               <tbody data-visits></tbody>
             </table>
           </div>

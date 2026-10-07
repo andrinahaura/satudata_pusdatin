@@ -8,7 +8,8 @@ import { renderIcons } from '../components/icons.js';
 import { lineLegendHtml } from '../components/line-chart.js';
 import { modelUsageHtml } from '../components/model-usage.js';
 import { createTrendChart } from '../components/trend-chart.js';
-import { errorState, ringSvg, sectionHeadHtml, statTile } from '../components/ui.js';
+import { siteLabel, siteSlotsHtml } from '../components/parking-site.js';
+import { errorState, sectionHeadHtml, statTile } from '../components/ui.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
   deviceUptime, energyRange, getAlerts, parkingRange, summarizeChat, summarizeIot, summarizeParking, summarizeVisits,
@@ -114,27 +115,8 @@ function renderVision(range) {
     $('[data-parking-legend]').innerHTML = lines.length > 1 ? lineLegendHtml(lines) : '';
   }
 
-  // Ambang "hampir penuh" sama dengan peringatan parkir di getAlerts(): sisa slot < 10%.
-  const site = state.parking.site;
-  const freeRatio = p.total ? p.free / p.total : 0;
-  const status = p.free === 0 ? { label: 'Penuh', cls: 'badge-alert' } : freeRatio < 0.1 ? { label: 'Hampir penuh', cls: 'badge-alert' } : { label: 'Tersedia', cls: 'badge-solid' };
-  const fact = (label, value) => `<div><dt class="text-caption tracking-normal text-mid-gray">${label}</dt><dd class="mt-0.5 text-subheading font-semibold tabular-nums">${value}</dd></div>`;
-  $('[data-site-name]').textContent = site ? `${site.name} · ${site.kind.toLowerCase()}${site.status ? ` (${site.status.toLowerCase()})` : ''}` : '';
-  $('[data-site-slots]').innerHTML = `
-    <div class="flex flex-col items-center gap-6 sm:flex-row">
-      ${ringSvg({ value: p.free, unit: 'slot tersedia', ratio: freeRatio, alert: freeRatio < 0.1, label: `${p.free} dari ${p.total} slot tersedia`, className: 'w-40 shrink-0' })}
-      <div class="w-full min-w-0">
-        <div class="flex flex-wrap items-center gap-2">
-          <p class="text-body-lg font-semibold">${p.free} dari ${p.total} slot tersedia</p>
-          <span class="badge ${status.cls}">${status.label}</span>
-        </div>
-        <dl class="mt-4 grid grid-cols-3 gap-4 border-t border-hairline pt-4">
-          ${fact('Terisi', `${p.occupied}<span class="text-body font-normal text-mid-gray"> slot</span>`)}
-          ${fact('Kapasitas', `${p.total}<span class="text-body font-normal text-mid-gray"> slot</span>`)}
-          ${fact('Okupansi', fmtPct(p.rate))}
-        </dl>
-      </div>
-    </div>`;
+  $('[data-site-name]').textContent = siteLabel(state.parking.site);
+  $('[data-site-slots]').innerHTML = siteSlotsHtml(p);
 }
 
 /* --------------------------------- Chatbot --------------------------------- */

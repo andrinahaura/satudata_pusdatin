@@ -5,6 +5,7 @@ import { createTrendChart } from '../components/trend-chart.js';
 import { cameraCardHtml } from '../components/camera-feed.js';
 import { renderIcons } from '../components/icons.js';
 import { createParkingMap, parkingLegendHtml } from '../components/parking-map.js';
+import { parkedByTypeHtml, siteLabel, siteSlotsHtml } from '../components/parking-site.js';
 import { createParking3D } from '../components/three/parking-3d.js';
 import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-toggle.js';
 import { errorState, segmentedHtml, statTile } from '../components/ui.js';
@@ -49,7 +50,6 @@ $('[data-zone-tabs]').addEventListener('click', (e) => {
   render();
 });
 
-const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 
 function renderKpis(p) {
   const range = picker.range;
@@ -74,31 +74,14 @@ function renderMap(p) {
   maps[state.view].update(zone, state.parking.cameras);
 }
 
-function renderZones(p) {
-  $('[data-zones]').innerHTML = p.zones
-    .map((z) => `<tr class="cursor-pointer transition-colors hover:bg-canvas ${z.id === state.zoneId ? 'bg-surface-alt' : ''}" data-zone-row="${z.id}">
-        <td><span class="font-medium">${esc(z.name)}</span><span class="block text-caption tracking-normal text-mid-gray">${esc(z.location)}</span></td>
-        <td class="num">${z.occupied}</td>
-        <td class="num font-medium">${z.free}</td>
-        <td class="num">${fmtPct(z.occupied / z.total)}</td>
-      </tr>`)
-    .join('');
-  $('[data-zones-total]').innerHTML = `<tr><td>Total</td><td class="num">${p.occupied}</td><td class="num">${p.free}</td><td class="num">${fmtPct(p.rate)}</td></tr>`;
-
+function renderSite(p) {
+  $('[data-site-name]').textContent = siteLabel(state.parking.site);
+  $('[data-site-slots]').innerHTML = siteSlotsHtml(p, { layout: 'stack' });
   const parked = { car: 0, motorcycle: 0, truck: 0 };
   state.parking.zones.forEach((z) => z.slots.forEach((s) => s.occupied && (parked[s.vehicleType] += 1)));
-  const total = Math.max(1, sum(parked));
-  $('[data-vehicle-types]').innerHTML = Object.entries(VEHICLE_TYPES)
-    .map(([k, v]) => `<tr><td>${v.label}</td><td class="num font-medium">${parked[k]}</td><td class="num text-mid-gray">${fmtPct(parked[k] / total)}</td></tr>`)
-    .join('');
+  $('[data-parked-total]').textContent = `Saat ini · ${fmtInt(p.occupied)} kendaraan`;
+  $('[data-parked-types]').innerHTML = parkedByTypeHtml(parked);
 }
-
-$('[data-zones]').addEventListener('click', (e) => {
-  const row = e.target.closest('[data-zone-row]');
-  if (!row) return;
-  state.zoneId = row.dataset.zoneRow;
-  render();
-});
 
 function renderCameras() {
   const cams = state.parking.cameras;
@@ -136,7 +119,6 @@ function renderVisits() {
   $('[data-visits-filter]').innerHTML = segmentedHtml(filters, state.visitFilter, 'data-visits-filter-id');
   const shown = counts[state.visitFilter];
   $('[data-visits-title]').innerHTML = `Riwayat kendaraan <span class="font-normal text-mid-gray">${shown > items.length ? `${items.length} terbaru dari ${fmtInt(shown)}` : fmtInt(shown)}</span>`;
-  const zones = new Map(state.parking.zones.map((z) => [z.id, z]));
   // Rentang lebih dari satu hari: tampilkan tanggal di jam masuk/keluar.
   const when = picker.range.single ? fmtTime : fmtDateTime;
   $('[data-visits]').innerHTML =
@@ -144,13 +126,12 @@ function renderVisits() {
       .map((x) => `<tr>
           <td class="font-mono font-medium whitespace-nowrap">${esc(x.plate)}</td>
           <td>${VEHICLE_TYPES[x.vehicleType].label}</td>
-          <td class="whitespace-nowrap">${esc(zones.get(x.zoneId)?.name ?? '–')}${x.slotId ? ` <span class="text-mid-gray">· ${esc(x.slotId)}</span>` : ''}</td>
           <td class="whitespace-nowrap">${when(x.inAt)} <span class="text-caption tracking-normal text-mid-gray">${esc(x.gateIn)}</span></td>
           <td class="whitespace-nowrap">${x.outAt ? `${when(x.outAt)} <span class="text-caption tracking-normal text-mid-gray">${esc(x.gateOut)}</span>` : '<span class="badge badge-solid">Masih parkir</span>'}</td>
           <td class="num">${fmtDuration(visitMinutes(x))}</td>
           <td class="num text-mid-gray">${Math.round(x.confidence * 100)}%</td>
         </tr>`)
-      .join('') || '<tr><td colspan="7" class="py-6 text-center text-mid-gray">Tidak ada kendaraan yang cocok.</td></tr>';
+      .join('') || '<tr><td colspan="6" class="py-6 text-center text-mid-gray">Tidak ada kendaraan yang cocok.</td></tr>';
 }
 
 async function loadVisits() {
@@ -212,7 +193,7 @@ function render() {
   const p = summarizeParking(state.parking);
   renderKpis(p);
   renderMap(p);
-  renderZones(p);
+  renderSite(p);
   renderCameras();
   renderChart();
   renderEvents();
