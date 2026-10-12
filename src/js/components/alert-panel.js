@@ -24,19 +24,14 @@ const TYPES = {
     hint: 'Perangkat tidak mengirim data. Periksa listrik atau koneksi perangkat.',
     action: 'Lihat di denah',
   },
-  temperature: {
-    many: (n) => `${n} ruang bersuhu tinggi`,
-    hint: 'Suhu 29°C atau lebih. Periksa AC di ruang tersebut.',
-    action: 'Lihat di denah',
-  },
   energy: {
     many: (n) => `${n} lantai di atas target listrik`,
-    hint: 'Pemakaian listrik jam ini lebih tinggi dari target. Cek lampu dan AC yang tidak dipakai.',
+    hint: 'Pemakaian listrik jam ini lebih tinggi dari target. Cek lampu yang tidak dipakai.',
     action: 'Lihat grafik listrik',
   },
   waste: {
-    many: (n) => `${n} ruang kosong, lampu/AC masih menyala`,
-    hint: 'Tidak ada orang di ruang ini. Matikan lampu dan AC dari halaman IoT.',
+    many: (n) => `${n} ruang kosong, lampu masih menyala`,
+    hint: 'Tidak ada orang di ruang ini. Matikan lampu dari halaman IoT.',
     action: 'Lihat di denah',
   },
   parking: {

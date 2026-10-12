@@ -34,11 +34,11 @@ const USERS = (() => {
 // Contoh tanya-jawab. 'bad' = jawaban yang sering dinilai Tidak sesuai.
 const SAMPLE_BUILDING = [
   ['Lampu yang belum mati di lantai 1?', 'Ada 9 lampu yang masih menyala di Lantai 1, tersebar di 4 ruangan. Terbanyak di Lobby (3 lampu).'],
-  ['Berapa slot parkir yang kosong?', 'Tersedia 5 slot kosong di Smart Parking dari 24 slot (okupansi 79%).'],
+  ['Berapa slot parkir yang kosong?', 'Tersedia 32 slot kosong di Smart Parking dari 160 slot (okupansi 80%).'],
   ['Pemakaian listrik hari ini?', 'Pemakaian listrik seluruh gedung hari ini 104,2 kWh (Rp 179.953), turun 12% dibanding kemarin pada jam yang sama.'],
-  ['Perangkat mana yang offline?', 'Ada 3 perangkat offline: Lampu 1 di 22 R. Katim, AC 1 di 09 R. Tim Jaringan, dan sensor kehadiran di Mushola.'],
-  ['Ruang kosong tapi AC masih menyala?', 'Workspace Lt 2 kosong tetapi 2 AC dan 4 lampu masih menyala, sekitar 1,8 kW terbuang.'],
-  ['Jadwal pemeliharaan genset bulan ini?', 'Maaf, saya belum memahami pertanyaan itu. Coba tanyakan soal lampu, AC, suhu, listrik, perangkat offline, atau parkir.', 'bad'],
+  ['Perangkat mana yang offline?', 'Ada 3 perangkat offline: Lampu 1 di 22 R. Katim, Lampu 1 di 09 R. Tim Jaringan, dan sensor kehadiran di Mushola.'],
+  ['Ruang kosong tapi lampu masih menyala?', 'Workspace Lt 2 kosong tetapi 4 lampu masih menyala.'],
+  ['Jadwal pemeliharaan genset bulan ini?', 'Maaf, saya belum memahami pertanyaan itu. Coba tanyakan soal lampu, listrik, perangkat offline, atau parkir.', 'bad'],
   ['Berapa sisa anggaran listrik tahun ini?', 'Pemakaian listrik bulan ini 2.840 kWh (Rp 4.904.680). Data anggaran tahunan belum tersedia di chatbot.', 'bad'],
 ];
 const SAMPLE_DOCUMENT = [

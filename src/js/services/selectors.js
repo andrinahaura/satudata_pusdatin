@@ -34,9 +34,6 @@ export function summarizeIot(iot, floorId = null) {
     if (d.on && d.online) t.on += 1;
     powerW += devicePowerW(d);
   }
-  const sensed = rooms.filter((r) => r.temperature != null);
-  const avgTemp = sensed.length ? sensed.reduce((s, r) => s + r.temperature, 0) / sensed.length : 0;
-  const avgHumidity = sensed.length ? sensed.reduce((s, r) => s + r.humidity, 0) / sensed.length : 0;
   // Okupansi hanya dari ruang kerja yang punya sensor kehadiran.
   const workspaces = rooms.filter((r) => isWorkspace(r) && r.occupancy != null);
   return {
@@ -45,8 +42,6 @@ export function summarizeIot(iot, floorId = null) {
     offline: devices.length - online,
     byType,
     powerKw: powerW / 1000,
-    avgTemp,
-    avgHumidity,
     people: rooms.reduce((s, r) => s + (r.occupancy || 0), 0),
     capacity: rooms.reduce((s, r) => s + (r.capacity || 0), 0),
     occupiedRooms: workspaces.filter((r) => r.occupancy > 0).length,
@@ -60,14 +55,14 @@ export function devicesInRoom(iot, roomId) {
   return iot.devices.filter((d) => d.roomId === roomId);
 }
 
-// Ruang kerja tanpa orang tetapi lampu/AC masih menyala.
+// Ruang kerja tanpa orang tetapi lampu masih menyala.
 export function findWasteRooms(iot) {
   const { floors } = indexIot(iot);
   const result = [];
   for (const floor of floors.values()) {
     for (const room of floor.rooms) {
       if (!isWorkspace(room) || room.occupancy !== 0) continue;
-      const active = iot.devices.filter((d) => d.roomId === room.id && d.online && d.on && (d.type === 'light' || d.type === 'ac'));
+      const active = iot.devices.filter((d) => d.roomId === room.id && d.online && d.on && d.type === 'light');
       if (active.length) result.push({ floor, room, devices: active });
     }
   }
@@ -77,7 +72,7 @@ export function findWasteRooms(iot) {
 export function summarizeParking(parking) {
   const zones = parking.zones.map((z) => {
     const occupied = z.slots.filter((s) => s.occupied).length;
-    return { id: z.id, name: z.name, location: z.location, kind: z.kind, total: z.slots.length, occupied, free: z.slots.length - occupied };
+    return { id: z.id, name: z.name, type: z.type, location: z.location, kind: z.kind, levels: z.levels, gates: z.gates, total: z.slots.length, occupied, free: z.slots.length - occupied };
   });
   const sum = (list, key) => list.reduce((s, z) => s + z[key], 0);
   const byKind = (kind) => {
@@ -90,7 +85,7 @@ export function summarizeParking(parking) {
 }
 
 // severity: 'critical' | 'warning' | 'info'
-// type    : 'offline' | 'temperature' | 'energy' | 'waste' | 'parking' (dipakai untuk mengelompokkan)
+// type    : 'offline' | 'energy' | 'waste' | 'parking' (dipakai untuk mengelompokkan)
 export function getAlerts(iot, parking) {
   const alerts = [];
   const { rooms, floors } = indexIot(iot);
@@ -98,13 +93,6 @@ export function getAlerts(iot, parking) {
 
   for (const d of iot.devices.filter((x) => !x.online)) {
     alerts.push({ id: `off-${d.id}`, type: 'offline', severity: 'critical', title: `${DEVICE_TYPES[d.type].label} offline`, place: where(d), meta: where(d), href: `/iot.html?floor=${d.floorId}&room=${d.roomId}` });
-  }
-  for (const floor of floors.values()) {
-    for (const room of floor.rooms) {
-      if (room.temperature != null && room.temperature >= 29) {
-        alerts.push({ id: `temp-${room.id}`, type: 'temperature', severity: 'critical', title: `Suhu tinggi ${fmt1(room.temperature)}°C`, place: `${floor.name} · ${room.name}`, meta: `${floor.name} · ${room.name}`, href: `/iot.html?floor=${floor.id}&room=${room.id}` });
-      }
-    }
   }
   for (const f of energyByFloor(iot, 'harian').floors.filter((x) => x.anomaly)) {
     alerts.push({ id: `energy-${f.floor.id}`, type: 'energy', severity: 'warning', title: 'Pemakaian listrik di atas target', place: f.floor.name, meta: `${f.floor.name} · ${fmt1(f.currentHour)} kWh jam ini, target ${fmt1(f.targetHour)} kWh`, href: `/iot.html?floor=${f.floor.id}#listrik` });

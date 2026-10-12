@@ -151,8 +151,6 @@ function renderKpis() {
   $('[data-kpis]').innerHTML = [
     statTile({ label: 'Perangkat online', value: s.online, unit: ` / ${s.totalDevices}`, sub: s.offline ? `${s.offline} offline` : '' }),
     statTile({ label: 'Lampu menyala', value: s.byType.light.on, unit: ` / ${s.byType.light.total}` }),
-    statTile({ label: 'AC menyala', value: s.byType.ac.on, unit: ` / ${s.byType.ac.total}` }),
-    statTile({ label: 'Suhu rata-rata', value: fmt1(s.avgTemp), unit: '°C', sub: `Kelembaban ${Math.round(s.avgHumidity)}%` }),
     statTile({ label: 'Ruang ada orang', value: s.occupiedRooms, unit: ` / ${s.workspaceRooms}` }),
     statTile({ label: 'Listrik hari ini', value: fmt1(e.kwh), unit: ' kWh', sub: rupiah(e.rupiah) }),
   ].join('');
@@ -210,7 +208,6 @@ function renderRoomPanel(floor) {
           </div>` : ''}
         <div class="mt-5 flex flex-wrap gap-2">
           ${bulkButton(devices.filter((d) => d.type === 'light'), false, 'Matikan semua lampu')}
-          ${bulkButton(devices.filter((d) => d.type === 'ac'), false, 'Matikan semua AC')}
         </div>
       </div>`;
     return;
@@ -229,8 +226,6 @@ function renderRoomPanel(floor) {
     </div>
     <div class="card-body">
       <dl class="grid grid-cols-2 gap-2">
-        ${stat('Suhu', room.temperature != null ? `${fmt1(room.temperature)}°C` : '–')}
-        ${stat('Kelembaban', room.humidity != null ? `${room.humidity}%` : '–')}
         ${stat('Kehadiran', presence)}
         ${stat('Daya', `${power} W`)}
       </dl>
@@ -277,12 +272,11 @@ function renderTable() {
           <td class="px-5 py-2.5"><div class="font-medium">${esc(d.name)}</div><div class="font-mono tabular-nums text-[11px] text-mid-gray">${esc(d.id)}</div></td>
           <td class="px-3 py-2.5">${esc(room.name)}</td>
           <td class="px-3 py-2.5">${statusBadge(d)}</td>
-          <td class="px-3 py-2.5 text-right tabular-nums">${devicePowerW(d)} W</td>
           <td class="px-3 py-2.5 text-mid-gray">${fmtRelative(d.lastSeen)}</td>
           <td class="px-5 py-2.5 text-right">${control(d)}</td>
         </tr>`;
       })
-      .join('') || '<tr><td colspan="6" class="px-5 py-6 text-center text-mid-gray">Tidak ada perangkat yang cocok.</td></tr>';
+      .join('') || '<tr><td colspan="5" class="px-5 py-6 text-center text-mid-gray">Tidak ada perangkat yang cocok.</td></tr>';
   renderIcons($('[data-table-body]'));
 }
 
@@ -359,10 +353,8 @@ const alertPanel = createAlertPanel($('[data-alert-panel]'));
 
 function monitoredChecks() {
   const s = summarizeIot(state.iot);
-  const temps = state.iot.building.floors.flatMap((f) => f.rooms).map((r) => r.temperature).filter((t) => t != null);
   return [
     { label: 'Perangkat online', value: `${s.online}/${s.totalDevices}` },
-    { label: 'Suhu ruang tertinggi', value: `${fmt1(Math.max(...temps))}°C` },
     { label: 'Listrik per lantai', value: 'Sesuai target' },
     { label: 'Ruang kosong menyala', value: 'Tidak ada' },
   ];
@@ -391,7 +383,7 @@ function renderTelegram() {
     </div>`;
   $('[data-tg-settings]').innerHTML = [
     row('enabled', 'Kirim ke Telegram', 'Peringatan baru dan pemulihan dikirim ke grup'),
-    row('critical', 'Tingkat Kritis', 'Perangkat offline, suhu tinggi', !settings.enabled),
+    row('critical', 'Tingkat Kritis', 'Perangkat offline', !settings.enabled),
     row('warning', 'Tingkat Perhatian', 'Listrik di atas target, ruang kosong menyala', !settings.enabled),
   ].join('');
   const sent = n.items.filter((i) => i.status === 'sent').length;

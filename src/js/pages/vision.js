@@ -1,11 +1,11 @@
-// AI Vision: kendaraan di satu lokasi parkir (piloting Smart Parking, parkir susun, 24 slot).
-// Data yang dipakai hanya hasil pembacaan nomor polisi (ALPR) di gerbang: jam masuk, jam keluar,
-// slot tersedia, dan okupansi. Tidak ada kamera area; ilustrasi parkir digambar dari status slot.
+// AI Vision: kendaraan di gedung parkir kantor (saat ini Smart Parking, parkir susun piloting).
+// Data yang dipakai hanya hasil pembacaan nomor polisi (ALPR) di gate: jam masuk, jam keluar,
+// slot tersedia, dan okupansi. Ilustrasi menampilkan gedung, slot tersedia ada di tooltip.
 import { createDateRange } from '../components/date-range.js';
 import { mountLayout } from '../components/layout.js';
 import { lineLegendHtml } from '../components/line-chart.js';
 import { createParkingMap, parkingLegendHtml } from '../components/parking-map.js';
-import { siteLabel, siteSlotsHtml } from '../components/parking-site.js';
+import { siteLabel, siteSlotsHtml, zoneKind } from '../components/parking-site.js';
 import { createParking3D } from '../components/three/parking-3d.js';
 import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-toggle.js';
 import { createTrendChart } from '../components/trend-chart.js';
@@ -57,14 +57,13 @@ function renderKpis() {
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(state.parking.updatedAt)}`;
 }
 
-// Satu lokasi: zona pertama = rak parkir susun (rows = tingkat, cols = slot per tingkat).
-function renderMap() {
-  const zone = state.parking.zones[0];
-  $('[data-map-desc]').textContent = `${siteLabel(state.parking.site)} · ${zone.rows} tingkat × ${zone.cols} slot`;
+// Satu gambar per gedung parkir; jumlah slot tersedia tiap gedung muncul saat disorot.
+function renderMap(p = summarizeParking(state.parking)) {
+  $('[data-map-desc]').textContent = p.zones.length === 1 ? `${p.zones[0].name} · ${zoneKind(p.zones[0])}` : `${p.zones.length} gedung parkir`;
   $('[data-view-toggle]').innerHTML = viewToggleHtml(state.view);
   $('[data-map-3d]').classList.toggle('hidden', state.view !== '3d');
   $('[data-map-2d]').classList.toggle('hidden', state.view !== '2d');
-  maps[state.view].update(zone);
+  maps[state.view].update({ zones: p.zones });
 }
 
 function renderSite(p) {
@@ -193,7 +192,7 @@ function render() {
   if (!state.parking) return;
   const p = summarizeParking(state.parking);
   renderKpis();
-  renderMap();
+  renderMap(p);
   renderSite(p);
   renderInside();
   renderChart();

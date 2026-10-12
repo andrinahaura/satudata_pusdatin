@@ -14,7 +14,7 @@ import { dateKey, keysBetween, parseKey, startOfDay } from '../utils/range.js';
 import { answer } from './chat-engine.js';
 import { getAlerts } from './selectors.js';
 
-const STORAGE_KEY = 'sdp:mock-state:v7';
+const STORAGE_KEY = 'sdp:mock-state:v10';
 const STATUS_RESPONSE_LIMIT = 1000;
 const listeners = new Set();
 let timer = null;

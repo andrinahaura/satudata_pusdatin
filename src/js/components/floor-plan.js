@@ -3,7 +3,6 @@
 import { DEVICE_TYPES } from '../data/device-types.js';
 import { COLORS as C } from '../theme.js';
 import { createTooltip, esc } from '../utils/dom.js';
-import { fmt1 } from '../utils/format.js';
 
 function deviceState(d) {
   if (!d.online) return 'offline';
@@ -22,10 +21,6 @@ export function markerShape(type, x, y, attrs) {
   switch (type) {
     case 'light':
       return `<circle cx="${x}" cy="${y}" r="6.5" ${attrs}/>`;
-    case 'ac':
-      return `<rect x="${x - 9}" y="${y - 5.5}" width="18" height="11" rx="3" ${attrs}/>`;
-    case 'sensor':
-      return `<rect x="${x - 5.5}" y="${y - 5.5}" width="11" height="11" rx="2" transform="rotate(45 ${x} ${y})" ${attrs}/>`;
     case 'presence':
       return `<path d="M${x} ${y - 7} L${x + 7.5} ${y + 6} L${x - 7.5} ${y + 6} Z" stroke-linejoin="round" ${attrs}/>`;
     default:
@@ -82,7 +77,6 @@ export function roomMeta(room) {
   if (room.type === 'core') return 'Sirkulasi vertikal';
   if (!room.equipped) return 'Sensor belum terpasang';
   const parts = [];
-  if (room.temperature != null) parts.push(`${fmt1(room.temperature)}°C`);
   if (room.occupancy != null) parts.push(room.occupancy > 0 ? (room.capacity ? `${room.occupancy} orang` : 'Ada orang') : 'Kosong');
   return parts.join(' · ');
 }

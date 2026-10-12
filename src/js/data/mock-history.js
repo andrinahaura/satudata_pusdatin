@@ -21,8 +21,7 @@ function outageEntry(d, start, end = null, auto = false, id = uid('OUT', start.g
 }
 
 /**
- * Perubahan status satu hari (jam kerja), terbaru di depan. Sensor suhu ikut dicatat:
- * aktif saat jam kerja, tidak aktif di luar jam kerja.
+ * Perubahan status satu hari (jam kerja), terbaru di depan.
  * `until` = batas waktu (hari ini: sekarang).
  */
 export function statusForDay(iot, key, until = null) {
@@ -30,12 +29,6 @@ export function statusForDay(iot, key, until = null) {
   const weekend = isWeekendKey(key);
   const log = [];
   for (const d of iot.devices) {
-    if (d.type === 'sensor') {
-      if (weekend) continue;
-      log.push(statusEntry(d, true, atHour(key, 6.5 + rand() * 0.5), `ST-${key}-${d.id}-on`));
-      log.push(statusEntry(d, false, atHour(key, 18 + rand()), `ST-${key}-${d.id}-off`));
-      continue;
-    }
     const n = weekend ? (rand() < 0.3 ? 2 : 0) : 2 + Math.floor(rand() * 3);
     const times = Array.from({ length: n }, () => 6.5 + rand() * 12).sort((a, b) => a - b);
     times.forEach((h, i) => log.push(statusEntry(d, i % 2 === 0, atHour(key, h), `ST-${key}-${d.id}-${i}`)));
@@ -83,7 +76,7 @@ export function recordChanges(history, iot, before, now = new Date()) {
       const open = history.outages.find((o) => o.deviceId === d.id && !o.end);
       if (open) open.end = now.toISOString();
     }
-    if (d.online && prev.on !== d.on && d.type !== 'sensor') history.statusLog.unshift(statusEntry(d, d.on, now));
+    if (d.online && prev.on !== d.on) history.statusLog.unshift(statusEntry(d, d.on, now));
   }
   history.statusLog.length = Math.min(history.statusLog.length, STATUS_LIMIT);
   // Yang disimpan hanya hari ini dan kemarin; hari lebih lama dibuat ulang oleh generator.

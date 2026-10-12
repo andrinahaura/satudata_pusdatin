@@ -1,133 +1,164 @@
-// Ilustrasi 3D Smart Parking (parkir susun): rangka bertingkat, satu palet per slot,
-// mobil di slot yang terisi, dan label tingkat. Tingkat = zone.rows, slot per tingkat = zone.cols.
-// Slot ke-i ada di tingkat floor(i / cols), kolom i % cols (sama dengan ilustrasi 2D).
+// Ilustrasi 3D gedung parkir, mengikuti Smart Parking: gedung tertutup setinggi zone.levels lantai,
+// fasad putih dengan jalur kaca dan panel tanaman, gate di lantai dasar muka depan dan belakang
+// (zone.gates), jalur masuk di depan dan belakang. Bila ada lebih dari satu gedung, gedung berjajar (bukan
+// peta lokasi). Isi gedung dan letak slot tidak digambar karena yang diketahui hanya jumlahnya;
+// slot tersedia muncul di tooltip saat gedung disorot.
+import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { esc } from '../../utils/dom.js';
-import { slotTooltip } from '../parking-site.js';
+import { FACADE, facadeCells, facadeCols, slotStatus, zoneTooltip } from '../parking-site.js';
 import { createScene3D, disposeGroup, mat, PALETTE } from './scene.js';
 
-const BAY_W = 48; // lebar satu slot
-const BAY_D = 78; // kedalaman satu slot
-const LEVEL_H = 44; // tinggi antar tingkat
-const POST = 3; // tebal tiang rangka
-const LANE = 60; // jalur masuk di depan rak
+const COL_W = 15; // lebar satu kolom panel fasad (satu gate = 2 kolom)
+const DEPTH = 130; // kedalaman gedung
+const GROUND_H = 30; // tinggi lantai dasar (gate)
+const FLOOR_H = 28; // tinggi satu lantai di atasnya
+const CORNICE = 5; // lis atap
+const APRON = 36; // lebar jalur masuk di depan/belakang gedung
+const GAP = 80; // jarak antar gedung
+const PAD = 60; // tepi pelataran
 
-/** Tata letak rak: posisi tiap slot (x, tingkat) dan ukuran keseluruhan. */
-export function rackLayout(zone) {
-  const width = zone.cols * BAY_W;
-  const height = zone.rows * LEVEL_H;
-  const slots = zone.slots.map((s, i) => ({ slot: s, level: Math.floor(i / zone.cols), col: i % zone.cols }));
-  return { width, height, depth: BAY_D, slots, levels: zone.rows };
+const gatesOf = (z) => z.gates ?? { front: 4, back: 4 };
+const widthOf = (z) => facadeCols(gatesOf(z).front) * COL_W;
+const heightOf = (z) => GROUND_H + (z.levels - 1) * FLOOR_H + CORNICE;
+const rowWidth = (list) => list.reduce((s, z) => s + widthOf(z), 0) + Math.max(0, list.length - 1) * GAP;
+
+function viewFor(list) {
+  const h = Math.max(60, ...list.map(heightOf)) + 30; // + ruang label nama di atas atap
+  return { dir: [-0.55, 0.38, 1], fit: [rowWidth(list) + PAD, DEPTH + APRON * 2, h], target: [0, h * 0.42, 0] };
 }
 
-function car(THREE) {
-  const v = new THREE.Group();
-  const part = (w, h, d, color, y, z = 0) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, { roughness: 0.5 }));
-    m.position.set(0, y, z);
-    m.castShadow = true;
-    v.add(m);
-  };
-  part(BAY_W - 14, 9, BAY_D - 20, PALETTE.inkSoft, 6.5);
-  part(BAY_W - 18, 7, (BAY_D - 20) * 0.5, PALETTE.cabin, 14.5, 2);
-  return v;
+// Material fasad di-cache per ukuran supaya pembaruan realtime tidak membuat texture baru.
+const facadeCache = new Map();
+function facadeMat(cols, rows) {
+  const key = `${cols}x${rows}`;
+  if (facadeCache.has(key)) return facadeCache.get(key);
+  const CW = 32;
+  const RH = 60; // sebanding FLOOR_H / COL_W x CW
+  const c = document.createElement('canvas');
+  c.width = cols * CW;
+  c.height = rows * RH;
+  const g = c.getContext('2d');
+  const { glass, plants } = facadeCells(cols, rows);
+  g.fillStyle = FACADE.wall;
+  g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = FACADE.glass;
+  for (const col of glass) g.fillRect(col * CW + 6, 0, CW - 12, c.height);
+  for (const { r, c: col } of plants) {
+    // Dua kotak tanaman bertumpuk per sel, seperti di foto gedung.
+    for (const [y, h] of [[8, 20], [32, 20]]) {
+      g.fillStyle = FACADE.plantDark;
+      g.fillRect(col * CW + 5, r * RH + y, CW - 10, h);
+      g.fillStyle = FACADE.plant;
+      g.fillRect(col * CW + 7, r * RH + y + 2, CW - 14, h - 6);
+    }
+  }
+  g.fillStyle = FACADE.slab;
+  for (let r = 1; r < rows; r++) g.fillRect(0, r * RH - 2, c.width, 4);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.85 });
+  facadeCache.set(key, m);
+  return m;
+}
+
+function nameLabel(text, x, y, z, tone = 'default') {
+  const cls = { default: 'text-ink bg-paper shadow-card', alert: 'badge-alert bg-paper shadow-card' }[tone];
+  const el = document.createElement('div');
+  el.innerHTML = `<span class="badge ${cls}">${esc(text)}</span>`;
+  const label = new CSS2DObject(el);
+  label.position.set(x, y, z);
+  return label;
 }
 
 export function createParking3D(container) {
-  const ctx = createScene3D(container, { height: 'clamp(320px, 38vw, 440px)', view: { dir: [-0.35, 0.6, 1], fit: [520, 260], target: [0, 50, 0] } });
-  const { THREE, scene, tooltip, render, pick } = ctx;
+  const ctx = createScene3D(container, { height: 'clamp(360px, 42vw, 520px)', view: viewFor([{ levels: 11 }]) });
+  const { scene, tooltip, render, pick, setView } = ctx;
   const group = new THREE.Group();
   scene.add(group);
-  let zone = null;
-  let built = false;
+  let zones = [];
 
-  function build(next) {
+  function box(w, h, d, material, x, y, z, parent = group) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    parent.add(m);
+    return m;
+  }
+
+  function building(z, cx) {
+    const b = new THREE.Group();
+    const W = widthOf(z);
+    const gates = gatesOf(z);
+    const upper = z.levels - 1;
+    const upperH = upper * FLOOR_H;
+    const wall = mat(PALETTE.paper);
+    const dark = mat(PALETTE.inkSoft, { roughness: 0.6 });
+
+    // Lantai dasar sedikit menjorok, gate berupa bukaan gelap dengan lampu penanda di atasnya.
+    box(W - 4, GROUND_H, DEPTH - 4, wall, 0, GROUND_H / 2, 0, b);
+    for (const [n, side] of [[gates.front, 1], [gates.back, -1]]) {
+      const gw = W / n;
+      for (let i = 0; i < n; i++) {
+        const x = -W / 2 + gw * (i + 0.5);
+        box(gw - 6, GROUND_H - 6, 1, dark, x, (GROUND_H - 6) / 2, side * (DEPTH / 2 - 1.5), b);
+        box(gw - 14, 1.6, 1, mat(PALETTE.accent), x, GROUND_H - 3, side * (DEPTH / 2 - 1.5), b);
+      }
+    }
+
+    // Lantai atas: fasad bertekstur di keempat sisi, atap abu-abu, lis atap putih.
+    const front = facadeMat(facadeCols(gates.front), upper);
+    const side = facadeMat(Math.round(DEPTH / COL_W), upper);
+    const roof = mat(PALETTE.line);
+    box(W, upperH, DEPTH, [side, side, roof, wall, front, front], 0, GROUND_H + upperH / 2, 0, b);
+    box(W + 6, CORNICE, DEPTH + 6, wall, 0, GROUND_H + upperH + CORNICE / 2, 0, b);
+    box(W * 0.3, 8, DEPTH * 0.3, roof, -W * 0.2, GROUND_H + upperH + CORNICE + 4, 0, b);
+
+    b.position.x = cx;
+    b.traverse((o) => (o.userData.zoneId = z.id));
+    group.add(b);
+
+    const { alert, label } = slotStatus(z);
+    group.add(nameLabel(alert ? `${z.name} · ${label}` : z.name, cx, heightOf(z) + 22, 0, alert ? 'alert' : 'default'));
+  }
+
+  function build(list) {
     disposeGroup(group);
-    const L = rackLayout(next);
-    const x0 = -L.width / 2;
-    const z0 = -L.depth / 2;
+    const rw = rowWidth(list);
 
-    // Lantai dasar + jalur masuk dengan marka putus-putus di depan rak.
-    const ground = new THREE.Mesh(new THREE.BoxGeometry(L.width + 60, 6, L.depth + LANE + 30), mat(PALETTE.hairline));
-    ground.position.set(0, -3, LANE / 2);
-    ground.receiveShadow = true;
-    group.add(ground);
-    for (let x = x0 + 8; x < -x0 - 8; x += 22) {
-      const dash = new THREE.Mesh(new THREE.BoxGeometry(12, 0.6, 2), mat(PALETTE.paper));
-      dash.position.set(x + 6, 0.3, -z0 + LANE / 2);
-      group.add(dash);
-    }
+    // Pelataran polos dengan jalur masuk di depan dan belakang gedung.
+    box(rw + PAD * 2, 4, DEPTH + APRON * 2 + PAD, mat(PALETTE.canvas), 0, -2, 0).castShadow = false;
+    for (const side of [1, -1]) box(rw + PAD, 0.6, APRON - 4, mat(PALETTE.hairline), 0, 0.3, side * (DEPTH / 2 + APRON / 2)).castShadow = false;
 
-    // Tiang rangka di setiap batas slot, depan dan belakang.
-    const steel = mat(PALETTE.ink2, { roughness: 0.6 });
-    const postH = L.height + 8;
-    for (let c = 0; c <= next.cols; c++) {
-      for (const z of [z0, -z0]) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(POST, postH, POST), steel);
-        post.position.set(x0 + c * BAY_W, postH / 2, z);
-        post.castShadow = true;
-        group.add(post);
-      }
+    let x = -rw / 2;
+    for (const z of list) {
+      building(z, x + widthOf(z) / 2);
+      x += widthOf(z) + GAP;
     }
-    // Balok atas sepanjang rak.
-    for (const z of [z0, -z0]) {
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(L.width + POST, POST, POST), steel);
-      beam.position.set(0, postH, z);
-      group.add(beam);
-    }
-
-    // Palet per slot; mobil di atasnya bila terisi, nomor slot bila kosong.
-    for (const { slot, level, col } of L.slots) {
-      const y = level * LEVEL_H;
-      const pallet = new THREE.Mesh(new THREE.BoxGeometry(BAY_W - 4, 2, L.depth - 4), mat(slot.occupied ? PALETTE.line : PALETTE.paper));
-      pallet.position.set(x0 + col * BAY_W + BAY_W / 2, y + 1, 0);
-      pallet.receiveShadow = true;
-      pallet.userData.slotId = slot.id;
-      group.add(pallet);
-      if (slot.occupied) {
-        const v = car(THREE);
-        v.position.set(pallet.position.x, y + 2, 0);
-        v.traverse((o) => (o.userData.slotId = slot.id));
-        group.add(v);
-      } else {
-        const el = document.createElement('div');
-        el.innerHTML = `<span class="text-[11px] font-medium text-mid-gray">${esc(slot.id.split('-')[1])}</span>`;
-        const label = new CSS2DObject(el);
-        label.position.set(pallet.position.x, y + 4, -z0 - 8);
-        group.add(label);
-      }
-    }
-
-    // Label tingkat di sisi kiri rak.
-    for (let level = 0; level < L.levels; level++) {
-      const el = document.createElement('div');
-      el.innerHTML = `<span class="badge bg-paper text-ink shadow-card">Tingkat ${level + 1}</span>`;
-      const label = new CSS2DObject(el);
-      label.position.set(x0 - 30, level * LEVEL_H + 10, -z0);
-      group.add(label);
-    }
-    return L;
+    // Hover langsung akurat walau frame render berikutnya belum jalan (raycast butuh matriks dunia).
+    group.updateMatrixWorld(true);
   }
 
   const canvas = ctx.renderer.domElement;
   canvas.addEventListener('pointermove', (e) => {
-    if (!zone || e.buttons) return;
-    const slotId = pick(e, [group])?.userData.slotId;
-    canvas.style.cursor = slotId ? 'pointer' : 'grab';
-    if (!slotId) return tooltip.hide();
-    tooltip.show(slotTooltip(zone, slotId), e);
+    if (!zones.length || e.buttons) return;
+    const z = zones.find((x) => x.id === pick(e, [group])?.userData.zoneId);
+    canvas.style.cursor = z ? 'pointer' : 'grab';
+    if (!z) return tooltip.hide();
+    tooltip.show(zoneTooltip(z), e);
   });
   canvas.addEventListener('pointerleave', () => tooltip.hide());
 
   return {
-    /** @param {object} next zona parkir (satu lokasi Smart Parking) */
+    /** @param {{ zones: object[] }} next zones = summarizeParking().zones */
     update(next) {
-      zone = next;
-      const L = build(next);
-      if (!built) {
-        built = true;
-        ctx.setView({ dir: [-0.35, 0.6, 1], fit: [L.width + 120, L.height + LANE + 80], target: [0, L.height / 2, LANE / 3] });
-      }
+      // Kamera hanya diatur ulang bila susunan gedung berubah, agar sudut pandang pengguna tidak hilang tiap pembaruan.
+      const shape = (list) => list.map((z) => `${z.id}:${z.levels}`).join();
+      if (shape(next.zones) !== shape(zones)) setView(viewFor(next.zones));
+      zones = next.zones;
+      build(zones);
       render();
     },
   };

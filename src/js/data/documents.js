@@ -12,7 +12,7 @@ export const DOCUMENTS = [
     sections: [
       { ref: 'Bagian 2', text: 'Peminjaman ruang rapat diajukan paling lambat satu hari kerja sebelum kegiatan melalui aplikasi layanan internal. Permohonan memuat nama kegiatan, jumlah peserta, waktu mulai, dan waktu selesai.' },
       { ref: 'Bagian 3', text: 'Petugas Tata Usaha memeriksa ketersediaan ruang dan menyetujui permohonan paling lama empat jam kerja. Bila ruang bentrok, pemohon ditawari ruang lain dengan kapasitas yang sesuai.' },
-      { ref: 'Bagian 4', text: 'Setelah kegiatan selesai, peminjam mematikan lampu, AC, dan perangkat presentasi. Sistem IoT gedung mematikan perangkat secara otomatis bila ruang kosong lebih dari 30 menit.' },
+      { ref: 'Bagian 4', text: 'Setelah kegiatan selesai, peminjam mematikan lampu dan perangkat presentasi. Sistem IoT gedung mematikan perangkat secara otomatis bila ruang kosong lebih dari 30 menit.' },
     ],
   },
   {
@@ -21,7 +21,6 @@ export const DOCUMENTS = [
     title: 'Pedoman Penghematan Energi Gedung Pusdatin (contoh)',
     year: 2025,
     sections: [
-      { ref: 'Pasal 3', text: 'Suhu AC di ruang kerja diatur pada 24 sampai 26 derajat Celsius. AC dinyalakan paling cepat pukul 07.30 dan dimatikan paling lambat pukul 17.00 kecuali ada kegiatan lembur yang disetujui.' },
       { ref: 'Pasal 4', text: 'Lampu di ruang yang tidak berpenghuni wajib dimatikan. Koridor menggunakan pencahayaan minimum di luar jam kerja.' },
       { ref: 'Pasal 6', text: 'Pemakaian listrik per lantai dipantau setiap jam. Bila pemakaian melebihi target lebih dari 20 persen, pengelola gedung mendapat notifikasi dan wajib menindaklanjuti dalam satu jam.' },
     ],

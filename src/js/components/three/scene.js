@@ -52,7 +52,8 @@ export function hatchTexture(repeat = 1) {
 
 /**
  * @param {HTMLElement} container
- * view.dir = arah kamera dari target, view.fit = [lebar, kedalaman] objek yang harus muat di layar.
+ * view.dir = arah kamera dari target, view.fit = [lebar, kedalaman, tinggi?] objek yang harus muat di layar
+ * (tinggi bawaan 40).
  * @param {{ height?: number|string, view: { dir: number[], fit: number[], target?: number[] } }} opts
  */
 export function createScene3D(container, opts) {
@@ -118,13 +119,14 @@ export function createScene3D(container, opts) {
   };
   controls.addEventListener('change', render);
 
-  // Jarak kamera dicari agar ke-8 sudut kotak fit[0] x tinggi x fit[1] muat di viewport (margin ~3%).
+  // Jarak kamera dicari agar ke-8 sudut kotak fit[0] x fit[2] x fit[1] (berdiri di y = 0, berpusat di
+  // target pada sumbu x/z) muat di viewport (margin ~3%).
   function fitPosition(v) {
-    const [w, d] = v.fit;
+    const [w, d, h = 40] = v.fit;
     const target = new THREE.Vector3(...(v.target ?? [0, 0, 0]));
     const dir = new THREE.Vector3(...v.dir).normalize();
     const corners = [];
-    for (const x of [-w / 2, w / 2]) for (const z of [-d / 2, d / 2]) for (const y of [0, 40]) corners.push(new THREE.Vector3(x, y, z).add(target));
+    for (const x of [-w / 2, w / 2]) for (const z of [-d / 2, d / 2]) for (const y of [0, h]) corners.push(new THREE.Vector3(target.x + x, y, target.z + z));
     let dist = Math.max(w, d) * 1.5;
     for (let i = 0; i < 4; i++) {
       camera.position.copy(target).addScaledVector(dir, dist);

@@ -1,7 +1,7 @@
 // Home: ringkasan KPI dan grafik dari tiga menu, IoT, AI Vision, dan Chatbot.
 // Denah dan detail lain ada di halaman masing-masing; setiap bagian punya tautan ke sana.
 // Rentang waktu (pemilih di kanan atas) berlaku untuk KPI riwayat dan semua grafik.
-// KPI bertanda "Saat ini" (perangkat online, peringatan aktif, suhu, slot kosong) selalu realtime.
+// KPI bertanda "Saat ini" (perangkat online, peringatan aktif, slot kosong) selalu realtime.
 import { createDateRange } from '../components/date-range.js';
 import { mountLayout } from '../components/layout.js';
 import { renderIcons } from '../components/icons.js';
@@ -31,7 +31,7 @@ const picker = createDateRange($('[data-range]'), {
 });
 
 $('[data-head-iot]').innerHTML = sectionHeadHtml({ title: 'IoT', id: 'home-iot', desc: 'Perangkat, peringatan, konektivitas, dan listrik', href: '/iot.html', linkLabel: 'Buka IoT' });
-$('[data-head-vision]').innerHTML = sectionHeadHtml({ title: 'AI Vision', id: 'home-vision', desc: 'Nomor polisi, kendaraan masuk dan keluar, slot tersedia di Smart Parking', href: '/vision.html', linkLabel: 'Buka AI Vision' });
+$('[data-head-vision]').innerHTML = sectionHeadHtml({ title: 'AI Vision', id: 'home-vision', desc: 'Nomor polisi, kendaraan masuk dan keluar, slot tersedia di gedung parkir', href: '/vision.html', linkLabel: 'Buka AI Vision' });
 $('[data-head-chatbot]').innerHTML = sectionHeadHtml({ title: 'Chatbot', id: 'home-chatbot', desc: 'Pengguna, pertanyaan, token, dan mutu jawaban', href: '/chatbot.html#analitik', linkLabel: 'Buka analitik' });
 
 const pct2 = (ratio) => `${(ratio * 100).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
@@ -56,7 +56,6 @@ function renderIot(range) {
     statTile({ label: `Uptime ${range.short}`, value: u ? pct2(u.overall) : '–', sub: u ? `${u.outages} gangguan koneksi` : '', href: '/iot.html#riwayat' }),
     statTile({ label: 'Peringatan aktif', value: alerts.length, sub: `Saat ini · ${alerts.length ? `${critical} kritis, ${alerts.length - critical} perhatian` : 'semua normal'}`, href: '/iot.html#peringatan', alert: critical > 0 }),
     statTile({ label: 'Notifikasi Telegram', value: fmtInt(sent), unit: ' pesan', sub: `Terkirim ${range.short}`, href: '/iot.html#peringatan' }),
-    statTile({ label: 'Suhu rata-rata', value: fmt1(s.avgTemp), unit: '°C', sub: `Saat ini · kelembaban ${Math.round(s.avgHumidity)}%` }),
     statTile({ label: `Listrik ${range.short}`, value: e ? fmt1(e.kwh) : '–', unit: ' kWh', sub: e ? fmtRupiah(e.rupiah) : '', href: '/iot.html#listrik' }),
   ].join('');
 

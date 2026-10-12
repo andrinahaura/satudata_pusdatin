@@ -48,15 +48,13 @@ export const DEFAULT_SUGGESTIONS = [
 
 const TYPE_PATTERNS = [
   ['light', /\b(lampu|light)\b/],
-  ['ac', /\b(ac|pendingin|air ?con)\b/],
-  ['presence', /(sensor kehadiran|sensor gerak|\bhps\b)/],
-  ['sensor', /\b(sensor|remote ir)\b/],
+  ['presence', /(\bsensor\b|\bhps\b)/],
 ];
 const PARKING = /(parkir|parkiran|slot|kendaraan|mobil|smart parking)/;
 
 const fmt1 = (n) => n.toLocaleString('id-ID', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const MAX_ITEMS = 8;
-// 'Lampu' -> 'lampu', tapi akronim seperti 'AC' / 'CCTV' tetap kapital.
+// 'Lampu' -> 'lampu', tapi akronim seperti 'CCTV' tetap kapital.
 const noun = (label) => (label === label.toUpperCase() ? label : label.toLowerCase());
 
 function normalize(text) {
@@ -140,7 +138,7 @@ function controlIntent(q, ctx) {
   };
 }
 
-// Satu lokasi parkir (Smart Parking, parkir susun) khusus mobil.
+// Kompleks parkir (beberapa gedung, termasuk Smart Parking) khusus mobil.
 function parkingIntent(q, { parking }) {
   const s = summarizeParking(parking);
   const site = parking.site?.name ?? 'area parkir';
@@ -152,8 +150,10 @@ function parkingIntent(q, { parking }) {
     : `Tersedia ${s.free} slot kosong di ${site} dari ${s.total} slot (okupansi ${Math.round(s.rate * 100)}%).`;
   return {
     text,
-    // Kendaraan yang paling lama parkir lebih dulu.
-    items: inside.slice(0, 5).map((v) => ({ title: v.plate, meta: `masuk ${new Date(v.inAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` })),
+    // Pertanyaan slot kosong: rincian per gedung. Pertanyaan jumlah: kendaraan terlama lebih dulu.
+    items: !asksCount
+      ? s.zones.map((z) => ({ title: z.name, meta: `${z.free} dari ${z.total} slot tersedia` }))
+      : inside.slice(0, 5).map((v) => ({ title: v.plate, meta: `masuk ${new Date(v.inAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` })),
     chart: {
       kind: 'line',
       title: 'Okupansi parkir per jam hari ini',
@@ -178,16 +178,12 @@ function trafficIntent(q, { parking }) {
 
 function wasteIntent(q, { iot, inScope, scopeLabel }) {
   const rooms = findWasteRooms(iot).filter((w) => w.devices.some(inScope));
-  if (!rooms.length) return { text: `Tidak ada ruang kosong dengan lampu atau AC menyala di ${scopeLabel}. Bagus, tidak ada pemborosan.` };
+  if (!rooms.length) return { text: `Tidak ada ruang kosong dengan lampu menyala di ${scopeLabel}. Bagus, tidak ada pemborosan.` };
   const ids = rooms.flatMap((w) => w.devices.filter(inScope).map((d) => d.id));
   const watt = rooms.flatMap((w) => w.devices).reduce((s, d) => s + devicePowerW(d), 0);
   return {
     text: `Ada ${rooms.length} ruangan tanpa orang yang perangkatnya masih menyala di ${scopeLabel}, sekitar ${fmt1(watt / 1000)} kW terbuang.`,
-    items: limitItems(rooms.map((w) => {
-      const lights = w.devices.filter((d) => d.type === 'light').length;
-      const acs = w.devices.filter((d) => d.type === 'ac').length;
-      return { title: `${w.floor.name} · ${w.room.name}`, meta: [lights && `${lights} lampu`, acs && `${acs} AC`].filter(Boolean).join(' · ') };
-    })),
+    items: limitItems(rooms.map((w) => ({ title: `${w.floor.name} · ${w.room.name}`, meta: `${w.devices.length} lampu` }))),
     actions: [
       { label: `Matikan ${ids.length} perangkat`, variant: 'primary', action: { type: 'setDevices', ids, on: false } },
       { label: 'Biarkan', variant: 'secondary', action: { type: 'dismiss' } },
@@ -203,32 +199,6 @@ function alertIntent(q, { iot, parking }) {
     text: offlineOnly ? `Ada ${alerts.length} perangkat offline.` : `Ada ${alerts.length} peringatan aktif.`,
     items: limitItems(alerts.map((a) => ({ title: a.title, meta: a.meta }))),
     link: { label: 'Buka monitoring IoT', href: '/iot.html' },
-  };
-}
-
-function temperatureIntent(q, { iot, room, floor, scopeLabel }) {
-  const all = (floor ? [floor] : iot.building.floors).flatMap((f) => f.rooms.map((r) => ({ f, r }))).filter(({ r }) => r.temperature != null);
-  if (room) {
-    if (room.temperature == null) return { text: `${room.name} belum punya sensor suhu.` };
-    return { text: `Suhu ${room.name} saat ini ${fmt1(room.temperature)}°C dengan kelembaban ${room.humidity}%. ${occupancyText(room)}` };
-  }
-  if (/(terpanas|paling panas|panas)/.test(q) || /(terdingin|paling dingin|dingin)/.test(q)) {
-    const cold = /(dingin)/.test(q);
-    const sorted = [...all].sort((a, b) => (cold ? a.r.temperature - b.r.temperature : b.r.temperature - a.r.temperature)).slice(0, 5);
-    return {
-      text: `${cold ? 'Ruangan terdingin' : 'Ruangan terpanas'} di ${scopeLabel}: ${sorted[0].r.name} (${fmt1(sorted[0].r.temperature)}°C).`,
-      items: sorted.map(({ f, r }) => ({ title: `${f.name} · ${r.name}`, meta: `${fmt1(r.temperature)}°C · ${r.humidity}%` })),
-    };
-  }
-  const floors = floor ? [floor] : iot.building.floors;
-  const avg = summarizeIot(iot, floor?.id).avgTemp;
-  return {
-    text: `Suhu rata-rata ${scopeLabel} ${fmt1(avg)}°C.`,
-    items: floors.map((f) => {
-      const s = summarizeIot(iot, f.id);
-      return { title: `${f.name} · ${f.label}`, meta: `${fmt1(s.avgTemp)}°C · kelembaban ${Math.round(s.avgHumidity)}%` };
-    }),
-    suggestions: ['Ruangan terpanas?', 'Suhu 09 R. Tim Jaringan?'],
   };
 }
 
@@ -315,21 +285,20 @@ function deviceStatusIntent(q, ctx) {
 function scopeSummary({ iot, room, floor, scopeLabel }) {
   if (room) {
     const devices = iot.devices.filter((d) => d.roomId === room.id);
-    const climate = room.temperature != null ? `${fmt1(room.temperature)}°C, kelembaban ${room.humidity}%. ` : '';
     return {
-      text: room.equipped ? `${room.name}: ${climate}${occupancyText(room)}` : `${room.name}: sensor belum terpasang.`,
+      text: room.equipped ? `${room.name}: ${occupancyText(room)}` : `${room.name}: sensor belum terpasang.`,
       items: devices.map((d) => ({ title: d.name, meta: d.online ? (d.on ? DEVICE_TYPES[d.type].onLabel : DEVICE_TYPES[d.type].offLabel) : 'offline' })),
     };
   }
   const s = summarizeIot(iot, floor?.id);
   return {
-    text: `Ringkasan ${scopeLabel}: ${s.byType.light.on} lampu dan ${s.byType.ac.on} AC menyala, suhu rata-rata ${fmt1(s.avgTemp)}°C, ${s.people} orang, beban ${fmt1(s.powerKw)} kW.`,
+    text: `Ringkasan ${scopeLabel}: ${s.byType.light.on} lampu menyala, ${s.people} orang, beban ${fmt1(s.powerKw)} kW.`,
   };
 }
 
 /* ------------------------------- entry ------------------------------- */
 
-const BUILDING_TOPIC = /(lampu|ac\b|suhu|listrik|kwh|perangkat|sensor|ruang|lantai|basement|parkir|kendaraan|offline|matikan|nyalakan|orang|gedung)/;
+const BUILDING_TOPIC = /(lampu|listrik|kwh|perangkat|sensor|ruang|lantai|basement|parkir|kendaraan|offline|matikan|nyalakan|orang|gedung)/;
 
 /* ---------------------- dokumen (RAG) & SITABA ---------------------- */
 
@@ -454,16 +423,15 @@ export function answer(message, { iot, parking }, meta = {}) {
   if (/\b(matikan|matiin|padamkan|nyalakan|nyalain|hidupkan|aktifkan)\b/.test(q)) return controlIntent(q, ctx);
   if (/(masuk|keluar|lalu lintas|lewat)/.test(q) && PARKING.test(q)) return trafficIntent(q, ctx);
   if (PARKING.test(q)) return parkingIntent(q, ctx);
-  if (/(boros|pemborosan)/.test(q) || (/(kosong|tidak ada orang|tanpa orang)/.test(q) && (type === 'light' || type === 'ac'))) return wasteIntent(q, ctx);
+  if (/(boros|pemborosan)/.test(q) || (/(kosong|tidak ada orang|tanpa orang)/.test(q) && type === 'light')) return wasteIntent(q, ctx);
   if (/(offline|rusak|error|gangguan|bermasalah|tidak terhubung|terputus|peringatan|alert|masalah)/.test(q)) return alertIntent(q, ctx);
-  if (/(suhu|panas|dingin|temperatur|kelembab)/.test(q)) return temperatureIntent(q, ctx);
   if (/(energi|listrik|daya|watt|konsumsi|kwh|beban)/.test(q)) return energyIntent(q, ctx);
   if (/(orang|penghuni|okupansi|ramai|sepi|kosong)/.test(q)) return occupancyIntent(q, ctx);
   if (type) return deviceStatusIntent(q, ctx);
   if (room || floor) return scopeSummary(ctx);
   if (/\b(halo|hai|hi|hello|pagi|siang|sore|malam|bantuan|help|bisa apa)\b/.test(q)) {
     return {
-      text: 'Saya membaca status perangkat IoT, kondisi ruang, pemakaian listrik, dan parkir Gedung Pusdatin. Saya juga bisa mematikan lampu atau AC yang tidak terpakai, mencari dokumen dan regulasi, serta memberi informasi kebencanaan dari SITABA.',
+      text: 'Saya membaca status perangkat IoT, kondisi ruang, pemakaian listrik, dan parkir Gedung Pusdatin. Saya juga bisa mematikan lampu yang tidak terpakai, mencari dokumen dan regulasi, serta memberi informasi kebencanaan dari SITABA.',
       suggestions: DEFAULT_SUGGESTIONS.slice(0, 4),
     };
   }
@@ -472,7 +440,7 @@ export function answer(message, { iot, parking }, meta = {}) {
 
 function fallback() {
   return {
-    text: 'Maaf, saya belum memahami pertanyaan itu. Coba tanyakan soal lampu, AC, suhu, listrik, perangkat offline, parkir, dokumen, atau kejadian bencana. Sebutkan lantai atau nama ruangan bila perlu.',
+    text: 'Maaf, saya belum memahami pertanyaan itu. Coba tanyakan soal lampu, listrik, perangkat offline, parkir, dokumen, atau kejadian bencana. Sebutkan lantai atau nama ruangan bila perlu.',
     suggestions: DEFAULT_SUGGESTIONS.slice(0, 4),
   };
 }

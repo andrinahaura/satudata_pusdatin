@@ -101,7 +101,7 @@ function lightPositions(room, n) {
 }
 
 function makeDevice(room, type, index, pos, props) {
-  const code = { light: 'LMP', ac: 'AC', sensor: 'IR', presence: 'HPS' }[type];
+  const code = { light: 'LMP', presence: 'HPS' }[type];
   return {
     id: `${room.id}-${code}${index}`,
     type,
@@ -117,8 +117,6 @@ function makeDevice(room, type, index, pos, props) {
   };
 }
 
-const COOLED = new Set(['office', 'meeting', 'hall', 'lobby', 'pantry']);
-
 function addRoomDevices(room, rand, devices) {
   if (!room.equipped) return;
   const occupied = room.occupancy > 0;
@@ -132,19 +130,6 @@ function addRoomDevices(room, rand, devices) {
   // Sensor kehadiran (HPS): menyala = ada orang.
   const presencePos = room.type === 'corridor' ? { x: room.x + 30, y: room.y + 16 } : { x: room.x + room.w - inset, y: room.y + room.h - 50 };
   devices.push(makeDevice(room, 'presence', 1, presencePos, { on: occupied }));
-
-  if (!COOLED.has(room.type)) return;
-
-  // Remote IR + sensor suhu & kelembaban
-  devices.push(makeDevice(room, 'sensor', 1, { x: room.x + inset, y: room.y + room.h - 22 }));
-
-  // AC
-  const nAc = room.w >= 200 ? 2 : 1;
-  const pAc = occupied ? 0.88 : 0.25;
-  for (let i = 0; i < nAc; i++) {
-    const pos = { x: room.x + room.w - 24 - i * 30, y: room.y + room.h - 22 };
-    devices.push(makeDevice(room, 'ac', i + 1, pos, { on: rand() < pAc, setpoint: 24 }));
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -242,7 +227,7 @@ export function createEnergyState(devices, now = new Date(), seed = 4410) {
     syncTotals(floors[def.id], now);
   }
 
-  // Skenario demo: AC Workspace Lt 2 dibiarkan menyala, beban jam berjalan di atas target.
+  // Skenario demo: lampu Workspace Lt 2 dibiarkan menyala, beban jam berjalan di atas target.
   const l2 = floors.L2;
   if (l2.today[h] != null) l2.today[h] = round2(l2.target[h] * 1.32 * Math.max(partial, 0.25));
   syncTotals(l2, now);
@@ -324,13 +309,10 @@ function seedActivity(iot, rand, now) {
     if (!room.equipped || room.type === 'corridor') continue;
     const arrive = at(7, Math.floor(rand() * 59));
     const lightOn = at(7 + Math.floor(rand() * 2), Math.floor(rand() * 59));
-    const acOn = at(8, Math.floor(rand() * 59));
     const lunch = at(12, Math.floor(rand() * 30));
     const back = at(13, Math.floor(rand() * 30));
-    const ac = iot.devices.some((d) => d.roomId === room.id && d.type === 'ac');
     if (arrive) events.push({ time: arrive, room, text: 'Orang terdeteksi' });
     if (lightOn) events.push({ time: lightOn, room, text: 'Lampu 1 dinyalakan' });
-    if (ac && acOn) events.push({ time: acOn, room, text: 'AC 1 dinyalakan, setpoint 24°C' });
     if (lunch) events.push({ time: lunch, room, text: 'Tidak ada orang' });
     if (back) events.push({ time: back, room, text: 'Orang terdeteksi' });
   }
@@ -365,26 +347,16 @@ export function createIotState(seed = 20261005) {
     floors.push({ id: def.id, level: def.level, name: def.name, short: def.short, label: def.label, rooms });
   }
 
-  // Suhu & kelembaban hanya ada di ruang dengan sensor suhu (remote IR).
-  for (const room of floors.flatMap((f) => f.rooms)) {
-    const sensor = devices.some((d) => d.roomId === room.id && d.type === 'sensor');
-    const acOn = devices.some((d) => d.roomId === room.id && d.type === 'ac' && d.on);
-    room.temperature = sensor ? round1((acOn ? 23.5 : 27) + rand() * 1.8) : null;
-    room.humidity = sensor ? Math.round(50 + rand() * 15) : null;
-  }
-
-  // Skenario demo: beberapa perangkat offline, Workspace Lt 2 kosong tapi AC menyala.
+  // Skenario demo: beberapa perangkat offline, Workspace Lt 2 kosong tapi lampu menyala.
   const room = (floorId, name) => floors.find((f) => f.id === floorId).rooms.find((r) => r.name === name);
   const pick = (pred) => devices.find(pred);
   for (const d of [
     pick((d) => d.floorId === 'L1' && d.type === 'light' && d.roomId === room('L1', '22 R. Katim').id),
-    pick((d) => d.type === 'ac' && d.roomId === room('B', '09 R. Tim Jaringan').id),
+    pick((d) => d.type === 'light' && d.roomId === room('B', '09 R. Tim Jaringan').id),
     pick((d) => d.type === 'presence' && d.roomId === room('L1', 'Mushola').id),
   ]) {
     if (d) Object.assign(d, { online: false, on: false, lastSeen: new Date(Date.now() - 42 * 60000).toISOString() });
   }
-  const jaringan = room('B', '09 R. Tim Jaringan');
-  jaringan.temperature = 29.4;
   const wsL2 = room('L2', 'Workspace Lt 2');
   wsL2.occupancy = 0;
   for (const d of devices.filter((x) => x.roomId === wsL2.id)) d.on = d.type !== 'presence';
@@ -405,14 +377,8 @@ export function createIotState(seed = 20261005) {
 
 // Simulasi perubahan realtime (dipanggil tiap interval oleh mock backend).
 export function stepIot(state, rand = Math.random, dtSec = 5) {
-  const acOnByRoom = new Set(state.devices.filter((d) => d.type === 'ac' && d.on && d.online).map((d) => d.roomId));
   for (const floor of state.building.floors) {
     for (const room of floor.rooms) {
-      if (room.temperature != null) {
-        const target = acOnByRoom.has(room.id) ? 24 : 27.5;
-        room.temperature = round1(room.temperature + (target - room.temperature) * 0.08 + (rand() - 0.5) * 0.3);
-        room.humidity = Math.min(75, Math.max(40, room.humidity + Math.round((rand() - 0.5) * 2)));
-      }
       if (room.capacity && room.occupancy != null && rand() < 0.08) {
         const before = room.occupancy;
         room.occupancy = Math.min(room.capacity, Math.max(0, room.occupancy + (rand() < 0.5 ? -1 : 1)));
@@ -432,8 +398,13 @@ export function stepIot(state, rand = Math.random, dtSec = 5) {
 /* Parkir & computer vision                                            */
 /* ------------------------------------------------------------------ */
 
-// Satu lokasi: Smart Parking (parkir susun, piloting), 24 slot mobil (3 tingkat × 8 slot).
-const ZONES = [{ id: 'SP', name: 'Smart Parking', location: 'Parkir susun', kind: 'car', rows: 3, cols: 8, fill: 0.8 }];
+// Gedung parkir yang dipantau. Saat ini baru Smart Parking (parkir susun, piloting): 11 lantai,
+// 8 gate di muka depan dan 8 di muka belakang. type 'smart' = Smart Parking, 'regular' = gedung parkir
+// biasa (untuk gedung berikutnya). Okupansi dihitung dari nomor polisi yang terbaca di gate; letak slot
+// yang kosong tidak diketahui. Kapasitas masih angka contoh, ganti dengan data asli.
+const ZONES = [
+  { id: 'SP', name: 'Smart Parking', type: 'smart', location: 'Parkir susun', kind: 'car', levels: 11, gates: { front: 8, back: 8 }, capacity: 160, fill: 0.8 },
+];
 
 const PLATE_LETTERS = 'ABCDEFGHJKLMNPRSTUVWXYZ';
 function plate(rand) {
@@ -452,7 +423,7 @@ function minutesAgo(min) {
 /* Riwayat kendaraan: satu baris per kunjungan (plat, jam masuk, jam keluar). */
 
 const VISIT_LIMIT = 220;
-const GATES = ['Gerbang Smart Parking'];
+const gateOf = (zone) => `Gerbang ${zone.name}`;
 const confidence = (rand) => Math.round((0.9 + rand() * 0.09) * 100) / 100;
 
 function seedVisits(zones, rand) {
@@ -461,22 +432,28 @@ function seedVisits(zones, rand) {
   // Kendaraan yang sedang parkir: jam masuk = sejak kapan slot terisi.
   for (const zone of zones) {
     for (const s of zone.slots.filter((x) => x.occupied)) {
-      visits.push({ id: `VS-${s.id}`, plate: s.plate, vehicleType: s.vehicleType, zoneId: zone.id, slotId: s.id, gateIn: GATES[Math.floor(rand() * GATES.length)], gateOut: null, inAt: s.since, outAt: null, confidence: confidence(rand) });
+      visits.push({ id: `VS-${s.id}`, plate: s.plate, vehicleType: s.vehicleType, zoneId: zone.id, slotId: s.id, gateIn: gateOf(zone), gateOut: null, inAt: s.since, outAt: null, confidence: confidence(rand) });
     }
   }
   // Kendaraan yang sudah keluar hari ini.
   const dayStart = new Date();
   dayStart.setHours(6, 0, 0, 0);
   const span = Math.max(0, now - dayStart.getTime() - 30 * 60000);
-  const done = span ? 9 : 0;
+  const done = span ? Math.round((9 * CAPACITY) / 24) : 0;
   for (let i = 0; i < done; i++) {
-    const zone = zones[Math.floor(rand() * zones.length)];
+    const zone = pickZone(zones, rand);
     const inAt = dayStart.getTime() + rand() * span;
     const outAt = Math.min(now - 60000, inAt + (15 + rand() * 300) * 60000);
     const vehicleType = 'car';
-    visits.push({ id: `VS-done-${i}`, plate: plate(rand), vehicleType, zoneId: zone.id, slotId: null, gateIn: GATES[Math.floor(rand() * GATES.length)], gateOut: GATES[Math.floor(rand() * GATES.length)], inAt: new Date(inAt).toISOString(), outAt: new Date(outAt).toISOString(), confidence: confidence(rand) });
+    visits.push({ id: `VS-done-${i}`, plate: plate(rand), vehicleType, zoneId: zone.id, slotId: null, gateIn: gateOf(zone), gateOut: gateOf(zone), inAt: new Date(inAt).toISOString(), outAt: new Date(outAt).toISOString(), confidence: confidence(rand) });
   }
   return visits.sort((a, b) => lastMove(b).localeCompare(lastMove(a)));
+}
+
+// Gedung acak, berbobot kapasitas: gedung besar lebih sering dipilih.
+function pickZone(zones, rand) {
+  let r = rand() * zones.reduce((sum, z) => sum + z.slots.length, 0);
+  return zones.find((z) => (r -= z.slots.length) < 0) ?? zones[0];
 }
 
 // Waktu gerakan terakhir kunjungan (keluar bila sudah keluar, selain itu masuk).
@@ -485,19 +462,22 @@ const lastMove = (v) => v.outAt ?? v.inAt;
 /* Hari-hari lalu: kunjungan dibuat ulang dari tanggalnya, lalu okupansi & jumlah masuk/keluar
    dihitung dari kunjungan itu supaya angka grafik, KPI, dan tabel saling cocok. */
 
-const CAPACITY = ZONES.reduce((s, z) => s + z.rows * z.cols, 0);
+const CAPACITY = ZONES.reduce((s, z) => s + z.capacity, 0);
 const HOURS = Array.from({ length: 15 }, (_, i) => 6 + i); // 06.00–20.00
+
+// pickZone() butuh `slots`; untuk hari lalu cukup panjangnya saja.
+const ZONE_SLOTS = ZONES.map((z) => ({ ...z, slots: { length: z.capacity } }));
 
 /** Kunjungan kendaraan pada hari yang sudah lewat, terbaru di depan. */
 export function parkingDayVisits(key) {
   const rand = rngFor(`visits:${key}`);
   const day = new Date(`${key}T00:00:00`).getTime();
   const weekend = [0, 6].includes(new Date(day).getDay());
-  const n = weekend ? 4 + Math.floor(rand() * 4) : 26 + Math.floor(rand() * 7);
+  const n = Math.round(((weekend ? 4 + Math.floor(rand() * 4) : 26 + Math.floor(rand() * 7)) * CAPACITY) / 24);
   const visits = [];
   for (let i = 0; i < n; i++) {
     const kind = 'car';
-    const zoneId = ZONES[0].id;
+    const zone = pickZone(ZONE_SLOTS, rand);
     const allDay = rand() < 0.62;
     const arrive = allDay ? 6.5 + rand() * 2.5 : 8 + rand() * 8;
     const stay = allDay ? 7 + rand() * 2.5 : 0.5 + rand() * 2.5;
@@ -506,10 +486,10 @@ export function parkingDayVisits(key) {
       id: `VS-${key}-${i}`,
       plate: plate(rand),
       vehicleType: kind,
-      zoneId,
+      zoneId: zone.id,
       slotId: null,
-      gateIn: GATES[Math.floor(rand() * GATES.length)],
-      gateOut: GATES[Math.floor(rand() * GATES.length)],
+      gateIn: gateOf(zone),
+      gateOut: gateOf(zone),
       inAt: new Date(day + arrive * 3600000).toISOString(),
       outAt: new Date(day + leave * 3600000).toISOString(),
       confidence: confidence(rand),
@@ -543,9 +523,8 @@ export function parkingStatsFromVisits(key, visits, untilHour = 24) {
 
 export function createParkingState(seed = 7310) {
   const rand = createRng(seed);
-  const zones = ZONES.map(({ fill, ...zone }) => {
-    const total = zone.rows * zone.cols;
-    const slots = Array.from({ length: total }, (_, i) => {
+  const zones = ZONES.map(({ fill, capacity, ...zone }) => {
+    const slots = Array.from({ length: capacity }, (_, i) => {
       const id = `${zone.id}-${pad2(i + 1)}`;
       const reserved = null;
       const occupied = rand() < fill;
@@ -567,10 +546,12 @@ export function createParkingState(seed = 7310) {
   for (let i = 0; i < 14; i++) {
     t += 4 + Math.floor(rand() * 20);
     const type = 'car';
+    const zone = pickZone(zones, rand);
     events.push({
       id: `EV-${1000 - i}`,
       time: minutesAgo(t),
-      gate: GATES[Math.floor(rand() * GATES.length)],
+      zoneId: zone.id,
+      gate: gateOf(zone),
       direction: rand() < 0.6 ? 'in' : 'out',
       vehicleType: type,
       plate: plate(rand),
@@ -586,7 +567,7 @@ export function createParkingState(seed = 7310) {
   midnight.setHours(0, 0, 0, 0);
 
   return {
-    // Lokasi parkir yang dipantau. Saat ini satu lokasi piloting: Smart Parking (parkir susun).
+    // Lokasi parkir yang dipantau. Saat ini satu gedung piloting: Smart Parking (parkir susun).
     site: { id: 'smart-parking', name: 'Smart Parking', kind: 'Parkir susun', status: 'Piloting' },
     zones,
     events,
@@ -602,7 +583,7 @@ export function createParkingState(seed = 7310) {
 }
 
 export function stepParking(state, rand = Math.random) {
-  const zone = state.zones[Math.floor(rand() * state.zones.length)];
+  const zone = pickZone(state.zones, rand);
   const candidates = zone.slots.filter((s) => s.reserved !== 'pimpinan');
   const slot = candidates[Math.floor(rand() * candidates.length)];
   const entering = !slot.occupied;
@@ -614,9 +595,9 @@ export function stepParking(state, rand = Math.random) {
     : { occupied: false, vehicleType: null, plate: null, since: null });
 
   const now = new Date().toISOString();
-  const gate = GATES[Math.floor(rand() * GATES.length)];
+  const gate = gateOf(zone);
   const conf = confidence(rand);
-  state.events.unshift({ id: `EV-${Date.now()}`, time: now, gate, direction: entering ? 'in' : 'out', vehicleType, plate: plateNo, confidence: conf });
+  state.events.unshift({ id: `EV-${Date.now()}`, time: now, zoneId: zone.id, gate, direction: entering ? 'in' : 'out', vehicleType, plate: plateNo, confidence: conf });
   if (entering) {
     state.visits.unshift({ id: `VS-${Date.now()}`, plate: plateNo, vehicleType, zoneId: zone.id, slotId: slot.id, gateIn: gate, gateOut: null, inAt: now, outAt: null, confidence: conf });
   } else {

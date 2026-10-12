@@ -13,7 +13,7 @@ const CORRIDOR_EDGES = new Set([250, 310]);
 const X = (px) => px - 500;
 const Z = (py) => py - 280;
 
-const DEVICE_Y = { light: 22, ac: 24, sensor: 8, presence: 10 };
+const DEVICE_Y = { light: 22, presence: 10 };
 
 function stateMaterial(d, dimmed) {
   const opacity = dimmed ? 0.12 : 1;
@@ -28,8 +28,6 @@ export function createFloorPlan3D(container, { onRoomSelect } = {}) {
   const geo = {
     light: new THREE.SphereGeometry(5, 20, 14),
     glow: new THREE.CircleGeometry(18, 32),
-    ac: new THREE.BoxGeometry(18, 7, 8),
-    sensor: new THREE.OctahedronGeometry(5.5),
     presence: new THREE.ConeGeometry(5, 11, 18),
   };
   const hatch = hatchTexture(6);
