@@ -12,7 +12,7 @@ import { DEVICE_TYPES } from '../data/device-types.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
   devicePowerW, devicesInRoom, deviceUptime, energyByFloor, energyRange, findWasteRooms, getAlerts, indexIot,
-  roomActivity, summarizeIot,
+  roomActivity, summarizeIot, summarizeParking,
 } from '../services/selectors.js';
 import { $, esc, getParam, setParams } from '../utils/dom.js';
 import { fmt1, fmtDateTime, fmtDuration, fmtInt, fmtRelative, fmtTime } from '../utils/format.js';
@@ -351,13 +351,15 @@ $('[data-energy-scope]').addEventListener('click', (e) => {
 
 const alertPanel = createAlertPanel($('[data-alert-panel]'));
 
+// Nilai yang tampil di baris panel saat jenis peringatan itu normal.
 function monitoredChecks() {
   const s = summarizeIot(state.iot);
-  return [
-    { label: 'Perangkat online', value: `${s.online}/${s.totalDevices}` },
-    { label: 'Listrik per lantai', value: 'Sesuai target' },
-    { label: 'Ruang kosong menyala', value: 'Tidak ada' },
-  ];
+  return {
+    offline: `${s.online}/${s.totalDevices} online`,
+    energy: 'Sesuai target',
+    waste: 'Tidak ada',
+    ...(state.parking && { parking: `${fmtInt(summarizeParking(state.parking).free)} slot kosong` }),
+  };
 }
 
 function renderAlerts() {
@@ -458,6 +460,7 @@ function renderHistory() {
     labels: u.buckets.map((b) => b.label),
     series: [{ label: 'Uptime', values: u.buckets.map((b) => (b.ratio == null ? null : b.ratio * 100)), style: 'current' }],
     height: 240,
+    fill: true,
     format: (v) => `${v.toLocaleString('id-ID', { maximumFractionDigits: 2 })}% terhubung`,
   };
   if (uptimeChart) uptimeChart.update(opts);

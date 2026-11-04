@@ -1,14 +1,15 @@
-// Panel Peringatan di Home.
+// Panel Peringatan di halaman IoT.
 // Dirancang supaya mudah dipahami semua pengguna, termasuk pengguna lanjut usia:
 //   - teks utama 16px, lokasi & saran 14px (bukan teks kecil 12px)
 //   - tingkat ditandai label teks ("Kritis"/"Perhatian") + garis warna, tidak hanya warna
 //   - setiap peringatan menyebut apa yang perlu dilakukan, dalam bahasa sehari-hari
 //   - tombol aksi terlihat jelas ("Lihat di denah"), bukan baris yang diam-diam bisa diklik
-// Kasus jumlah:
-//   - 0      : "Semua normal" + daftar hal yang dipantau beserta nilainya
-//   - sedikit: tiap jenis tampil sebagai satu kartu
-//   - banyak : peringatan sejenis dikelompokkan ("6 ruang kosong …") dan bisa dibuka,
-//              filter Kritis/Perhatian, maksimal 4 kelompok lalu "Tampilkan …", panel bisa digulir.
+// Tata letak: satu baris untuk setiap hal yang dipantau (koneksi perangkat, listrik, lampu di
+// ruang kosong, parkir), jadi isi panel selalu lengkap dan tingginya sama dengan kartu Telegram.
+//   - ada masalah : baris lengkap (jumlah, lokasi, saran, tombol), peringatan sejenis dikelompokkan
+//                   ("6 ruang kosong …") dan daftar lokasinya bisa dibuka
+//   - normal      : baris ringkas dengan tanda centang dan nilai saat ini ("24/24 online")
+//   - baris berbagi sisa tinggi panel; bila daftar dibuka dan terlalu panjang, panel bisa digulir.
 import { esc } from '../utils/dom.js';
 import { icon, renderIcons } from './icons.js';
 
@@ -17,34 +18,37 @@ const SEVERITY = {
   warning: { label: 'Perhatian', bar: 'border-l-accent', badge: 'badge-outline' },
 };
 
-// Judul kelompok, saran tindakan, dan label tombol per jenis peringatan.
+// Urutan baris saat normal, nama hal yang dipantau, judul kelompok, saran, dan label tombol.
 const TYPES = {
   offline: {
+    label: 'Koneksi perangkat',
     many: (n) => `${n} perangkat offline`,
     hint: 'Perangkat tidak mengirim data. Periksa listrik atau koneksi perangkat.',
     action: 'Lihat di denah',
   },
   energy: {
+    label: 'Listrik per lantai',
     many: (n) => `${n} lantai di atas target listrik`,
     hint: 'Pemakaian listrik jam ini lebih tinggi dari target. Cek lampu yang tidak dipakai.',
     action: 'Lihat grafik listrik',
   },
   waste: {
+    label: 'Lampu di ruang kosong',
     many: (n) => `${n} ruang kosong, lampu masih menyala`,
     hint: 'Tidak ada orang di ruang ini. Matikan lampu dari halaman IoT.',
     action: 'Lihat di denah',
   },
   parking: {
+    label: 'Slot parkir',
     many: (n) => `${n} zona parkir hampir penuh`,
     hint: 'Sisa slot parkir kurang dari 10%.',
     action: 'Lihat peta parkir',
   },
 };
 
-const GROUP_LIMIT = 4;
 const RANK = { critical: 0, warning: 1 };
 
-function groupAlerts(alerts) {
+export function groupAlerts(alerts) {
   const groups = new Map();
   for (const a of alerts) {
     const key = a.type ?? a.id;
@@ -60,6 +64,9 @@ function placeLine(items) {
   const names = items.slice(0, 2).map((i) => (i.place ?? i.meta).split(' · ').pop());
   return items.length > 2 ? `${names.join(', ')}, dan ${items.length - 2} lainnya` : names.join(' dan ');
 }
+
+// Baris mengisi sisa tinggi panel bersama-sama (grow), isinya tetap di tengah secara vertikal.
+const ROW = 'flex grow flex-col justify-center border-l-4';
 
 function groupHtml(group, expanded) {
   const sev = SEVERITY[group.severity];
@@ -82,7 +89,7 @@ function groupHtml(group, expanded) {
           .join('')}
       </ul>`
     : '';
-  return `<li class="border-l-4 ${sev.bar} py-3.5 pr-5 pl-4">
+  return `<li class="${ROW} ${sev.bar} py-3 pr-5 pl-4">
     <div class="flex items-start justify-between gap-3">
       <p class="text-body-lg leading-snug font-semibold">${esc(title)}</p>
       <span class="badge ${sev.badge} shrink-0">${sev.label}</span>
@@ -94,33 +101,37 @@ function groupHtml(group, expanded) {
   </li>`;
 }
 
-function clearHtml(checks, checkedAt) {
-  return `<div class="flex items-center gap-3 px-5 py-4">
-      <span class="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-ink">${icon('check', 'size-5')}</span>
-      <div>
-        <p class="text-body-lg font-semibold">Semua normal</p>
-        <p class="text-mid-gray">Tidak ada yang perlu ditindaklanjuti. Dicek ${esc(checkedAt)}.</p>
+function normalHtml(type, value) {
+  return `<li class="${ROW} border-l-transparent py-3 pr-5 pl-4">
+    <div class="flex items-center gap-3">
+      <span class="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-ink">${icon('check', 'size-4')}</span>
+      <div class="min-w-0 flex-1">
+        <p class="label-caps">${esc(TYPES[type].label)}</p>
+        <p class="text-body-lg font-medium">Normal</p>
       </div>
+      <span class="shrink-0 text-mid-gray tabular-nums">${esc(value)}</span>
     </div>
-    <ul class="divide-y divide-hairline border-t border-hairline">
-      ${checks.map((c) => `<li class="flex items-center justify-between gap-3 px-5 py-2.5"><span>${esc(c.label)}</span><span class="font-medium tabular-nums">${esc(c.value)}</span></li>`).join('')}
-    </ul>`;
+  </li>`;
 }
 
 /**
  * @param {HTMLElement} root  wadah kolom panel (flex column)
- * @returns {{ update(alerts: object[], ctx: { checks: {label,value}[], checkedAt: string }): void }}
+ * @returns {{ update(alerts: object[], ctx: { checks: Record<string, string>, checkedAt: string }): void }}
+ *   `checks`: nilai saat normal per jenis peringatan, mis. { offline: '24/24 online' }.
+ *   Hanya jenis yang ada di `checks` (atau sedang punya peringatan) yang tampil.
  */
 export function createAlertPanel(root) {
-  const state = { filter: 'all', expanded: new Set(), showAll: false, alerts: [], ctx: null };
+  const state = { expanded: new Set(), alerts: [], ctx: null };
 
   root.innerHTML = `
-    <div class="flex items-center justify-between gap-3 px-5 pt-5">
-      <h2 class="card-title text-body-lg">Peringatan</h2>
-      <div class="flex gap-1.5" data-alert-summary></div>
+    <div class="flex items-start justify-between gap-3 px-5 pt-5 pb-4">
+      <div class="min-w-0">
+        <h3 class="card-title text-body-lg">Peringatan</h3>
+        <p class="truncate text-mid-gray" data-alert-checked></p>
+      </div>
+      <div class="flex shrink-0 gap-1.5" data-alert-summary></div>
     </div>
-    <div class="hidden px-5 pt-3" data-alert-filter></div>
-    <div class="scroll-thin mt-3 max-h-[560px] min-h-0 flex-1 overflow-y-auto border-t border-hairline xl:max-h-none" data-alert-body></div>
+    <div class="scroll-thin flex max-h-[560px] min-h-0 flex-1 flex-col overflow-y-auto border-t border-hairline xl:max-h-none" data-alert-body></div>
     <p class="hidden border-t border-hairline px-5 py-2.5 text-mid-gray" data-alert-more></p>`;
 
   const $ = (sel) => root.querySelector(sel);
@@ -132,39 +143,27 @@ export function createAlertPanel(root) {
     const critical = count('critical');
     const warning = count('warning');
 
-    $('[data-alert-summary]').innerHTML = [
-      critical && `<span class="badge badge-alert">${critical} kritis</span>`,
-      warning && `<span class="badge badge-outline">${warning} perhatian</span>`,
-    ]
-      .filter(Boolean)
-      .join('');
+    $('[data-alert-checked]').textContent = `Kondisi saat ini · dicek ${ctx.checkedAt}`;
+    $('[data-alert-summary]').innerHTML = alerts.length
+      ? [
+          critical && `<span class="badge badge-alert">${critical} kritis</span>`,
+          warning && `<span class="badge badge-outline">${warning} perhatian</span>`,
+        ]
+          .filter(Boolean)
+          .join('')
+      : '<span class="badge badge-solid">Semua normal</span>';
 
-    // Filter hanya muncul bila ada dua tingkat dan daftarnya cukup panjang untuk perlu disaring.
-    const groupsAll = groupAlerts(alerts);
-    const showFilter = critical && warning && groupsAll.length > 2;
-    if (!showFilter) state.filter = 'all';
-    const filterBox = $('[data-alert-filter]');
-    filterBox.classList.toggle('hidden', !showFilter);
-    filterBox.innerHTML = showFilter
-      ? `<div class="segmented w-full" role="tablist" aria-label="Saring peringatan">
-          ${[['all', `Semua (${alerts.length})`], ['critical', `Kritis (${critical})`], ['warning', `Perhatian (${warning})`]]
-            .map(([v, l]) => `<button type="button" role="tab" class="flex-1" data-filter="${v}" aria-selected="${state.filter === v}">${l}</button>`)
-            .join('')}
-        </div>`
-      : '';
+    // Jenis bermasalah di atas (kritis dulu), lalu jenis yang normal sesuai urutan TYPES.
+    const groups = groupAlerts(alerts);
+    const active = new Set(groups.map((g) => g.type));
+    const normal = Object.keys(TYPES).filter((t) => !active.has(t) && ctx.checks[t] != null);
 
     const scroll = body.scrollTop;
-    if (!alerts.length) {
-      body.innerHTML = clearHtml(ctx.checks, ctx.checkedAt);
-      $('[data-alert-more]').classList.add('hidden');
-    } else {
-      const groups = groupsAll.filter((g) => state.filter === 'all' || g.severity === state.filter);
-      const visible = state.showAll ? groups : groups.slice(0, GROUP_LIMIT);
-      const hidden = groups.length - visible.length;
-      body.innerHTML = `<ul class="divide-y divide-hairline">${visible.map((g) => groupHtml(g, state.expanded.has(g.key))).join('')}</ul>
-        ${hidden ? `<button type="button" class="w-full cursor-pointer border-t border-hairline px-5 py-3 text-left font-medium transition-colors hover:bg-canvas" data-show-all>Tampilkan ${hidden} jenis peringatan lainnya</button>` : ''}`;
-      body.scrollTop = scroll;
-    }
+    body.innerHTML = `<ul class="flex grow flex-col divide-y divide-hairline">
+        ${groups.map((g) => groupHtml(g, state.expanded.has(g.key))).join('')}
+        ${normal.map((t) => normalHtml(t, ctx.checks[t])).join('')}
+      </ul>`;
+    body.scrollTop = scroll;
     renderIcons(root);
     updateScrollHint();
   }
@@ -179,21 +178,10 @@ export function createAlertPanel(root) {
 
   root.addEventListener('click', (e) => {
     const expand = e.target.closest('[data-expand]');
-    if (expand) {
-      const key = expand.dataset.expand;
-      state.expanded.has(key) ? state.expanded.delete(key) : state.expanded.add(key);
-      return render();
-    }
-    if (e.target.closest('[data-show-all]')) {
-      state.showAll = true;
-      return render();
-    }
-    const filter = e.target.closest('[data-filter]');
-    if (filter) {
-      state.filter = filter.dataset.filter;
-      body.scrollTop = 0;
-      render();
-    }
+    if (!expand) return;
+    const key = expand.dataset.expand;
+    state.expanded.has(key) ? state.expanded.delete(key) : state.expanded.add(key);
+    render();
   });
   body.addEventListener('scroll', updateScrollHint, { passive: true });
   new ResizeObserver(updateScrollHint).observe(body);

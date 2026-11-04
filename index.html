@@ -12,93 +12,91 @@
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
-    <div class="flex min-h-dvh flex-col">
+    <div class="flex min-h-dvh flex-col" data-screen>
       <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
-      <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
-        <!-- Rentang waktu berlaku untuk KPI dan grafik riwayat; KPI bertanda "Saat ini" selalu realtime. -->
-        <section class="page-toolbar flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-          <div>
-            <h1 class="text-heading font-semibold">Ringkasan gedung</h1>
+      <!-- Home: ukuran normal seperti halaman lain, setiap tile bisa diklik ke halaman detailnya.
+           Tombol "Layar penuh" untuk layar ruang monitoring: satu layar tanpa gulir (lihat .wall di main.css).
+           Baris atas: status. Kiri: IoT lalu AI Vision (8 kolom). Kanan: Chatbot setinggi dua baris. -->
+      <main class="mx-auto flex w-full max-w-[1680px] flex-1 flex-col px-4 pb-4 sm:px-5 lg:px-6">
+        <!-- Rentang waktu berlaku untuk angka dan grafik riwayat; angka bertanda "Saat ini" selalu realtime. -->
+        <section class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5">
+          <div class="flex flex-wrap items-baseline gap-x-3">
+            <h1 class="text-heading-sm font-semibold">Ringkasan gedung</h1>
             <p class="text-mid-gray tabular-nums" data-updated>Memuat…</p>
           </div>
-          <div data-range></div>
-        </section>
-
-        <!-- Home: KPI dan grafik dari tiga menu (IoT, AI Vision, Chatbot). Detail ada di halaman masing-masing. -->
-        <section class="mt-6" aria-labelledby="home-iot">
-          <div data-head-iot></div>
-          <div class="stat-strip mt-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-5" data-kpis-iot aria-label="Ringkasan IoT"></div>
-          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
-            <article class="card min-w-0">
-              <div class="card-header">
-                <h3 class="card-title">Listrik <span class="font-normal text-mid-gray" data-range-short></span></h3>
-                <a href="/iot.html#listrik" class="btn btn-ghost btn-sm">Detail</a>
-              </div>
-              <div class="card-body" data-energy-chart></div>
-              <div class="card-footer" data-energy-legend></div>
-            </article>
-            <article class="card min-w-0">
-              <div class="card-header">
-                <h3 class="card-title">Uptime perangkat <span class="font-normal text-mid-gray" data-range-short></span></h3>
-                <a href="/iot.html#riwayat" class="btn btn-ghost btn-sm">Riwayat</a>
-              </div>
-              <div class="card-body" data-uptime-chart></div>
-              <div class="card-footer text-caption tracking-normal text-mid-gray" data-uptime-note></div>
-            </article>
+          <div class="flex items-center gap-2">
+            <div data-range></div>
+            <button type="button" class="btn btn-outline hidden h-10 bg-paper lg:inline-flex" data-fullscreen></button>
           </div>
         </section>
 
-        <section class="mt-10" aria-labelledby="home-vision">
-          <div data-head-vision></div>
-          <div class="stat-strip mt-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-6" data-kpis-vision aria-label="Ringkasan AI Vision"></div>
-          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
-            <article class="card min-w-0">
-              <div class="card-header">
-                <h3 class="card-title">Okupansi parkir <span class="font-normal text-mid-gray" data-range-short></span></h3>
-                <span class="inline-flex items-baseline gap-2 rounded-pill border border-ink/15 bg-ink/5 px-3 py-1.5 text-ink" data-parking-peak></span>
-              </div>
-              <div class="card-body" data-parking-chart></div>
-              <div class="card-footer hidden" data-parking-legend></div>
-            </article>
-            <!-- Seluruh gedung parkir (termasuk Smart Parking): cincin slot tersedia + rincian. -->
-            <article class="card flex min-w-0 flex-col">
-              <div class="card-header">
-                <div class="min-w-0">
-                  <h3 class="card-title">Slot tersedia</h3>
-                  <p class="truncate text-caption tracking-normal text-mid-gray" data-site-name></p>
+        <div class="cmd-grid">
+          <!-- Peringatan: jumlah, lalu satu tile per jenis dengan tautan "Lihat detail". Selalu kondisi saat ini. -->
+          <section class="card cmd-alerts" aria-labelledby="home-alerts">
+            <div class="cmd-alerts-total">
+              <h2 id="home-alerts" class="cmd-stat-label">Peringatan aktif</h2>
+              <p class="flex items-baseline gap-2" data-alert-total></p>
+            </div>
+            <ul class="cmd-alerts-list" data-alert-list></ul>
+          </section>
+
+          <!-- Gedung (IoT) -->
+          <section class="card cmd-card cmd-iot" aria-labelledby="home-iot">
+            <header class="cmd-head">
+              <h2 id="home-iot" class="cmd-title">IoT</h2>
+              <a href="/iot.html" class="cmd-link">Detail</a>
+            </header>
+            <div class="cmd-body">
+              <div class="cmd-stats" data-iot-stats></div>
+              <div class="cmd-chart" data-href="/iot.html#listrik">
+                <div class="flex flex-wrap items-center justify-between gap-x-3">
+                  <div class="flex flex-wrap items-baseline gap-x-2">
+                    <a href="/iot.html#listrik" class="cmd-stat-label">Listrik</a>
+                    <div data-energy-total></div>
+                  </div>
+                  <div data-energy-legend></div>
                 </div>
-                <a href="/vision.html" class="btn btn-ghost btn-sm">Peta parkir</a>
+                <div class="chart-fill" data-energy-chart></div>
               </div>
-              <div class="card-body flex flex-1 flex-col justify-center" data-site-slots></div>
-            </article>
-          </div>
-        </section>
+            </div>
+          </section>
 
-        <section class="mt-10" aria-labelledby="home-chatbot">
-          <div data-head-chatbot></div>
-          <div class="stat-strip mt-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-5" data-kpis-chatbot aria-label="Ringkasan chatbot"></div>
-          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
-            <article class="card min-w-0">
-              <div class="card-header">
-                <h3 class="card-title">Pertanyaan <span class="font-normal text-mid-gray" data-range-short></span></h3>
-              </div>
-              <div class="card-body" data-question-chart></div>
-              <div class="card-footer" data-question-legend></div>
-            </article>
-            <!-- Perbandingan model: porsi token (satu batang bertumpuk) lalu satu panel per model.
-                 Tinggi kartu mengikuti grafik di sebelahnya; panel model mengisi sisa tinggi. -->
-            <article class="card flex min-w-0 flex-col">
-              <div class="card-header">
-                <div>
-                  <h3 class="card-title">Pemakaian model AI</h3>
-                  <p class="text-caption tracking-normal text-mid-gray" data-period-label></p>
+          <!-- Parkir (AI Vision) -->
+          <section class="card cmd-card cmd-parking" aria-labelledby="home-vision">
+            <header class="cmd-head">
+              <h2 id="home-vision" class="cmd-title">AI Vision</h2>
+              <a href="/vision.html" class="cmd-link">Detail</a>
+            </header>
+            <div class="cmd-body">
+              <div class="cmd-stats" data-parking-stats></div>
+              <div class="cmd-chart" data-href="/vision.html">
+                <div class="flex items-center justify-between gap-3">
+                  <a href="/vision.html" class="cmd-stat-label">Okupansi parkir</a>
+                  <div class="hidden" data-parking-legend></div>
                 </div>
-                <a href="/chatbot.html#analitik" class="btn btn-ghost btn-sm">Analitik</a>
+                <div class="chart-fill" data-parking-chart></div>
               </div>
-              <div class="card-body flex flex-1 flex-col" data-model-usage></div>
-            </article>
-          </div>
-        </section>
+            </div>
+          </section>
+
+          <!-- Chatbot -->
+          <section class="card cmd-card cmd-chat" aria-labelledby="home-chatbot">
+            <header class="cmd-head">
+              <h2 id="home-chatbot" class="cmd-title">Chatbot</h2>
+              <a href="/chatbot.html#analitik" class="cmd-link">Detail</a>
+            </header>
+            <div class="cmd-stats cmd-stats-row" data-chat-stats></div>
+            <div class="cmd-chart flex-1" data-href="/chatbot.html#analitik">
+              <a href="/chatbot.html#analitik" class="cmd-stat-label">Pertanyaan per <span data-bucket-unit>jam</span></a>
+              <div class="chart-fill" data-question-chart></div>
+            </div>
+            <!-- Perbandingan model: porsi token lalu satu baris per model. -->
+            <a href="/chatbot.html#analitik" class="cmd-stat shrink-0">
+              <span class="cmd-stat-label">Model AI</span>
+              <div class="text-caption tracking-normal" data-model-usage></div>
+            </a>
+          </section>
+        </div>
       </main>
     </div>
     <script type="module" src="/src/js/pages/home.js"></script>

@@ -119,12 +119,15 @@
           <h2 id="riwayat-title" class="text-heading-sm font-semibold">Riwayat perangkat</h2>
           <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-uptime-kpis aria-label="Ringkasan konektivitas"></div>
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
-            <article class="card min-w-0">
+            <!-- Grafik mengisi tinggi kartu, mengikuti tinggi tabel "Uptime terendah" di sebelahnya. -->
+            <article class="card flex min-w-0 flex-col">
               <div class="card-header">
                 <h3 class="card-title">Uptime perangkat</h3>
                 <span class="text-caption tracking-normal text-mid-gray" data-uptime-desc></span>
               </div>
-              <div class="card-body" data-uptime-chart></div>
+              <div class="card-body flex flex-1 flex-col">
+                <div class="relative min-h-[240px] flex-1" data-uptime-chart></div>
+              </div>
             </article>
             <article class="card flex min-w-0 flex-col overflow-hidden">
               <div class="card-header">

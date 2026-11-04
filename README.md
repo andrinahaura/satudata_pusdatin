@@ -7,7 +7,7 @@ Tema visual mengikuti [`design.md`](design.md).
 
 | Menu | Halaman | Isi |
 |------|---------|-----|
-| Home | `index.html` | KPI dan grafik dari tiga menu: IoT (perangkat, uptime, peringatan, Telegram, listrik), AI Vision (slot tersedia di gedung parkir, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
+| Home | `index.html` | Setiap tile bisa diklik ke halaman detail. Tombol "Layar penuh" untuk layar ruang monitoring: satu layar tanpa gulir, diskalakan dari kanvas 1366×768. KPI dan grafik dari tiga menu: IoT (perangkat, uptime, peringatan, Telegram, listrik), AI Vision (slot tersedia di gedung parkir, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
 | IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang, kontrol perangkat, peringatan + notifikasi Telegram, riwayat status perangkat dan uptime, listrik per lantai dan panel distribusi |
 | Chatbot | `chatbot.html` | Chatbot TEJAS (pintas unit PU, SITABA, rujukan dokumen, analisis lampiran, grafik, penilaian jawaban) dan tab Analitik (tren pertanyaan/token/biaya, pengguna, riwayat chat) |
 | AI Vision | `vision.html` | Smart Parking (parkir susun, piloting; 11 lantai, 8 gate depan dan 8 gate belakang). Ilustrasi gedung 3D/2D (slot tersedia muncul saat gedung disorot), slot tersedia, kendaraan yang sedang parkir, okupansi, deteksi nomor polisi di gerbang, riwayat kendaraan (jam masuk/keluar, lama parkir). Tanpa kamera area |

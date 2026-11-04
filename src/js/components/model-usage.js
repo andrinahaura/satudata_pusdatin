@@ -6,8 +6,11 @@ import { fmtCompact, fmtInt, fmtPct, fmtRupiah } from '../utils/format.js';
 // Warna model mengikuti urutan tetap di MODELS: model pertama navy, kedua kuning.
 const MODEL_COLORS = ['bg-ink', 'bg-accent'];
 
-/** c = hasil summarizeChat(). */
-export function modelUsageHtml(c) {
+/**
+ * c = hasil summarizeChat().
+ * compact = satu baris polos per model (nama, token, porsi) tanpa panel rincian, untuk kolom sempit di Home.
+ */
+export function modelUsageHtml(c, { compact = false } = {}) {
   const models = c.byModel.map((m, i) => ({ ...m, color: MODEL_COLORS[i % MODEL_COLORS.length], share: c.tokens ? m.tokens / c.tokens : 0 }));
   const bar = models
     .filter((m) => m.share > 0)
@@ -31,11 +34,19 @@ export function modelUsageHtml(c) {
         </dl>
       </section>`)
     .join('');
+  const rows = models
+    .map((m) => `<li class="flex items-center gap-2 py-0.5">
+        <span class="dot ${m.color}"></span>
+        <span class="min-w-0 flex-1 truncate">${esc(m.model)}</span>
+        <span class="shrink-0 tabular-nums">${fmtCompact(m.tokens)}</span>
+        <span class="w-10 shrink-0 text-right text-mid-gray tabular-nums">${fmtPct(m.share)}</span>
+      </li>`)
+    .join('');
+  const heading = compact
+    ? `<span class="text-mid-gray">Token</span><span class="tabular-nums">${fmtCompact(c.tokens)} · ${fmtRupiah(c.rupiah)}</span>`
+    : `<span class="text-mid-gray">Porsi token</span><span class="font-medium tabular-nums">${fmtCompact(c.tokens)} token · ${fmtRupiah(c.rupiah)}</span>`;
   return `
-    <div class="flex items-baseline justify-between gap-3">
-      <span class="text-mid-gray">Porsi token</span>
-      <span class="font-medium tabular-nums">${fmtCompact(c.tokens)} token · ${fmtRupiah(c.rupiah)}</span>
-    </div>
-    <div class="mt-2 flex h-2.5 gap-0.5" role="img" aria-label="${esc(models.map((m) => `${m.model} ${fmtPct(m.share)}`).join(', '))}">${bar}</div>
-    <div class="mt-4 grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2">${panels}</div>`;
+    <div class="flex items-baseline justify-between gap-3">${heading}</div>
+    <div class="mt-2 flex ${compact ? 'h-1.5' : 'h-2.5'} gap-0.5" role="img" aria-label="${esc(models.map((m) => `${m.model} ${fmtPct(m.share)}`).join(', '))}">${bar}</div>
+    ${compact ? `<ul class="mt-1.5">${rows}</ul>` : `<div class="mt-4 grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2">${panels}</div>`}`;
 }

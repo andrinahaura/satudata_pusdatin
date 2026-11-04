@@ -69,13 +69,15 @@ const chipText = (label) => (/^\d{2}\.00$/.test(label) ? label.slice(0, 2) : lab
  * @param {HTMLElement} container
  * @param {{ labels: string[],
  *           series: {label:string, values:(number|null)[], style:'current'|'previous'|'target'}[],
- *           height?: number, format?: (v:number)=>string, selected?: number }} opts
+ *           height?: number, fill?: boolean, format?: (v:number)=>string, selected?: number }} opts
  *   `selected` = indeks yang disorot saat tidak ada hover (default: titik terakhir seri utama).
+ *   `fill` = tinggi grafik mengikuti tinggi container (minimal `height`). Container harus `relative`
+ *   dan tingginya ditentukan oleh tata letak (mis. flex-1), bukan oleh isi grafik.
  */
 export function createTrendChart(container, opts) {
   const id = `trend-${++uid}`;
   const host = document.createElement('div');
-  host.className = 'select-none outline-none';
+  host.className = `select-none outline-none ${opts.fill ? 'absolute inset-0' : ''}`;
   host.tabIndex = 0;
   container.appendChild(host);
   let options = opts;
@@ -96,8 +98,11 @@ export function createTrendChart(container, opts) {
   }
 
   function render() {
-    const { labels, series, height = 260 } = options;
+    const { labels, series, fill = false } = options;
     const width = Math.max(280, host.clientWidth || container.clientWidth);
+    const minHeight = options.height ?? 260;
+    // Mode fill: host diposisikan absolut, jadi tinggi container tidak ikut terdorong oleh SVG.
+    const height = fill ? Math.max(minHeight, host.clientHeight) : minHeight;
     const n = labels.length;
     // Ruang tepi cukup untuk pita sorot di titik pertama/terakhir.
     const padX = 26;
@@ -113,10 +118,12 @@ export function createTrendChart(container, opts) {
     const lo = Math.max(0, min - (max - min) * 0.25);
     const yAt = (v) => plotBottom - ((v - lo) / (max - lo || 1)) * (plotBottom - top - 10);
 
-    // Chip tidak boleh bertumpuk: tampilkan tiap k label, ditambah yang terpilih.
-    const every = Math.max(1, Math.ceil((CHIP_R * 2 + 6) / Math.max(step, 1)));
+    // Chip tidak boleh bertumpuk: tampilkan tiap k label, ditambah yang terpilih
+    // (chip tetangga yang terlalu dekat dengan chip terpilih disembunyikan).
+    const gap = CHIP_R * 2 + 6;
+    const every = Math.max(1, Math.ceil(gap / Math.max(step, 1)));
     const sel = activeIndex();
-    const shown = (i) => i % every === 0 || i === sel;
+    const shown = (i) => i === sel || (i % every === 0 && Math.abs(i - sel) * step >= gap);
 
     const guides = labels
       .map((_, i) => (shown(i) && i !== sel ? `<line x1="${xAt(i)}" x2="${xAt(i)}" y1="${top}" y2="${chipY - CHIP_R - 4}" stroke="${COLORS.hairline}" stroke-dasharray="3 4"/><circle cx="${xAt(i)}" cy="${top}" r="2.5" fill="${COLORS.line}"/>` : ''))
@@ -180,7 +187,9 @@ export function createTrendChart(container, opts) {
   host.addEventListener('pointermove', (e) => {
     const n = options.labels.length;
     const step = Number(host.dataset.step) || 1;
-    const x = e.clientX - host.getBoundingClientRect().left - Number(host.dataset.padX);
+    // Rasio ini 1 kecuali halaman diskalakan (CSS zoom di Home): koordinat layar ke koordinat SVG.
+    const box = host.getBoundingClientRect();
+    const x = (e.clientX - box.left) * (host.clientWidth / box.width) - Number(host.dataset.padX);
     const i = Math.min(n - 1, Math.max(0, Math.round(x / step)));
     if (i !== hover) {
       hover = i;

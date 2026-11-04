@@ -1,26 +1,53 @@
-// Home: ringkasan KPI dan grafik dari tiga menu, IoT, AI Vision, dan Chatbot.
-// Denah dan detail lain ada di halaman masing-masing; setiap bagian punya tautan ke sana.
-// Rentang waktu (pemilih di kanan atas) berlaku untuk KPI riwayat dan semua grafik.
-// KPI bertanda "Saat ini" (perangkat online, peringatan aktif, slot kosong) selalu realtime.
+// Home: ukuran normal seperti halaman lain. Strip status di atas, IoT dan AI Vision bertumpuk di kiri,
+// Chatbot di kanan (lihat .cmd-* di main.css). Setiap tile bisa diklik ke halaman detailnya.
+// Tombol "Layar penuh" untuk layar ruang monitoring: satu layar tanpa gulir, diskalakan dari kanvas 1366×768.
+// Grafik memakai createTrendChart yang sama dengan halaman lain.
+// Rentang waktu berlaku untuk angka riwayat dan semua grafik; angka bertanda "Saat ini" selalu realtime.
+import { groupAlerts } from '../components/alert-panel.js';
 import { createDateRange } from '../components/date-range.js';
+import { icon, renderIcons } from '../components/icons.js';
 import { mountLayout } from '../components/layout.js';
-import { renderIcons } from '../components/icons.js';
 import { lineLegendHtml } from '../components/line-chart.js';
 import { modelUsageHtml } from '../components/model-usage.js';
 import { createTrendChart } from '../components/trend-chart.js';
-import { siteLabel, siteSlotsHtml } from '../components/parking-site.js';
-import { errorState, sectionHeadHtml, statTile } from '../components/ui.js';
+import { slotStatus } from '../components/parking-site.js';
+import { errorState } from '../components/ui.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
-  deviceUptime, energyRange, getAlerts, parkingRange, summarizeChat, summarizeIot, summarizeParking, summarizeVisits,
+  deviceUptime, energyRange, getAlerts, parkingRange, summarizeChat, summarizeIot, summarizeParking,
 } from '../services/selectors.js';
-import { $, $$ } from '../utils/dom.js';
-import { fmt1, fmtCompact, fmtDuration, fmtInt, fmtPct, fmtRupiah, fmtTime } from '../utils/format.js';
+import { $, esc } from '../utils/dom.js';
+import { fmt1, fmtDuration, fmtInt, fmtPct, fmtRupiah, fmtTime } from '../utils/format.js';
 import { rangeQuery } from '../utils/range.js';
 
 mountLayout({ page: 'home' });
 
-const state = { iot: null, parking: null, history: null, notifications: null, chat: null, energy: null, parkingStats: null };
+/* ------------------------------ Layar penuh ------------------------------ */
+
+// Kanvas rancangan: layar monitoring yang lebih besar memperbesar semuanya, jadi teks terbaca dari jauh.
+const CANVAS = { width: 1366, height: 768 };
+const fullscreenButton = $('[data-fullscreen]');
+
+function applyScreenMode() {
+  const full = Boolean(document.fullscreenElement);
+  $('[data-screen]').classList.toggle('wall', full);
+  document.documentElement.style.setProperty('--fit', full ? Math.min(innerWidth / CANVAS.width, innerHeight / CANVAS.height) : 1);
+  fullscreenButton.innerHTML = `${icon(full ? 'minimize' : 'maximize', 'size-4 text-mid-gray')}${full ? 'Keluar layar penuh' : 'Layar penuh'}`;
+  renderIcons(fullscreenButton);
+}
+applyScreenMode();
+fullscreenButton.classList.toggle('lg:inline-flex', document.fullscreenEnabled);
+fullscreenButton.addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()));
+document.addEventListener('fullscreenchange', applyScreenMode);
+window.addEventListener('resize', applyScreenMode);
+
+// Tile grafik: klik di mana saja membuka detail (tautan di dalamnya tetap untuk keyboard).
+$('main').addEventListener('click', (e) => {
+  const tile = e.target.closest('[data-href]');
+  if (tile && !e.target.closest('a, button')) location.href = tile.dataset.href;
+});
+
+const state = { iot: null, parking: null, history: null, chat: null, energy: null, parkingStats: null };
 const charts = {};
 
 const picker = createDateRange($('[data-range]'), {
@@ -30,33 +57,92 @@ const picker = createDateRange($('[data-range]'), {
   },
 });
 
-$('[data-head-iot]').innerHTML = sectionHeadHtml({ title: 'IoT', id: 'home-iot', desc: 'Perangkat, peringatan, konektivitas, dan listrik', href: '/iot.html', linkLabel: 'Buka IoT' });
-$('[data-head-vision]').innerHTML = sectionHeadHtml({ title: 'AI Vision', id: 'home-vision', desc: 'Nomor polisi, kendaraan masuk dan keluar, slot tersedia di gedung parkir', href: '/vision.html', linkLabel: 'Buka AI Vision' });
-$('[data-head-chatbot]').innerHTML = sectionHeadHtml({ title: 'Chatbot', id: 'home-chatbot', desc: 'Pengguna, pertanyaan, token, dan mutu jawaban', href: '/chatbot.html#analitik', linkLabel: 'Buka analitik' });
+// Tinggi minimum grafik tren; dalam mode fill grafik mengisi sisa tinggi tile.
+const CHART_MIN_H = 100;
 
-const pct2 = (ratio) => `${(ratio * 100).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
+// Dibulatkan ke bawah supaya 99,96% tidak tampil "100%".
+const pctFloor = (ratio) => `${(Math.floor(ratio * 1000) / 10).toLocaleString('id-ID', { maximumFractionDigits: 1 })}%`;
 
 function chart(key, selector, opts) {
   if (charts[key]) charts[key].update(opts);
-  else charts[key] = createTrendChart($(selector), opts);
+  else charts[key] = createTrendChart($(selector), { fill: true, height: CHART_MIN_H, ...opts });
+}
+
+const NOW = '<span class="cmd-now">Saat ini</span>';
+
+// "1 jam 48 menit" dipecah supaya muat di tile: "1 jam" sebagai angka besar, sisanya satuan kecil.
+function durationParts(minutes) {
+  const [, value, unit] = fmtDuration(minutes).match(/^(\d+ \S+)(.*)$/);
+  return { value, unit };
+}
+
+/**
+ * Satu tile angka: label, nilai (+ satuan), keterangan opsional. Label menyebut benda yang dihitung
+ * ("Kendaraan masuk", bukan "Masuk"). Tanpa tanda `status`, angka mengikuti rentang waktu terpilih.
+ * `meter` = rasio 0–1 untuk garis tipis di bawah nilai, `status` = HTML di kanan nilai.
+ */
+function stat({ label, value, unit = '', sub = '', alert = false, href, meter = null, status = '' }) {
+  return `<a href="${esc(href)}" class="cmd-stat">
+      <span class="cmd-stat-label">${esc(label)}</span>
+      <span class="flex flex-wrap items-baseline justify-between gap-x-2"><span class="cmd-stat-value ${alert ? 'text-ember' : ''}">${esc(value)}<span class="cmd-unit">${esc(unit)}</span></span>${status}</span>
+      ${meter != null ? `<span class="cmd-meter"><span style="width:${(Math.max(0, Math.min(1, meter)) * 100).toFixed(1)}%"></span></span>` : ''}
+      ${sub ? `<span class="cmd-stat-sub">${esc(sub)}</span>` : ''}
+    </a>`;
+}
+
+/* -------------------------------- Peringatan -------------------------------- */
+
+// Ringkasan per jenis peringatan. `href` dipakai bila lokasinya lebih dari satu; satu lokasi langsung ke lokasinya.
+const ALERT_SUMMARY = {
+  offline: { text: (n) => `${n} perangkat offline`, href: '/iot.html#peringatan' },
+  energy: { text: (n) => `${n} lantai di atas target listrik`, href: '/iot.html#listrik' },
+  waste: { text: (n) => `${n} ruang kosong, lampu menyala`, href: '/iot.html#peringatan' },
+  parking: { text: (n) => `${n} zona parkir hampir penuh`, href: '/vision.html' },
+};
+const SEVERITY = { critical: { label: 'Kritis', dot: 'bg-ember' }, warning: { label: 'Perhatian', dot: 'bg-accent' } };
+
+// Nama ruang atau lantai saja: "09 R. Tim Jaringan, 22 R. Katim +1".
+function placeNames(items) {
+  const names = items.slice(0, 2).map((i) => (i.place ?? i.meta).split(' · ').pop());
+  return `${names.join(', ')}${items.length > 2 ? ` +${items.length - 2}` : ''}`;
+}
+
+function alertItem({ type, severity, items }) {
+  const summary = ALERT_SUMMARY[type];
+  const sev = SEVERITY[severity];
+  return `<li class="contents"><a href="${esc(items.length === 1 ? items[0].href : summary.href)}" class="cmd-stat">
+      <span class="flex items-center gap-2 text-[13px] font-medium"><span class="dot ${sev.dot}" title="${sev.label}"></span><span class="sr-only">${sev.label}:</span><span class="truncate">${esc(summary.text(items.length))}</span></span>
+      <span class="cmd-stat-sub">${esc(placeNames(items))}</span>
+      <span class="cmd-more">Lihat detail${icon('chevron-right', 'size-3.5')}</span>
+    </a></li>`;
+}
+
+function renderAlerts() {
+  const alerts = getAlerts(state.iot, state.parking);
+  const critical = alerts.filter((a) => a.severity === 'critical').length;
+
+  $('[data-alert-total]').innerHTML = `<span class="cmd-stat-value ${critical ? 'text-ember' : ''}">${alerts.length}</span>
+    <span class="cmd-stat-sub">${alerts.length ? `${critical} kritis, ${alerts.length - critical} perhatian` : 'Semua normal'}</span>`;
+  $('[data-alert-list]').innerHTML = alerts.length
+    ? groupAlerts(alerts).map(alertItem).join('')
+    : '<li class="flex items-center text-mid-gray">Tidak ada peringatan saat ini.</li>';
+  renderIcons($('[data-alert-list]'));
 }
 
 /* ---------------------------------- IoT ---------------------------------- */
 
 function renderIot(range) {
   const s = summarizeIot(state.iot);
-  const alerts = getAlerts(state.iot, state.parking);
-  const critical = alerts.filter((a) => a.severity === 'critical').length;
   const u = state.history ? deviceUptime(state.history, state.iot, range) : null;
   const e = state.energy ? energyRange(state.iot, state.energy, range) : null;
-  const sent = state.notifications?.items.filter((i) => i.status === 'sent').length ?? 0;
+  const ratio = u ? Math.max(0, Math.min(1, u.overall)) : null;
+  const { light, presence } = s.byType;
 
-  $('[data-kpis-iot]').innerHTML = [
-    statTile({ label: 'Perangkat online', value: s.online, unit: ` / ${s.totalDevices}`, sub: `Saat ini · ${s.offline ? `${s.offline} offline` : 'semua terhubung'}` }),
-    statTile({ label: `Uptime ${range.short}`, value: u ? pct2(u.overall) : '–', sub: u ? `${u.outages} gangguan koneksi` : '', href: '/iot.html#riwayat' }),
-    statTile({ label: 'Peringatan aktif', value: alerts.length, sub: `Saat ini · ${alerts.length ? `${critical} kritis, ${alerts.length - critical} perhatian` : 'semua normal'}`, href: '/iot.html#peringatan', alert: critical > 0 }),
-    statTile({ label: 'Notifikasi Telegram', value: fmtInt(sent), unit: ' pesan', sub: `Terkirim ${range.short}`, href: '/iot.html#peringatan' }),
-    statTile({ label: `Listrik ${range.short}`, value: e ? fmt1(e.kwh) : '–', unit: ' kWh', sub: e ? fmtRupiah(e.rupiah) : '', href: '/iot.html#listrik' }),
+  $('[data-iot-stats]').innerHTML = [
+    stat({ label: 'Perangkat online', value: s.online, unit: ` / ${s.totalDevices}`, meter: s.online / Math.max(1, s.totalDevices), status: NOW, href: '/iot.html' }),
+    stat({ label: 'Uptime', value: ratio == null ? '–' : pctFloor(ratio), alert: ratio != null && ratio < 0.95, href: '/iot.html#riwayat' }),
+    stat({ label: 'Lampu menyala', value: light?.on ?? 0, unit: ` / ${light?.total ?? 0}`, status: NOW, href: '/iot.html' }),
+    stat({ label: 'Sensor deteksi orang', value: presence?.on ?? 0, unit: ` / ${presence?.total ?? 0}`, status: NOW, href: '/iot.html' }),
   ].join('');
 
   if (e) {
@@ -66,35 +152,26 @@ function renderIot(range) {
       { label: range.previousLabel, values: series.previous, style: 'previous' },
       { label: range.currentLabel, values: series.current, style: 'current' },
     ].filter(Boolean);
-    chart('energy', '[data-energy-chart]', { labels: series.labels, series: lines, height: 240, format: (v) => `${fmt1(v)} kWh` });
+    $('[data-energy-total]').innerHTML = `<span class="cmd-stat-value">${fmt1(e.kwh)}<span class="cmd-unit"> kWh · ${esc(fmtRupiah(e.rupiah))}</span></span>`;
     $('[data-energy-legend]').innerHTML = lineLegendHtml([...lines].reverse());
-  }
-
-  if (u) {
-    chart('uptime', '[data-uptime-chart]', {
-      labels: u.buckets.map((b) => b.label),
-      series: [{ label: 'Uptime', values: u.buckets.map((b) => (b.ratio == null ? null : b.ratio * 100)), style: 'current' }],
-      height: 240,
-      format: (v) => `${v.toLocaleString('id-ID', { maximumFractionDigits: 2 })}% terhubung`,
-    });
-    $('[data-uptime-note]').textContent = `Porsi waktu perangkat terhubung ${range.single ? 'per jam' : 'per hari'}. Saat ini ${u.disconnected} perangkat terputus.`;
+    chart('energy', '[data-energy-chart]', { labels: series.labels, series: lines, format: (v) => `${fmt1(v)} kWh` });
   }
 }
 
 /* -------------------------------- AI Vision -------------------------------- */
 
+const VISITS = '/vision.html#riwayat';
+
 function renderVision(range) {
   const p = summarizeParking(state.parking);
-  const v = summarizeVisits(state.parking);
   const r = state.parkingStats ? parkingRange(state.parkingStats, range) : null;
+  const st = slotStatus(p);
 
-  $('[data-kpis-vision]').innerHTML = [
-    statTile({ label: 'Slot kosong', value: p.free, unit: ` / ${p.total}`, sub: `Saat ini · ${state.parking.site?.name ?? 'area parkir'}` }),
-    statTile({ label: 'Okupansi', value: fmtPct(p.rate), sub: 'Saat ini' }),
-    statTile({ label: 'Kendaraan di dalam', value: v.inside, sub: 'Saat ini' }),
-    statTile({ label: `Masuk ${range.short}`, value: r ? fmtInt(r.in) : '–', sub: 'Tercatat di gerbang' }),
-    statTile({ label: `Keluar ${range.short}`, value: r ? fmtInt(r.out) : '–', sub: 'Tercatat di gerbang' }),
-    statTile({ label: 'Rata-rata lama parkir', value: r ? fmtDuration(r.avgDurationMin) : '–', sub: `Kendaraan keluar ${range.short}` }),
+  $('[data-parking-stats]').innerHTML = [
+    stat({ label: 'Slot kosong', value: p.free, unit: ` / ${p.total}`, alert: st.alert, meter: p.total ? p.free / p.total : 0, status: NOW, sub: st.alert ? st.label : `${fmtPct(p.rate)} terisi`, href: '/vision.html' }),
+    stat({ label: 'Rata-rata lama parkir', ...(r ? durationParts(r.avgDurationMin) : { value: '–' }), href: VISITS }),
+    stat({ label: 'Kendaraan masuk', value: r ? fmtInt(r.in) : '–', href: VISITS }),
+    stat({ label: 'Kendaraan keluar', value: r ? fmtInt(r.out) : '–', href: VISITS }),
   ].join('');
 
   if (r) {
@@ -102,44 +179,37 @@ function renderVision(range) {
     const lines = r.series.second
       ? [{ label: 'Puncak', values: r.series.main, style: 'current' }, { label: 'Rata-rata', values: r.series.second, style: 'previous' }]
       : [{ label: 'Okupansi', values: r.series.main, style: 'current' }];
-    $('[data-parking-peak]').innerHTML = `<span class="text-ink/80">Puncak</span><span class="font-semibold tabular-nums">${Math.round(r.peak * 100)}%</span>`;
+    $('[data-parking-legend]').classList.toggle('hidden', lines.length < 2);
+    $('[data-parking-legend]').innerHTML = lines.length > 1 ? lineLegendHtml(lines) : '';
     chart('parking', '[data-parking-chart]', {
       labels: r.series.labels,
       series: lines,
-      height: 240,
       format: (x) => `${x}% terisi`,
       selected: range.preset === 'today' && now >= 0 ? now : undefined,
     });
-    $('[data-parking-legend]').classList.toggle('hidden', lines.length < 2);
-    $('[data-parking-legend]').innerHTML = lines.length > 1 ? lineLegendHtml(lines) : '';
   }
-
-  $('[data-site-name]').textContent = siteLabel(state.parking.site);
-  $('[data-site-slots]').innerHTML = siteSlotsHtml(p);
 }
 
 /* --------------------------------- Chatbot --------------------------------- */
+
+const ANALYTICS = '/chatbot.html#analitik';
 
 function renderChatbot(range) {
   if (!state.chat) return;
   const c = summarizeChat(state.chat, range);
 
-  $('[data-kpis-chatbot]').innerHTML = [
-    statTile({ label: 'Pengguna chatbot', value: fmtInt(c.users), unit: ' orang', sub: `Bertanya ${range.short}` }),
-    statTile({ label: 'Pertanyaan', value: fmtInt(c.questions), sub: range.short }),
-    statTile({ label: 'Token', value: fmtCompact(c.tokens), sub: range.short }),
-    statTile({ label: 'Estimasi biaya', value: fmtRupiah(c.rupiah), sub: range.short }),
-    statTile({ label: 'Jawaban sesuai', value: c.rated ? fmtPct(c.upRate) : '–', sub: `Dari ${fmtInt(c.rated)} ulasan` }),
+  $('[data-chat-stats]').innerHTML = [
+    stat({ label: 'Jawaban sesuai', value: c.rated ? fmtPct(c.upRate) : '–', sub: `${fmtInt(c.rated)} ulasan`, href: ANALYTICS }),
+    stat({ label: 'Pengguna', value: fmtInt(c.users), href: ANALYTICS }),
+    stat({ label: 'Pertanyaan', value: fmtInt(c.questions), href: ANALYTICS }),
   ].join('');
 
-  const series = [
-    { label: 'Pertanyaan', values: c.series.questions, style: 'current' },
-    c.series.activeUsers && { label: 'Pengguna aktif', values: c.series.activeUsers, style: 'previous' },
-  ].filter(Boolean);
-  chart('questions', '[data-question-chart]', { labels: c.series.labels, series, height: 240, format: (v) => fmtInt(v) });
-  $('[data-question-legend]').innerHTML = lineLegendHtml(series);
+  $('[data-bucket-unit]').textContent = range.single ? 'jam' : 'hari';
+  // Satu seri saja (judul tile sudah menamainya), jadi tanpa legenda.
+  const series = [{ label: 'Pertanyaan', values: c.series.questions, style: 'current' }];
+  chart('questions', '[data-question-chart]', { labels: c.series.labels, series, format: (v) => `${fmtInt(v)} pertanyaan` });
 
-  $('[data-model-usage]').innerHTML = modelUsageHtml(c);
+  $('[data-model-usage]').innerHTML = modelUsageHtml(c, { compact: true });
 }
 
 /* --------------------------------- data --------------------------------- */
@@ -147,22 +217,19 @@ function renderChatbot(range) {
 function render() {
   if (!state.iot || !state.parking) return;
   const range = picker.range;
-  $$('[data-range-short]').forEach((el) => (el.textContent = range.short));
-  $('[data-period-label]').textContent = range.label;
+  renderAlerts();
   renderIot(range);
   renderVision(range);
   renderChatbot(range);
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(state.iot.updatedAt)}`;
-  renderIcons($('main'));
 }
 
 // Data berentang waktu dimuat ulang saat rentang berganti dan tiap pembaruan realtime.
 async function loadRanged() {
   const range = picker.range;
   const q = rangeQuery(range);
-  const [history, notifications, chat, energy, parkingStats] = await Promise.allSettled([
+  const [history, chat, energy, parkingStats] = await Promise.allSettled([
     api.getIotHistory(q),
-    api.getNotifications(q),
     api.getChatAnalytics(q),
     api.getEnergyHistory(rangeQuery(range, { withPrevious: true })),
     api.getParkingStats(q),
@@ -170,7 +237,7 @@ async function loadRanged() {
   // Rentang sudah diganti lagi selama memuat: hasil ini sudah basi.
   if (picker.range.label !== range.label) return;
   const value = (r) => (r.status === 'fulfilled' ? r.value : null);
-  Object.assign(state, { history: value(history), notifications: value(notifications), chat: value(chat), energy: value(energy), parkingStats: value(parkingStats) });
+  Object.assign(state, { history: value(history), chat: value(chat), energy: value(energy), parkingStats: value(parkingStats) });
 }
 
 async function load() {
@@ -178,7 +245,7 @@ async function load() {
     [state.iot, state.parking] = await Promise.all([api.getIot(), api.getParking(), loadRanged()]);
     render();
   } catch (err) {
-    $('[data-kpis-iot]').innerHTML = `<div class="col-span-full bg-paper p-3">${errorState(`Gagal memuat data: ${err.message}`)}</div>`;
+    $('[data-alert-list]').innerHTML = `<li class="sm:col-span-full">${errorState(`Gagal memuat data: ${err.message}`)}</li>`;
   }
 }
 

@@ -178,6 +178,19 @@
   .nav-link[aria-current="page"] {
     @apply bg-accent text-ink hover:bg-accent hover:text-ink;
   }
+  /* Tab navbar: penanda halaman aktif berupa garis kuning menempel di tepi bawah navbar. */
+  .nav-tab {
+    @apply relative flex items-center gap-2 px-3 text-body font-medium whitespace-nowrap text-paper/70 transition-colors hover:text-paper;
+  }
+  .nav-tab[aria-current="page"] {
+    @apply font-semibold text-paper;
+  }
+  .nav-tab[aria-current="page"]::after {
+    @apply absolute inset-x-0 bottom-0 h-1 rounded-t-full bg-accent content-[''];
+  }
+  .nav-divider {
+    @apply h-8 w-px shrink-0 self-center bg-paper/15;
+  }
   .btn-on-dark {
     @apply bg-transparent text-paper/80 hover:bg-paper/10 hover:text-paper;
   }
@@ -250,6 +263,238 @@
     scrollbar-width: thin;
     scrollbar-color: var(--color-hairline) transparent;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Home (index.html): lebar dan padding sama dengan halaman lain.      */
+/* Tombol "Layar penuh" memasang .wall (lihat home.js) untuk layar     */
+/* ruang monitoring: navbar disembunyikan, tidak ada gulir, dan isi    */
+/* diskalakan dari kanvas 1366×768 supaya terbaca dari jauh.           */
+/* Di bawah 1024px semua menjadi satu kolom.                           */
+/* Aturan di luar @layer supaya bisa menimpa utilitas Tailwind.        */
+/* ------------------------------------------------------------------ */
+html:has(.wall) {
+  overflow: hidden;
+}
+.wall {
+  width: calc(100vw / var(--fit, 1));
+  height: calc(100dvh / var(--fit, 1));
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-canvas);
+  zoom: var(--fit, 1);
+}
+.wall #navbar {
+  display: none;
+}
+.wall main {
+  min-height: 0;
+  max-width: none;
+  padding: 0 14px 10px;
+}
+
+.cmd-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1024px) {
+  .cmd-grid {
+    flex: 1 1 0%;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    /* Di jendela pendek baris tidak diremas: halaman bisa digulir. Mode .wall selalu pas satu layar. */
+    grid-template-rows: auto minmax(218px, 1fr) minmax(218px, 1fr);
+  }
+  .wall .cmd-grid {
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .cmd-alerts { grid-column: 1 / -1; }
+  .cmd-iot { grid-column: 1 / span 8; grid-row: 2; }
+  .cmd-parking { grid-column: 1 / span 8; grid-row: 3; }
+  .cmd-chat { grid-column: 9 / -1; grid-row: 2 / 4; }
+}
+
+/* Kartu modul berisi tile: satu tile untuk satu angka atau satu grafik. */
+.cmd-card {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+.cmd-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+}
+.cmd-title {
+  font-size: var(--text-body-lg);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.cmd-link {
+  font-size: var(--text-caption);
+  color: var(--color-mid-gray);
+}
+.cmd-link:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+}
+
+/* Isi modul IoT dan AI Vision: tile angka di kiri, tile grafik di kanan. */
+.cmd-body {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 0%;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1024px) {
+  .cmd-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+}
+.cmd-stats {
+  display: grid;
+  min-height: 0;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+}
+.cmd-stats-row {
+  flex-shrink: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+/* Tile: bisa diklik ke halaman detail. Tile grafik memakai [data-href], lihat home.js. */
+.cmd-stat,
+.cmd-chart {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border: 1px solid var(--color-hairline);
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  padding: 8px 12px;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.cmd-stat {
+  justify-content: center;
+  gap: 2px;
+}
+.cmd-chart {
+  cursor: pointer;
+  gap: 2px;
+}
+.cmd-stat:hover,
+.cmd-chart:hover {
+  border-color: var(--color-line);
+  background: var(--color-paper);
+}
+.cmd-stat-label {
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--color-mid-gray);
+}
+.cmd-stat-value {
+  font-size: var(--text-heading-sm);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.cmd-unit {
+  font-size: var(--text-body);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--color-mid-gray);
+}
+.cmd-stat-sub {
+  overflow: hidden;
+  font-size: var(--text-caption);
+  line-height: 1.33;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-mid-gray);
+}
+.cmd-now {
+  flex-shrink: 0;
+  font-size: var(--text-caption);
+  color: var(--color-mid-gray);
+}
+.cmd-meter {
+  height: 4px;
+  flex-shrink: 0;
+  overflow: hidden;
+  margin: 3px 0 2px;
+  border-radius: 9999px;
+  background: var(--color-hairline);
+}
+.cmd-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-ink);
+}
+/* Grafik tren mode fill: tinggi mengikuti sisa ruang tile. */
+.chart-fill {
+  position: relative;
+  min-height: 220px;
+  flex: 1 1 0%;
+}
+@media (min-width: 1024px) {
+  .chart-fill { min-height: 100px; }
+}
+/* Legenda tetap satu baris supaya tinggi grafik tidak berubah saat rentang berganti. */
+[data-parking-legend] > div {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+/* Peringatan: jumlah di kiri, satu tile per jenis peringatan di kanan (paling banyak empat jenis,
+   jadi selalu muat). Kritis lebih dulu. */
+.cmd-alerts {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 10px 16px;
+}
+.cmd-alerts-total {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+.cmd-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+.cmd-stat:hover .cmd-more {
+  text-decoration: underline;
+}
+.cmd-alerts-list {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 0%;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 640px) {
+  .cmd-alerts-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .cmd-alerts { flex-direction: row; align-items: stretch; gap: 16px; }
+}
+@media (min-width: 1280px) {
+  /* Tile berbagi lebar penuh, berapa pun jenis peringatan yang sedang ada. */
+  .cmd-alerts-list { grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; grid-template-columns: none; }
 }
 
 @keyframes blink {
