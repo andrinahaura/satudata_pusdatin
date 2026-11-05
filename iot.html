@@ -114,15 +114,15 @@
           </div>
         </section>
 
-        <!-- Data historis: riwayat status (aktif / tidak aktif) dan uptime (terhubung / terputus). -->
+        <!-- Data historis: riwayat status (aktif / tidak aktif) dan kestabilan (terhubung / terputus). -->
         <section id="riwayat" class="mt-8 scroll-mt-24 lg:scroll-mt-48" aria-labelledby="riwayat-title">
           <h2 id="riwayat-title" class="text-heading-sm font-semibold">Riwayat perangkat</h2>
           <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-uptime-kpis aria-label="Ringkasan konektivitas"></div>
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
-            <!-- Grafik mengisi tinggi kartu, mengikuti tinggi tabel "Uptime terendah" di sebelahnya. -->
+            <!-- Grafik mengisi tinggi kartu, mengikuti tinggi tabel "Kestabilan terendah" di sebelahnya. -->
             <article class="card flex min-w-0 flex-col">
               <div class="card-header">
-                <h3 class="card-title">Uptime perangkat</h3>
+                <h3 class="card-title">Kestabilan perangkat</h3>
                 <span class="text-caption tracking-normal text-mid-gray" data-uptime-desc></span>
               </div>
               <div class="card-body flex flex-1 flex-col">
@@ -131,11 +131,11 @@
             </article>
             <article class="card flex min-w-0 flex-col overflow-hidden">
               <div class="card-header">
-                <h3 class="card-title">Uptime terendah</h3>
+                <h3 class="card-title">Kestabilan terendah</h3>
               </div>
               <div class="scroll-thin mt-3 flex-1 overflow-x-auto pb-2">
                 <table class="data-table data-table-fill h-full min-w-[480px]">
-                  <thead><tr><th>Perangkat</th><th class="num">Uptime</th><th class="num">Gangguan</th><th>Terakhir terputus</th></tr></thead>
+                  <thead><tr><th>Perangkat</th><th class="num">Kestabilan</th><th class="num">Gangguan</th><th>Terakhir terputus</th></tr></thead>
                   <tbody data-uptime-low></tbody>
                 </table>
               </div>

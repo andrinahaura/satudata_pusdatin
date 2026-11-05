@@ -18,7 +18,7 @@ import { barListHtml } from './ui.js';
 const TEXT_LIMIT = 20000;
 const isTextFile = (file) => file.type.startsWith('text/') || /\.(txt|md|csv)$/i.test(file.name);
 
-const BUILDING_CARDS = ['Pemakaian listrik hari ini?', 'Ruang kosong tapi lampu masih menyala?', 'Perangkat mana yang offline?', 'Berapa slot parkir yang kosong?'];
+const BUILDING_CARDS = ['Pemakaian listrik hari ini?', 'Ruang kosong tapi lampu masih menyala?', 'Perangkat mana yang offline?', 'Berapa ruang parkir yang tersedia?'];
 
 const unitLabel = (id) => UNITS.find((u) => u.id === id)?.label ?? 'Gedung Pusdatin';
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;

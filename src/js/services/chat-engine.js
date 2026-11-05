@@ -39,7 +39,7 @@ export const DOCUMENT_SUGGESTIONS = [
 
 export const DEFAULT_SUGGESTIONS = [
   'Lampu yang belum mati?',
-  'Berapa slot parkir yang kosong?',
+  'Berapa ruang parkir yang tersedia?',
   'Ruang kosong tapi lampu masih menyala?',
   'Perangkat mana yang offline?',
   'Pemakaian listrik hari ini?',
@@ -146,13 +146,13 @@ function parkingIntent(q, { parking }) {
   const inside = parking.visits.filter((v) => !v.outAt).sort((a, b) => a.inAt.localeCompare(b.inAt));
 
   const text = asksCount
-    ? `Saat ini ada ${s.occupied} mobil terparkir di ${site}, dari kapasitas ${s.total} slot. Sisa ${s.free} slot kosong.`
-    : `Tersedia ${s.free} slot kosong di ${site} dari ${s.total} slot (okupansi ${Math.round(s.rate * 100)}%).`;
+    ? `Saat ini ada ${s.occupied} mobil terparkir di ${site}, dari kapasitas ${s.total} ruang parkir. Sisa ${s.free} ruang parkir tersedia.`
+    : `Tersedia ${s.free} ruang parkir di ${site} dari ${s.total} ruang (okupansi ${Math.round(s.rate * 100)}%).`;
   return {
     text,
-    // Pertanyaan slot kosong: rincian per gedung. Pertanyaan jumlah: kendaraan terlama lebih dulu.
+    // Pertanyaan ruang parkir tersedia: rincian per gedung. Pertanyaan jumlah: kendaraan terlama lebih dulu.
     items: !asksCount
-      ? s.zones.map((z) => ({ title: z.name, meta: `${z.free} dari ${z.total} slot tersedia` }))
+      ? s.zones.map((z) => ({ title: z.name, meta: `${z.free} dari ${z.total} ruang parkir tersedia` }))
       : inside.slice(0, 5).map((v) => ({ title: v.plate, meta: `masuk ${new Date(v.inAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` })),
     chart: {
       kind: 'line',
@@ -238,7 +238,7 @@ function energyIntent(q, { iot, floor, scopeLabel }) {
 
 function occupancyText(room) {
   if (room.occupancy == null) return 'Sensor kehadiran belum terpasang.';
-  return room.occupancy > 0 ? `Ada ${room.occupancy} orang di ruangan.` : 'Tidak ada orang di ruangan.';
+  return room.occupancy > 0 ? 'Ruangan terisi.' : 'Ruangan kosong.';
 }
 
 function occupancyIntent(q, { iot, floor, scopeLabel }) {
@@ -249,11 +249,11 @@ function occupancyIntent(q, { iot, floor, scopeLabel }) {
   }
   const s = summarizeIot(iot, floor?.id);
   return {
-    chart: { kind: 'bar', title: 'Jumlah orang per lantai', bars: floors.map((f) => ({ label: f.name, value: summarizeIot(iot, f.id).people })), unit: 'orang' },
-    text: `Terdeteksi ${s.people} orang di ${scopeLabel}. ${s.occupiedRooms} dari ${s.workspaceRooms} ruang kerja sedang terpakai.`,
+    chart: { kind: 'bar', title: 'Jumlah ruangan terisi per lantai', bars: floors.map((f) => ({ label: f.name, value: summarizeIot(iot, f.id).occupiedRooms })), unit: 'ruang' },
+    text: `${s.occupiedRooms} dari ${s.workspaceRooms} ruangan terisi di ${scopeLabel}.`,
     items: floors.map((f) => {
       const fs = summarizeIot(iot, f.id);
-      return { title: `${f.name} · ${f.label}`, meta: `${fs.people} orang · ${fs.occupiedRooms}/${fs.workspaceRooms} ruang terpakai` };
+      return { title: `${f.name} · ${f.label}`, meta: `${fs.occupiedRooms} / ${fs.workspaceRooms} ruangan terisi` };
     }),
   };
 }
@@ -292,7 +292,7 @@ function scopeSummary({ iot, room, floor, scopeLabel }) {
   }
   const s = summarizeIot(iot, floor?.id);
   return {
-    text: `Ringkasan ${scopeLabel}: ${s.byType.light.on} lampu menyala, ${s.people} orang, beban ${fmt1(s.powerKw)} kW.`,
+    text: `Ringkasan ${scopeLabel}: ${s.byType.light.on} lampu menyala, ${s.occupiedRooms} ruangan terisi, beban ${fmt1(s.powerKw)} kW.`,
   };
 }
 

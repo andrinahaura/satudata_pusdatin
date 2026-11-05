@@ -98,12 +98,12 @@ export function getAlerts(iot, parking) {
     alerts.push({ id: `energy-${f.floor.id}`, type: 'energy', severity: 'warning', title: 'Pemakaian listrik di atas target', place: f.floor.name, meta: `${f.floor.name} · ${fmt1(f.currentHour)} kWh jam ini, target ${fmt1(f.targetHour)} kWh`, href: `/iot.html?floor=${f.floor.id}#listrik` });
   }
   for (const w of findWasteRooms(iot)) {
-    alerts.push({ id: `waste-${w.room.id}`, type: 'waste', severity: 'warning', title: 'Ruang kosong, perangkat menyala', place: `${w.floor.name} · ${w.room.name}`, meta: `${w.floor.name} · ${w.room.name} · ${w.devices.length} perangkat`, href: `/iot.html?floor=${w.floor.id}&room=${w.room.id}` });
+    alerts.push({ id: `waste-${w.room.id}`, type: 'waste', severity: 'warning', title: 'Ruang kosong, lampu menyala', place: `${w.floor.name} · ${w.room.name}`, meta: `${w.floor.name} · ${w.room.name} · ${w.devices.length} perangkat`, href: `/iot.html?floor=${w.floor.id}&room=${w.room.id}` });
   }
   if (parking) {
     for (const z of summarizeParking(parking).zones) {
       if (z.free / z.total < 0.1) {
-        alerts.push({ id: `park-${z.id}`, type: 'parking', severity: 'warning', title: `${z.name} hampir penuh`, place: `${z.name} · ${z.location}`, meta: `Sisa ${z.free} dari ${z.total} slot`, href: '/vision.html' });
+        alerts.push({ id: `park-${z.id}`, type: 'parking', severity: 'warning', title: `${z.name} hampir penuh`, place: `${z.name} · ${z.location}`, meta: `Sisa ${z.free} dari ${z.total} ruang parkir`, href: '/vision.html' });
       }
     }
   }

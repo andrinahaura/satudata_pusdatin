@@ -18,7 +18,7 @@
            Tombol "Layar penuh" untuk layar ruang monitoring: satu layar tanpa gulir (lihat .wall di main.css).
            Baris atas: status. Kiri: IoT lalu AI Vision (8 kolom). Kanan: Chatbot setinggi dua baris. -->
       <main class="mx-auto flex w-full max-w-[1680px] flex-1 flex-col px-4 pb-4 sm:px-5 lg:px-6">
-        <!-- Rentang waktu berlaku untuk angka dan grafik riwayat; angka bertanda "Saat ini" selalu realtime. -->
+        <!-- Rentang waktu berlaku untuk angka dan grafik riwayat; angka kondisi gedung selalu realtime. -->
         <section class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5">
           <div class="flex flex-wrap items-baseline gap-x-3">
             <h1 class="text-heading-sm font-semibold">Ringkasan gedung</h1>
@@ -31,7 +31,7 @@
         </section>
 
         <div class="cmd-grid">
-          <!-- Peringatan: jumlah, lalu satu tile per jenis dengan tautan "Lihat detail". Selalu kondisi saat ini. -->
+          <!-- Peringatan: jumlah, lalu satu tile per kendala perangkat. Selalu kondisi saat ini. -->
           <section class="card cmd-alerts" aria-labelledby="home-alerts">
             <div class="cmd-alerts-total">
               <h2 id="home-alerts" class="cmd-stat-label">Peringatan aktif</h2>
@@ -49,12 +49,13 @@
             <div class="cmd-body">
               <div class="cmd-stats" data-iot-stats></div>
               <div class="cmd-chart" data-href="/iot.html#listrik">
-                <div class="flex flex-wrap items-center justify-between gap-x-3">
-                  <div class="flex flex-wrap items-baseline gap-x-2">
-                    <a href="/iot.html#listrik" class="cmd-stat-label">Listrik</a>
-                    <div data-energy-total></div>
+                <!-- Judul, angka, dan legenda satu baris. Legenda tidak pernah turun; bila ruang habis, angka yang terpotong. -->
+                <div class="flex flex-wrap items-baseline justify-between gap-x-3 lg:flex-nowrap">
+                  <div class="flex min-w-0 items-baseline gap-x-2">
+                    <a href="/iot.html#listrik" class="cmd-stat-label" data-energy-title>Listrik</a>
+                    <div class="min-w-0 truncate" data-energy-total></div>
                   </div>
-                  <div data-energy-legend></div>
+                  <div class="shrink-0" data-energy-legend></div>
                 </div>
                 <div class="chart-fill" data-energy-chart></div>
               </div>
@@ -86,13 +87,20 @@
               <a href="/chatbot.html#analitik" class="cmd-link">Detail</a>
             </header>
             <div class="cmd-stats cmd-stats-row" data-chat-stats></div>
+            <!-- Dua tile token selalu menampilkan seminggu terakhir, tidak mengikuti filter periode. -->
             <div class="cmd-chart flex-1" data-href="/chatbot.html#analitik">
-              <a href="/chatbot.html#analitik" class="cmd-stat-label">Pertanyaan per <span data-bucket-unit>jam</span></a>
-              <div class="chart-fill" data-question-chart></div>
+              <div class="flex flex-wrap items-baseline justify-between gap-x-3">
+                <a href="/chatbot.html#analitik" class="cmd-stat-label">Rata-Rata Penggunaan Token AI</a>
+                <span class="text-caption tracking-normal text-mid-gray" data-token-week></span>
+              </div>
+              <div class="chart-fill" data-token-chart></div>
             </div>
             <!-- Perbandingan model: porsi token lalu satu baris per model. -->
             <a href="/chatbot.html#analitik" class="cmd-stat shrink-0">
-              <span class="cmd-stat-label">Model AI</span>
+              <span class="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span class="cmd-stat-label">Penggunaan Token AI per Model</span>
+                <span class="text-caption tracking-normal text-mid-gray" data-model-week></span>
+              </span>
               <div class="text-caption tracking-normal" data-model-usage></div>
             </a>
           </section>

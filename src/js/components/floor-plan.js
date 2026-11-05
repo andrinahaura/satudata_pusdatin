@@ -77,7 +77,7 @@ export function roomMeta(room) {
   if (room.type === 'core') return 'Sirkulasi vertikal';
   if (!room.equipped) return 'Sensor belum terpasang';
   const parts = [];
-  if (room.occupancy != null) parts.push(room.occupancy > 0 ? (room.capacity ? `${room.occupancy} orang` : 'Ada orang') : 'Kosong');
+  if (room.occupancy != null) parts.push(room.occupancy > 0 ? 'Terisi' : 'Kosong');
   return parts.join(' · ');
 }
 

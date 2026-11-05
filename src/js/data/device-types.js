@@ -4,7 +4,7 @@
 // `watt` dipakai untuk estimasi konsumsi daya.
 export const DEVICE_TYPES = {
   light: { label: 'Lampu', icon: 'lightbulb', watt: 18, controllable: true, onLabel: 'menyala', offLabel: 'padam' },
-  presence: { label: 'Sensor kehadiran', icon: 'users', watt: 2, controllable: false, onLabel: 'ada orang', offLabel: 'kosong' },
+  presence: { label: 'Sensor kehadiran', icon: 'users', watt: 2, controllable: false, onLabel: 'terisi', offLabel: 'kosong' },
 };
 
 export const DEVICE_TYPE_KEYS = Object.keys(DEVICE_TYPES);

@@ -1,7 +1,7 @@
 // Ilustrasi 2D gedung parkir, tampak depan, mengikuti Smart Parking: zone.levels lantai, fasad putih
 // dengan jalur kaca dan panel tanaman, gate depan di lantai dasar. Bila ada lebih
 // dari satu gedung, gedung berjajar (bukan peta lokasi). Isi gedung dan letak slot tidak digambar;
-// jumlah slot tersedia muncul di tooltip. Gedung hampir penuh bergaris merah dan namanya merah.
+// jumlah ruang parkir tersedia muncul di tooltip. Gedung hampir penuh bergaris merah dan namanya merah.
 import { COLORS as C } from '../theme.js';
 import { createTooltip, esc } from '../utils/dom.js';
 import { FACADE, facadeCells, facadeCols, slotStatus, zoneKind, zoneTooltip } from './parking-site.js';
@@ -81,7 +81,7 @@ export function parkingLegendHtml() {
   return `<div class="flex flex-wrap gap-x-4 gap-y-2 text-caption tracking-normal text-mid-gray">
     ${item(`<svg width="18" height="14" aria-hidden="true"><rect x="1" y="3" width="16" height="10" rx="1" fill="${C.inkSoft}"/><rect x="3" y="0" width="12" height="2" fill="${C.accent}"/></svg>`, 'Gate masuk/keluar')}
     ${item(box(C.paper, C.ember, 2.5), 'Hampir penuh')}
-    <span>Arahkan kursor ke gedung untuk melihat slot tersedia</span>
+    <span>Arahkan kursor ke gedung untuk melihat ruang parkir tersedia</span>
   </div>`;
 }
 

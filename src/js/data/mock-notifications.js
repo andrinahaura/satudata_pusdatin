@@ -119,7 +119,7 @@ export function notificationsForDay(iot, key, until = null) {
       const energy = rand() < 0.4;
       const alert = energy
         ? { id: `energy-${floor.id}`, type: 'energy', severity: 'warning', title: 'Pemakaian listrik di atas target', meta: floor.name }
-        : { id: `waste-${room.id}`, type: 'waste', severity: 'warning', title: 'Ruang kosong, perangkat menyala', meta: `${floor.name} · ${room.name}` };
+        : { id: `waste-${room.id}`, type: 'waste', severity: 'warning', title: 'Ruang kosong, lampu menyala', meta: `${floor.name} · ${room.name}` };
       const start = atHour(key, 9 + rand() * 8);
       items.push(item('alert', start, alert, `w${i}`));
       items.push(item('resolved', new Date(start.getTime() + (10 + rand() * 50) * 60000), alert, `w${i}`));

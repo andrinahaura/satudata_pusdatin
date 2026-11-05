@@ -1,6 +1,6 @@
 // Ringkasan gedung parkir yang dipantau (saat ini Smart Parking):
-// cincin slot tersedia, status, dan angka terisi / kapasitas / okupansi.
-// Dipakai kartu "Slot tersedia" di Home dan AI Vision supaya tampilannya sama.
+// cincin ruang parkir tersedia, status, dan angka terisi / kapasitas / okupansi.
+// Dipakai kartu "Ruang Parkir Tersedia" di AI Vision.
 import { fmtPct } from '../utils/format.js';
 import { ringSvg } from './ui.js';
 
@@ -23,13 +23,13 @@ export function siteSlotsHtml(p, { layout = 'row' } = {}) {
   const s = slotStatus(p);
   const row = layout === 'row';
   const fact = (label, value) => `<div><dt class="text-caption tracking-normal text-mid-gray">${label}</dt><dd class="mt-0.5 text-subheading font-semibold tabular-nums">${value}</dd></div>`;
-  const unit = (v) => `${v}<span class="text-body font-normal text-mid-gray"> slot</span>`;
+  const unit = (v) => `${v}<span class="text-body font-normal text-mid-gray"> ruang</span>`;
   return `
     <div class="flex flex-col items-center ${row ? 'gap-6 sm:flex-row' : 'gap-4'}">
-      ${ringSvg({ value: p.free, unit: 'slot tersedia', ratio: s.ratio, alert: s.alert, label: `${p.free} dari ${p.total} slot tersedia`, className: row ? 'w-40 shrink-0' : 'w-28 shrink-0' })}
+      ${ringSvg({ value: p.free, unit: 'ruang tersedia', ratio: s.ratio, alert: s.alert, label: `${p.free} dari ${p.total} ruang parkir tersedia`, className: row ? 'w-40 shrink-0' : 'w-28 shrink-0' })}
       <div class="w-full min-w-0">
         <div class="flex flex-wrap items-center gap-2 ${row ? '' : 'justify-center'}">
-          <p class="text-body-lg font-semibold">${p.free} dari ${p.total} slot tersedia</p>
+          <p class="text-body-lg font-semibold">${p.free} dari ${p.total} ruang parkir tersedia</p>
           <span class="badge ${s.cls}">${s.label}</span>
         </div>
         <dl class="mt-4 grid grid-cols-3 gap-4 border-t border-hairline pt-4">
@@ -52,10 +52,10 @@ export function zoneKind(z) {
   return `${z.type === 'smart' ? 'Parkir susun' : ZONE_TYPES[z.type] ?? 'Parkir'} · ${z.levels} lantai${gates ? ` · ${gates} gate` : ''}`;
 }
 
-/** Isi tooltip satu gedung parkir (3D dan 2D): hanya jumlah slot tersedia, angka besar agar mudah dibaca. z = satu zona dari summarizeParking(). */
+/** Isi tooltip satu gedung parkir (3D dan 2D): hanya jumlah ruang parkir tersedia, angka besar agar mudah dibaca. z = satu zona dari summarizeParking(). */
 export const zoneTooltip = (z) => `<div class="flex items-center gap-2.5 px-1.5 py-1">
     <span class="text-heading font-semibold tabular-nums text-accent">${z.free}</span>
-    <span class="text-body leading-tight text-paper">slot<br>tersedia</span>
+    <span class="text-body leading-tight text-paper">ruang parkir<br>tersedia</span>
   </div>`;
 
 /* Fasad gedung untuk ilustrasi 3D dan 2D, mengikuti Smart Parking: dinding putih, jalur kaca vertikal,

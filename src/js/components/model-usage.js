@@ -1,14 +1,25 @@
 // Perbandingan pemakaian model AI: porsi token (satu batang bertumpuk) lalu satu panel per model
 // berisi token, pertanyaan, biaya, token / pertanyaan, dan biaya / pertanyaan. Dipakai Home dan Analitik chatbot.
+import { USD_TO_IDR } from '../data/chat-models.js';
 import { esc } from '../utils/dom.js';
 import { fmtCompact, fmtInt, fmtPct, fmtRupiah } from '../utils/format.js';
+import { icon } from './icons.js';
 
 // Warna model mengikuti urutan tetap di MODELS: model pertama navy, kedua kuning.
 const MODEL_COLORS = ['bg-ink', 'bg-accent'];
 
+// Biaya dalam dolar dengan ikon. Nilai di bawah 1 sen memakai 4 desimal supaya tidak tampil 0,00.
+function dollarHtml(rupiah) {
+  const usd = rupiah / USD_TO_IDR;
+  const digits = usd > 0 && usd < 0.01 ? 4 : 2;
+  const value = usd.toLocaleString('id-ID', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return `<span class="inline-flex items-center align-middle"><span class="sr-only">USD </span>${icon('dollar-sign', 'size-3')}${value}</span>`;
+}
+
 /**
  * c = hasil summarizeChat().
- * compact = satu baris polos per model (nama, token, porsi) tanpa panel rincian, untuk kolom sempit di Home.
+ * compact = satu baris polos per model (nama, biaya dolar, porsi token) tanpa panel rincian, untuk kolom sempit
+ * di Home. Ikon dolar perlu renderIcons() setelah HTML dipasang.
  */
 export function modelUsageHtml(c, { compact = false } = {}) {
   const models = c.byModel.map((m, i) => ({ ...m, color: MODEL_COLORS[i % MODEL_COLORS.length], share: c.tokens ? m.tokens / c.tokens : 0 }));
@@ -38,13 +49,13 @@ export function modelUsageHtml(c, { compact = false } = {}) {
     .map((m) => `<li class="flex items-center gap-2 py-0.5">
         <span class="dot ${m.color}"></span>
         <span class="min-w-0 flex-1 truncate">${esc(m.model)}</span>
-        <span class="shrink-0 tabular-nums">${fmtCompact(m.tokens)}</span>
+        <span class="shrink-0 tabular-nums">${dollarHtml(m.rupiah)}</span>
         <span class="w-10 shrink-0 text-right text-mid-gray tabular-nums">${fmtPct(m.share)}</span>
       </li>`)
     .join('');
   const heading = compact
-    ? `<span class="text-mid-gray">Token</span><span class="tabular-nums">${fmtCompact(c.tokens)} · ${fmtRupiah(c.rupiah)}</span>`
-    : `<span class="text-mid-gray">Porsi token</span><span class="font-medium tabular-nums">${fmtCompact(c.tokens)} token · ${fmtRupiah(c.rupiah)}</span>`;
+    ? `<span class="text-mid-gray">Total</span><span class="tabular-nums">${dollarHtml(c.rupiah)} · ${fmtRupiah(c.rupiah)}</span>`
+    : `<span class="text-mid-gray">Total</span><span class="font-medium tabular-nums">${fmtCompact(c.tokens)} token · ${fmtRupiah(c.rupiah)}</span>`;
   return `
     <div class="flex items-baseline justify-between gap-3">${heading}</div>
     <div class="mt-2 flex ${compact ? 'h-1.5' : 'h-2.5'} gap-0.5" role="img" aria-label="${esc(models.map((m) => `${m.model} ${fmtPct(m.share)}`).join(', '))}">${bar}</div>

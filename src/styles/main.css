@@ -354,7 +354,7 @@ html:has(.wall) {
   grid-template-columns: minmax(0, 1fr);
 }
 @media (min-width: 1024px) {
-  .cmd-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+  .cmd-body { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.5fr); }
 }
 .cmd-stats {
   display: grid;
@@ -377,7 +377,7 @@ html:has(.wall) {
   border: 1px solid var(--color-hairline);
   border-radius: 12px;
   background: var(--color-surface-alt);
-  padding: 8px 12px;
+  padding: 8px 10px;
   transition: border-color 0.15s, background-color 0.15s;
 }
 .cmd-stat {
@@ -418,11 +418,6 @@ html:has(.wall) {
   white-space: nowrap;
   color: var(--color-mid-gray);
 }
-.cmd-now {
-  flex-shrink: 0;
-  font-size: var(--text-caption);
-  color: var(--color-mid-gray);
-}
 .cmd-meter {
   height: 4px;
   flex-shrink: 0;
@@ -447,13 +442,21 @@ html:has(.wall) {
   .chart-fill { min-height: 100px; }
 }
 /* Legenda tetap satu baris supaya tinggi grafik tidak berubah saat rentang berganti. */
-[data-parking-legend] > div {
+[data-parking-legend] > div,
+[data-energy-legend] > div {
+  column-gap: 10px;
   flex-wrap: nowrap;
   white-space: nowrap;
 }
+[data-energy-total] .cmd-stat-value {
+  font-size: var(--text-subheading);
+}
+[data-energy-total] .cmd-unit {
+  font-size: var(--text-caption);
+}
 
-/* Peringatan: jumlah di kiri, satu tile per jenis peringatan di kanan (paling banyak empat jenis,
-   jadi selalu muat). Kritis lebih dulu. */
+/* Peringatan: jumlah di kiri, satu baris tile di kanan, kritis lebih dulu. Peringatan yang tidak muat
+   diwakili kotak "+N" (lihat alertFit di home.js). */
 .cmd-alerts {
   display: flex;
   min-width: 0;
@@ -470,9 +473,9 @@ html:has(.wall) {
 }
 .cmd-more {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 2px;
-  margin-top: 2px;
   font-size: var(--text-caption);
   font-weight: 500;
 }
@@ -480,21 +483,22 @@ html:has(.wall) {
   text-decoration: underline;
 }
 .cmd-alerts-list {
-  display: grid;
+  display: flex;
   min-width: 0;
   flex: 1 1 0%;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr);
 }
-@media (min-width: 640px) {
-  .cmd-alerts-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cmd-alerts-list .cmd-stat {
+  flex: 1 1 0%;
+}
+/* Kotak "+N": menandakan ada peringatan lain yang tidak muat di baris ini. */
+.cmd-alerts-list .cmd-alert-square {
+  flex: 0 0 56px;
+  align-items: center;
+  padding: 0;
 }
 @media (min-width: 1024px) {
   .cmd-alerts { flex-direction: row; align-items: stretch; gap: 16px; }
-}
-@media (min-width: 1280px) {
-  /* Tile berbagi lebar penuh, berapa pun jenis peringatan yang sedang ada. */
-  .cmd-alerts-list { grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; grid-template-columns: none; }
 }
 
 @keyframes blink {

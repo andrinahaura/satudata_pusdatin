@@ -2,7 +2,7 @@
 // fasad putih dengan jalur kaca dan panel tanaman, gate di lantai dasar muka depan dan belakang
 // (zone.gates), jalur masuk di depan dan belakang. Bila ada lebih dari satu gedung, gedung berjajar (bukan
 // peta lokasi). Isi gedung dan letak slot tidak digambar karena yang diketahui hanya jumlahnya;
-// slot tersedia muncul di tooltip saat gedung disorot.
+// ruang parkir tersedia muncul di tooltip saat gedung disorot.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { esc } from '../../utils/dom.js';

@@ -34,21 +34,21 @@ const TYPES = {
   },
   waste: {
     label: 'Lampu di ruang kosong',
-    many: (n) => `${n} ruang kosong, lampu masih menyala`,
+    many: (n) => `${n} ruang kosong, lampu menyala`,
     hint: 'Tidak ada orang di ruang ini. Matikan lampu dari halaman IoT.',
     action: 'Lihat di denah',
   },
   parking: {
-    label: 'Slot parkir',
+    label: 'Ruang parkir tersedia',
     many: (n) => `${n} zona parkir hampir penuh`,
-    hint: 'Sisa slot parkir kurang dari 10%.',
+    hint: 'Sisa ruang parkir kurang dari 10%.',
     action: 'Lihat peta parkir',
   },
 };
 
 const RANK = { critical: 0, warning: 1 };
 
-export function groupAlerts(alerts) {
+function groupAlerts(alerts) {
   const groups = new Map();
   for (const a of alerts) {
     const key = a.type ?? a.id;

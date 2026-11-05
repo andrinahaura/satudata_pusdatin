@@ -8,9 +8,9 @@ Tema visual mengikuti [`design.md`](design.md).
 | Menu | Halaman | Isi |
 |------|---------|-----|
 | Home | `index.html` | Setiap tile bisa diklik ke halaman detail. Tombol "Layar penuh" untuk layar ruang monitoring: satu layar tanpa gulir, diskalakan dari kanvas 1366×768. KPI dan grafik dari tiga menu: IoT (perangkat, uptime, peringatan, Telegram, listrik), AI Vision (slot tersedia di gedung parkir, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
-| IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang, kontrol perangkat, peringatan + notifikasi Telegram, riwayat status perangkat dan uptime, listrik per lantai dan panel distribusi |
+| IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang, kontrol perangkat, peringatan + notifikasi Telegram, riwayat status dan kestabilan perangkat, listrik per lantai dan panel distribusi |
 | Chatbot | `chatbot.html` | Chatbot TEJAS (pintas unit PU, SITABA, rujukan dokumen, analisis lampiran, grafik, penilaian jawaban) dan tab Analitik (tren pertanyaan/token/biaya, pengguna, riwayat chat) |
-| AI Vision | `vision.html` | Smart Parking (parkir susun, piloting; 11 lantai, 8 gate depan dan 8 gate belakang). Ilustrasi gedung 3D/2D (slot tersedia muncul saat gedung disorot), slot tersedia, kendaraan yang sedang parkir, okupansi, deteksi nomor polisi di gerbang, riwayat kendaraan (jam masuk/keluar, lama parkir). Tanpa kamera area |
+| AI Vision | `vision.html` | Smart Parking (parkir susun, piloting; 11 lantai, 8 gate depan dan 8 gate belakang). Ilustrasi gedung 3D/2D (ruang parkir tersedia muncul saat gedung disorot), ruang parkir tersedia, kendaraan yang sedang parkir, okupansi, deteksi nomor polisi di gerbang, riwayat kendaraan (jam masuk/keluar, lama parkir). Tanpa kamera area |
 
 Ruang lingkup mengikuti paparan *Sistem Informasi Kecerdasan Buatan* (Pusdatin Kementerian PU):
 Dashboard Monitoring IoT, Dashboard AI Vision, dan Dashboard Chatbot. SSO masih dalam kajian, jadi
@@ -79,7 +79,7 @@ const data = await api.getIotHistory(rangeQuery(picker.range));   // { from, to 
   `label` ("1 Okt – 7 Okt 2026"), `short` ("7 hari", untuk label KPI), dan `previous` (periode sebelumnya
   dengan panjang sama, untuk perbandingan).
 - Satu hari: grafik per jam. Lebih dari satu hari: grafik per hari.
-- KPI dan tabel yang menampilkan kondisi sekarang (perangkat online, slot kosong, peringatan aktif)
+- KPI dan tabel yang menampilkan kondisi sekarang (perangkat online, ruang parkir tersedia, peringatan aktif)
   tidak ikut rentang dan diberi keterangan **"Saat ini"**.
 - Endpoint berentang menerima `?from=YYYY-MM-DD&to=YYYY-MM-DD` (inklusif). Di mode mock, hari ini
   diambil dari state realtime dan hari-hari lalu dibuat ulang per tanggal (deterministik).
@@ -191,7 +191,7 @@ Kondisi parkir saat ini. Saat ini baru satu gedung: Smart Parking (parkir susun,
 
 ### `GET /iot/history?from=&to=`
 
-Riwayat di rentang. Uptime per jam/hari dan per perangkat dihitung di `deviceUptime()` (`selectors.js`).
+Riwayat di rentang. Kestabilan perangkat (uptime) per jam/hari dan per perangkat dihitung di `deviceUptime()` (`selectors.js`).
 
 ```jsonc
 {

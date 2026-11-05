@@ -96,7 +96,7 @@ const analytics = { data: null, summary: null, trend: 'questions', search: '', c
 // Satu grafik, tiga pilihan data. Satu seri per pilihan supaya tidak ada dua skala di satu sumbu.
 const TRENDS = [
   { value: 'questions', label: 'Pertanyaan', desc: 'Jumlah pertanyaan', key: 'questions', format: (v) => `${fmtInt(v)} pertanyaan` },
-  { value: 'tokens', label: 'Token', desc: 'Token masuk dan keluar', key: 'tokens', format: (v) => `${fmtCompact(v)} token` },
+  { value: 'tokens', label: 'Token', desc: 'Penggunaan Token AI', key: 'tokens', format: (v, range) => `${fmtInt(v)} token per ${range.single ? 'jam' : 'hari'}` },
   { value: 'cost', label: 'Biaya', desc: 'Estimasi biaya model AI', key: 'rupiah', format: (v) => fmtRupiah(v) },
 ];
 
@@ -153,9 +153,9 @@ function renderAnalytics() {
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(analytics.data.updatedAt)}`;
   $('[data-chat-kpis]').innerHTML = [
     statTile({ label: 'Pengguna', value: fmtInt(s.users), unit: ' orang', sub: `Bertanya ${range.short}` }),
-    statTile({ label: 'Pertanyaan', value: fmtInt(s.questions), sub: range.label }),
+    statTile({ label: 'Total pertanyaan', value: fmtInt(s.questions), sub: range.label }),
     statTile({ label: 'Biaya AI', value: fmtRupiah(s.rupiah), sub: `${fmtCompact(s.tokens)} token` }),
-    statTile({ label: 'Jawaban sesuai', value: s.rated ? fmtPct(s.upRate) : '–', sub: `Dari ${fmtInt(s.rated)} ulasan` }),
+    statTile({ label: 'Jawaban sesuai', value: s.rated ? fmtPct(s.upRate) : '–', sub: `dari ${fmtInt(s.rated)} ulasan` }),
   ].join('');
   renderTrend();
   $('[data-model-desc]').textContent = range.label;
@@ -170,7 +170,7 @@ function renderTrend() {
   const t = TRENDS.find((x) => x.value === analytics.trend);
   $('[data-trend-tabs]').innerHTML = segmentedHtml(TRENDS, t.value, 'data-trend-id');
   $('[data-trend-desc]').textContent = `${t.desc} ${range.single ? 'per jam' : 'per hari'}, ${range.label}`;
-  const opts = { labels: s.series.labels, series: [{ label: t.label, values: s.series[t.key], style: 'current' }], height: 260, format: t.format };
+  const opts = { labels: s.series.labels, series: [{ label: t.label, values: s.series[t.key], style: 'current' }], height: 260, format: (v) => t.format(v, range) };
   if (analytics.chart) analytics.chart.update(opts);
   else analytics.chart = createTrendChart($('[data-trend-chart]'), opts);
 }

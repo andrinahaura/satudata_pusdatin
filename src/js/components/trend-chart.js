@@ -129,7 +129,8 @@ export function createTrendChart(container, opts) {
       .map((_, i) => (shown(i) && i !== sel ? `<line x1="${xAt(i)}" x2="${xAt(i)}" y1="${top}" y2="${chipY - CHIP_R - 4}" stroke="${COLORS.hairline}" stroke-dasharray="3 4"/><circle cx="${xAt(i)}" cy="${top}" r="2.5" fill="${COLORS.line}"/>` : ''))
       .join('');
 
-    const bandW = Math.min(44, Math.max(14, step * 0.6));
+    // Pita tidak lebih lebar dari lingkaran label di bawahnya.
+    const bandW = Math.min(CHIP_R * 2, Math.max(14, step * 0.6));
     const sx = xAt(sel);
     const band = `<rect x="${sx - bandW / 2}" y="${top}" width="${bandW}" height="${chipY - top}" fill="url(#${id}-band)"/>
       <line x1="${sx}" x2="${sx}" y1="${top}" y2="${chipY - CHIP_R - 1}" stroke="${COLORS.ink}" stroke-width="1.5"/>
