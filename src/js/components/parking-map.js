@@ -8,11 +8,14 @@ import { CAR_BOX, CAR_COLOR, CAR_PATH, CARS_PER_ROW, carRows, FACADE, levelsOf, 
 
 const CAR_CELL = 42; // lebar satu slot
 const LIFT_W = 14; // lebar lift di tengah menara
-const COL_W = CAR_CELL * CARS_PER_ROW + LIFT_W; // lebar satu menara (satu gerbang)
+const TOWER_GAP = 10; // jarak antar menara: tiang terang, supaya tidak tertukar dengan lift yang gelap
+const INNER_W = CAR_CELL * CARS_PER_ROW + LIFT_W; // lebar isi satu menara
+const COL_W = INNER_W + TOWER_GAP; // lebar satu menara (satu gerbang)
 const ROW_H = 34; // tinggi satu baris mobil
 const CAR_H = 30;
 const CAR_W = (CAR_H * CAR_BOX.w) / CAR_BOX.h;
 const GROUND_H = 44; // lantai dasar (gerbang)
+const LAMP_H = 3; // lampu penanda di atas pintu
 const CORNICE = 8;
 const GAP = 60;
 const PAD = 40;
@@ -25,30 +28,36 @@ const faceWidth = (z, side) => towersOn(z, side).length * COL_W;
 const zoneWidth = (z) => SIDES.reduce((s, [side]) => s + faceWidth(z, side), 0) + GAP * (SIDES.length - 1);
 
 function tower(t, rows, x, top, groundY) {
+  const ix = x + TOWER_GAP / 2; // tepi kiri isi menara
   const cars = Array.from({ length: t.free }, (_, i) => {
     const col = i % CARS_PER_ROW;
     const row = Math.floor(i / CARS_PER_ROW);
-    return `<use href="#pk-car" x="${x + col * (CAR_CELL + LIFT_W) + (CAR_CELL - CAR_W) / 2}" y="${top + row * ROW_H + (ROW_H - CAR_H) / 2}" width="${CAR_W}" height="${CAR_H}" fill="${CAR_COLOR}"/>`;
+    return `<use href="#pk-car" x="${ix + col * (CAR_CELL + LIFT_W) + (CAR_CELL - CAR_W) / 2}" y="${top + row * ROW_H + (ROW_H - CAR_H) / 2}" width="${CAR_W}" height="${CAR_H}" fill="${CAR_COLOR}"/>`;
   }).join('');
   const filled = carRows(t.free);
   const panel = (px, py, w, h) => `<rect x="${px}" y="${py}" width="${w}" height="${h}" fill="${FACADE.closed}" stroke="${FACADE.wall}" stroke-width="2"/>`;
   // Garis tepi sewarna dinding menutup ujung garis lantai, jadi batas antar gerbang tetap bersih.
   const closed = [
-    rows > filled ? panel(x, top + filled * ROW_H, COL_W, (rows - filled) * ROW_H) : '',
-    t.free % CARS_PER_ROW ? panel(x + CAR_CELL + LIFT_W, top + (filled - 1) * ROW_H, CAR_CELL, ROW_H) : '',
+    rows > filled ? panel(ix, top + filled * ROW_H, INNER_W, (rows - filled) * ROW_H) : '',
+    t.free % CARS_PER_ROW ? panel(ix + CAR_CELL + LIFT_W, top + (filled - 1) * ROW_H, CAR_CELL, ROW_H) : '',
   ].join('');
   // Lift: ruang luncur di tengah menara, kabin di tingkat paling bawah.
-  const liftX = x + CAR_CELL;
+  const liftX = ix + CAR_CELL;
   const liftH = rows * ROW_H;
   const lift = `<rect x="${liftX}" y="${top}" width="${LIFT_W}" height="${liftH}" fill="${FACADE.spine}"/>
     <line x1="${liftX + LIFT_W / 2}" x2="${liftX + LIFT_W / 2}" y1="${top}" y2="${top + liftH}" stroke="${FACADE.deck}" stroke-width="1"/>
     <rect x="${liftX + 2}" y="${top + liftH - ROW_H + 3}" width="${LIFT_W - 4}" height="${ROW_H - 6}" rx="1" fill="${FACADE.slab}"/>`;
-  const doorY = groundY - GROUND_H + 10;
+  // Lampu menempel di bawah panel dan lift, pintu mengisi sisa lantai dasar, jadi tidak ada sela kosong.
+  const lampY = groundY - GROUND_H;
+  const doorY = lampY + LAMP_H;
+  const doorH = GROUND_H - LAMP_H;
   return `<g data-gate="${esc(t.code)}" class="pk-tower">
+    <rect x="${x}" y="${top}" width="${TOWER_GAP / 2}" height="${rows * ROW_H}" fill="${FACADE.wall}"/>
+    <rect x="${x + COL_W - TOWER_GAP / 2}" y="${top}" width="${TOWER_GAP / 2}" height="${rows * ROW_H}" fill="${FACADE.wall}"/>
     ${closed}${cars}${lift}
-    <rect x="${x + 4}" y="${doorY}" width="${COL_W - 8}" height="${GROUND_H - 10}" rx="1" fill="${C.inkSoft}"/>
-    <rect x="${x + 8}" y="${doorY - 5}" width="${COL_W - 16}" height="2.5" fill="${C.accent}"/>
-    <text x="${x + COL_W / 2}" y="${doorY + (GROUND_H - 10) / 2 + 8}" text-anchor="middle" font-size="24" font-weight="700" fill="${C.paper}">${t.free}</text>
+    <rect x="${ix}" y="${doorY}" width="${INNER_W}" height="${doorH}" fill="${C.inkSoft}"/>
+    <rect x="${ix}" y="${lampY}" width="${INNER_W}" height="${LAMP_H}" fill="${C.accent}"/>
+    <text x="${x + COL_W / 2}" y="${doorY + doorH / 2 + 8}" text-anchor="middle" font-size="24" font-weight="700" fill="${C.paper}">${t.free}</text>
     <rect class="pk-hit" x="${x}" y="${top}" width="${COL_W}" height="${groundY - top}" fill="transparent"/>
   </g>`;
 }

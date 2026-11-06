@@ -13,9 +13,10 @@ import { esc } from '../../utils/dom.js';
 import { CAR_COLOR, CARS_PER_ROW, carRows, FACADE, facadeCols, levelsOf, slotStatus, towerTooltip } from '../parking-site.js';
 import { createScene3D, disposeGroup, mat, PALETTE } from './scene.js';
 
-const COL_W = 34; // lebar satu kolom muka gedung (satu gerbang = 2 kolom)
+const COL_W = 37; // lebar satu kolom muka gedung (satu gerbang = 2 kolom)
 const DEPTH = 132; // kedalaman gedung: dua baris slot saling membelakangi
 const GROUND_H = 30; // tinggi lantai dasar (gerbang)
+const LAMP_H = 2; // lampu penanda di atas pintu, menempel di bawah panel dan lift
 const ROW_H = 22; // tinggi satu tingkat pada menara
 const CORNICE = 5; // lis atap
 const APRON = 36; // lebar jalur masuk di depan/belakang gedung
@@ -24,6 +25,7 @@ const PAD = 60; // tepi pelataran
 const BAY_D = DEPTH / 2 - 4; // kedalaman satu slot
 const STEEL = 2; // tebal kolom dan balok rangka
 const LIFT_W = 14; // lebar lift di tengah menara
+const TOWER_GAP = 6; // jarak antar menara: tiang terang, supaya tidak tertukar dengan lift yang gelap
 const CAR_SCALE = [1.25, 1.5, 1.2]; // mobil diperbesar supaya mudah dihitung
 
 const gatesOf = (z) => z.gates ?? { front: 4, back: 4 };
@@ -118,12 +120,13 @@ export function createParking3D(container) {
     const upperH = upperOf(z);
     const rows = levelsOf(z);
     const steel = mat(hex(FACADE.steel), { roughness: 0.55 });
+    const pillar = mat(hex(FACADE.wall));
     const deck = mat(hex(FACADE.deck));
     const dummy = new THREE.Object3D();
 
     for (const [n, face] of [[gatesOf(z).front, 1], [gatesOf(z).back, -1]]) {
       const gw = W / n;
-      for (let i = 0; i <= n; i++) box(STEEL, upperH, STEEL, steel, -W / 2 + gw * i, GROUND_H + upperH / 2, face * (DEPTH / 2 - 1), parent);
+      for (let i = 0; i <= n; i++) box(TOWER_GAP, upperH, 3, pillar, -W / 2 + gw * i, GROUND_H + upperH / 2, face * (DEPTH / 2 - 0.8), parent);
       const beams = new THREE.InstancedMesh(new THREE.BoxGeometry(W, 1.2, STEEL), steel, rows + 1);
       const decks = new THREE.InstancedMesh(new THREE.BoxGeometry(W - STEEL, 1, BAY_D), deck, rows);
       for (let r = 0; r <= rows; r++) {
@@ -168,9 +171,8 @@ export function createParking3D(container) {
       return mesh;
     };
     const meshes = [CAR.paint, CAR.dark, CAR.lamp, CAR.plate].map((geo, i) => instanced(geo, mat([hex(CAR_COLOR), hex('#1b2233'), hex('#7a1218'), 0xffffff][i], { roughness: i === 0 ? 0.45 : 0.5 }), total * rows * CARS_PER_ROW));
-    // Celah kecil antar panel memperlihatkan kolom rangka, jadi batas gerbang tetap terlihat.
     // Dua panel per menara: bagian bawah, dan separuh baris di samping mobil ganjil.
-    const panels = instanced(new THREE.BoxGeometry(W / gates.front - 0.8, 1, 1), mat(hex(FACADE.closed)), total * 2);
+    const panels = instanced(new THREE.BoxGeometry(W / gates.front - TOWER_GAP, 1, 1), mat(hex(FACADE.closed)), total * 2);
     const dummy = new THREE.Object3D();
     const spots = [];
     for (const [n, face] of [[gates.front, 1], [gates.back, -1]]) {
@@ -184,18 +186,18 @@ export function createParking3D(container) {
         const liftD = DEPTH / 2 - 2.1;
         box(LIFT_W - 1, upperH, liftD, spine, x, GROUND_H + upperH / 2, face * (3 + liftD / 2), b);
         box(LIFT_W - 4, ROW_H - 5, 0.4, mat(hex(FACADE.slab)), x, GROUND_H + ROW_H / 2, face * (DEPTH / 2 + 0.95), b);
-        const door = new THREE.Mesh(new THREE.PlaneGeometry(gw - 6, GROUND_H - 8), doorMat(t.free));
-        door.position.set(x, (GROUND_H - 8) / 2, outer);
+        const door = new THREE.Mesh(new THREE.PlaneGeometry(gw - TOWER_GAP, GROUND_H - LAMP_H), doorMat(t.free));
+        door.position.set(x, (GROUND_H - LAMP_H) / 2, outer);
         door.rotation.y = face > 0 ? 0 : Math.PI;
         b.add(door);
-        box(gw - 12, 1.6, 1, mat(PALETTE.accent), x, GROUND_H - 4, outer, b);
+        box(gw - TOWER_GAP, LAMP_H, 1, mat(PALETTE.accent), x, GROUND_H - LAMP_H / 2, outer, b);
         const hit = new THREE.Mesh(new THREE.PlaneGeometry(gw, GROUND_H + upperH), hidden);
         hit.position.set(x + cx, (GROUND_H + upperH) / 2, face * (DEPTH / 2 + 1));
         hit.rotation.y = door.rotation.y;
         hit.userData = { zoneId: z.id, gate: t.code };
         hits.add(hit);
         // Tingkat 0 = paling atas, mobil mengisi dari atas, dari kiri bila dilihat dari luar.
-        const cell = (gw - LIFT_W) / CARS_PER_ROW; // lebar satu slot
+        const cell = (gw - LIFT_W - TOWER_GAP) / CARS_PER_ROW; // lebar satu slot
         const sideX = (cell + LIFT_W) / 2; // jarak pusat slot dari pusat menara
         const places = Array.from({ length: rows * CARS_PER_ROW }, (_, n) => {
           const row = Math.floor(n / CARS_PER_ROW);
