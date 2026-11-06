@@ -46,35 +46,34 @@ export const ZONE_TYPES = { smart: 'Smart Parking', regular: 'Parkir biasa' };
 /** Jumlah gate depan + belakang, mis. 16. */
 export const gateCount = (z) => (z.gates ? z.gates.front + z.gates.back : 0);
 
-/** "Parkir susun · 11 lantai · 16 gate" (Smart Parking) atau "Parkir biasa · 2 lantai". */
+/** "Parkir susun · 16 gerbang · 24 slot per gerbang" (Smart Parking) atau "Parkir biasa · 2 lantai". */
 export function zoneKind(z) {
   const gates = gateCount(z);
-  return `${z.type === 'smart' ? 'Parkir susun' : ZONE_TYPES[z.type] ?? 'Parkir'} · ${z.levels} lantai${gates ? ` · ${gates} gate` : ''}`;
+  const type = z.type === 'smart' ? 'Parkir susun' : ZONE_TYPES[z.type] ?? 'Parkir';
+  return gates ? `${type} · ${gates} gerbang · ${z.slotsPerGate} slot per gerbang` : `${type} · ${z.levels} lantai`;
 }
 
-/** Isi tooltip satu gedung parkir (3D dan 2D): hanya jumlah ruang parkir tersedia, angka besar agar mudah dibaca. z = satu zona dari summarizeParking(). */
-export const zoneTooltip = (z) => `<div class="flex items-center gap-2.5 px-1.5 py-1">
-    <span class="text-heading font-semibold tabular-nums text-accent">${z.free}</span>
-    <span class="text-body leading-tight text-paper">ruang parkir<br>tersedia</span>
+/** Isi tooltip satu gerbang (3D dan 2D). t = satu menara dari summarizeParking().zones[].towers. */
+export const towerTooltip = (t) => `<div class="px-1.5 py-1">
+    <p class="text-caption tracking-normal text-paper">Gerbang ${t.code}</p>
+    <p class="flex items-baseline gap-1.5"><span class="text-heading font-semibold tabular-nums text-accent">${t.free}</span><span class="text-body text-paper">/ ${t.total} slot tersedia</span></p>
   </div>`;
 
-/* Fasad gedung untuk ilustrasi 3D dan 2D, mengikuti Smart Parking: dinding putih, jalur kaca vertikal,
-   dan panel tanaman berselang-seling (pola papan catur) di tiap lantai. Lantai dasar berisi gate. */
+/* Ilustrasi mobil tiap slot, dipakai SVG 2D dan canvas 3D. Warna mengikuti contoh pengguna:
+   3 dari 24 slot tersedia = 3 mobil merah dan 21 mobil hijau. Yang diketahui hanya jumlah per
+   gerbang, bukan letak slot, jadi mobil dikelompokkan: terisi di bawah, tersedia di atas. */
 
-export const FACADE = { wall: '#f7f8fa', glass: '#9fb2c6', plant: '#6f8443', plantDark: '#4f6331', slab: '#e3e6ec' };
+export const CAR_COLOR = { free: '#e7000b', taken: '#16a34a' };
+export const CAR_BOX = { w: 20, h: 15 };
+// Mobil tampak belakang seperti sedang parkir: atap, kaca belakang, lampu, plat nomor, dua roda.
+export const CAR_PATH = 'M4.2 1.6C4.5 .9 5.1 .5 5.9 .5H14.1C14.9 .5 15.5 .9 15.8 1.6L17.4 5.6C18.6 6 19.4 7 19.4 8.2V11.6C19.4 12.2 19 12.6 18.4 12.6H1.6C1 12.6 .6 12.2 .6 11.6V8.2C.6 7 1.4 6 2.6 5.6ZM6.3 2.1 5 5.4H15L13.7 2.1ZM2.8 7.6V9.4H5.8V7.6ZM14.2 7.6V9.4H17.2V7.6ZM7.6 9V11H12.4V9ZM2 13H5.2V14.2C5.2 14.5 4.9 14.8 4.6 14.8H2.6C2.3 14.8 2 14.5 2 14.2ZM14.8 13H18V14.2C18 14.5 17.7 14.8 17.4 14.8H15.4C15.1 14.8 14.8 14.5 14.8 14.2Z';
 
-/** Lebar fasad dalam kolom panel: 2 kolom per gate, minimal 8. */
+/** Warna tiap baris menara, indeks 0 = paling bawah. */
+export const towerRows = (t) => Array.from({ length: t.total }, (_, i) => (i < t.total - t.free ? CAR_COLOR.taken : CAR_COLOR.free));
+
+/* Warna gedung untuk ilustrasi 3D dan 2D. */
+
+export const FACADE = { wall: '#f7f8fa', slab: '#e3e6ec', side: '#aeb5c2', steel: '#2c3f73', deck: '#d7dce6', spine: '#39435c', door: '#172650' };
+
+/** Lebar muka gedung dalam kolom: 2 kolom per gerbang, minimal 8. */
 export const facadeCols = (gates) => Math.max(8, gates * 2);
-
-/**
- * Sel fasad untuk `rows` lantai di atas lantai dasar: kolom kaca tiap kolom ke-5 (mulai kolom 2),
- * panel tanaman di sel (baris + kolom) genap selain kolom kaca. Baris 0 = lantai teratas.
- */
-export function facadeCells(cols, rows) {
-  const glass = Array.from({ length: cols }, (_, c) => c).filter((c) => c % 5 === 2);
-  const plants = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) if ((r + c) % 2 === 0 && !glass.includes(c)) plants.push({ r, c });
-  }
-  return { glass, plants };
-}

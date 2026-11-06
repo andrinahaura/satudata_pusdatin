@@ -69,10 +69,22 @@ export function findWasteRooms(iot) {
   return result;
 }
 
+// Satu menara slot per gerbang, urut seperti gerbangnya (D1–D8 lalu B1–B8).
+function towersOf(zone) {
+  const towers = new Map();
+  for (const s of zone.slots) {
+    if (!towers.has(s.gate)) towers.set(s.gate, { code: s.gate, side: s.gate.startsWith('B') ? 'back' : 'front', total: 0, free: 0 });
+    const t = towers.get(s.gate);
+    t.total += 1;
+    if (!s.occupied) t.free += 1;
+  }
+  return [...towers.values()];
+}
+
 export function summarizeParking(parking) {
   const zones = parking.zones.map((z) => {
     const occupied = z.slots.filter((s) => s.occupied).length;
-    return { id: z.id, name: z.name, type: z.type, location: z.location, kind: z.kind, levels: z.levels, gates: z.gates, total: z.slots.length, occupied, free: z.slots.length - occupied };
+    return { id: z.id, name: z.name, type: z.type, location: z.location, kind: z.kind, levels: z.levels, gates: z.gates, slotsPerGate: z.slotsPerGate, towers: towersOf(z), total: z.slots.length, occupied, free: z.slots.length - occupied };
   });
   const sum = (list, key) => list.reduce((s, z) => s + z[key], 0);
   const byKind = (kind) => {

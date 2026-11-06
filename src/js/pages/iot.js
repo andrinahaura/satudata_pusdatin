@@ -5,13 +5,13 @@ import { getViewMode, setViewMode, viewToggleHtml } from '../components/view-tog
 import { icon, renderIcons } from '../components/icons.js';
 import { lineLegendHtml } from '../components/line-chart.js';
 import { createTrendChart } from '../components/trend-chart.js';
-import { createAlertPanel } from '../components/alert-panel.js';
+import { alertTypes, createAlertPanel } from '../components/alert-panel.js';
 import { createDateRange } from '../components/date-range.js';
 import { errorState, floorTargetCell, segmentedHtml, statTile } from '../components/ui.js';
 import { DEVICE_TYPES } from '../data/device-types.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
-  devicePowerW, devicesInRoom, deviceUptime, energyByFloor, energyRange, findWasteRooms, getAlerts, indexIot,
+  devicesInRoom, deviceUptime, energyRange, findWasteRooms, getAlerts, indexIot,
   roomActivity, summarizeIot, summarizeParking,
 } from '../services/selectors.js';
 import { $, esc, getParam, setParams } from '../utils/dom.js';
@@ -147,12 +147,12 @@ function currentFloor() {
 
 function renderKpis() {
   const s = summarizeIot(state.iot);
-  const e = energyByFloor(state.iot, 'harian');
+  const stable = state.history ? deviceUptime(state.history, state.iot, picker.range).overall : null;
   $('[data-kpis]').innerHTML = [
     statTile({ label: 'Perangkat online', value: s.online, unit: ` / ${s.totalDevices}`, sub: s.offline ? `${s.offline} offline` : '' }),
+    statTile({ label: 'Kestabilan perangkat', value: stable == null ? '–' : pct2(stable), sub: picker.range.label }),
     statTile({ label: 'Lampu menyala', value: s.byType.light.on, unit: ` / ${s.byType.light.total} lampu` }),
     statTile({ label: 'Jumlah ruangan terisi', value: s.occupiedRooms, unit: ` / ${s.workspaceRooms} ruang` }),
-    statTile({ label: 'Listrik hari ini', value: fmt1(e.kwh), unit: ' kWh', sub: rupiah(e.rupiah) }),
   ].join('');
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(state.iot.updatedAt)}`;
 }
@@ -192,15 +192,14 @@ function renderRoomPanel(floor) {
     const s = summarizeIot(state.iot, floor.id);
     const devices = state.iot.devices.filter((d) => d.floorId === floor.id);
     const waste = findWasteRooms(state.iot).filter((w) => w.floor.id === floor.id);
-    const floorEnergy = energyByFloor(state.iot, 'harian').floors.find((f) => f.floor.id === floor.id);
     panel.innerHTML = `
-      <div class="card-header"><h2 class="card-title">Ringkasan ${esc(floor.name)}</h2></div>
+      <div class="card-header"><h3 class="card-title">Ringkasan ${esc(floor.name)}</h3></div>
       <div class="card-body">
         <dl class="grid grid-cols-2 gap-x-4 gap-y-4">
           <div><dt class="text-caption tracking-normal text-mid-gray">Lampu menyala</dt><dd class="text-subheading font-semibold tabular-nums">${s.byType.light.on}<span class="text-body font-normal text-mid-gray"> / ${s.byType.light.total} lampu</span></dd></div>
           <div><dt class="text-caption tracking-normal text-mid-gray">Jumlah ruangan terisi</dt><dd class="text-subheading font-semibold tabular-nums">${s.occupiedRooms}<span class="text-body font-normal text-mid-gray"> / ${s.workspaceRooms} ruang</span></dd></div>
-          <div><dt class="text-caption tracking-normal text-mid-gray">Jumlah ruangan terisi</dt><dd class="text-subheading font-semibold tabular-nums">${s.occupiedRooms}<span class="text-body font-normal text-mid-gray"> / ${s.workspaceRooms} ruang</span></dd></div>
-          <div><dt class="text-caption tracking-normal text-mid-gray">Listrik hari ini</dt><dd class="text-subheading font-semibold tabular-nums">${fmt1(floorEnergy.kwh)}<span class="text-body font-normal text-mid-gray"> kWh</span></dd></div>
+          <div><dt class="text-caption tracking-normal text-mid-gray">Perangkat online</dt><dd class="text-subheading font-semibold tabular-nums">${s.online}<span class="text-body font-normal text-mid-gray"> / ${s.totalDevices}</span></dd></div>
+          <div><dt class="text-caption tracking-normal text-mid-gray">Ruang kosong, lampu menyala</dt><dd class="text-subheading font-semibold tabular-nums">${waste.length}<span class="text-body font-normal text-mid-gray"> ruang</span></dd></div>
         </dl>
         ${waste.length ? `<div class="mt-5 rounded-nested border border-hairline p-3">
             <p class="font-medium">${waste.length} ruang kosong, lampu menyala</p>
@@ -215,20 +214,19 @@ function renderRoomPanel(floor) {
   }
 
   const devices = devicesInRoom(state.iot, room.id);
-  const power = devices.reduce((a, d) => a + devicePowerW(d), 0);
   const stat = (label, value) => `<div class="rounded-nested bg-canvas p-3"><dt class="text-caption tracking-normal text-mid-gray">${label}</dt><dd class="mt-0.5 text-subheading font-semibold tabular-nums">${value}</dd></div>`;
   const presence = room.occupancy == null ? '–' : room.occupancy > 0 ? 'Terisi' : 'Kosong';
   const activity = roomActivity(state.iot, room.id, 8);
   const controllable = devices.filter((d) => DEVICE_TYPES[d.type].controllable);
   panel.innerHTML = `
     <div class="card-header">
-      <h2 class="min-w-0 truncate text-subheading font-semibold">${esc(room.name)}</h2>
+      <h3 class="min-w-0 truncate text-subheading font-semibold">${esc(room.name)}</h3>
       <button type="button" class="btn btn-ghost btn-icon" data-room-close aria-label="Tutup detail ruangan">${icon('x')}</button>
     </div>
     <div class="card-body">
       <dl class="grid grid-cols-2 gap-2">
         ${stat('Status ruangan', presence)}
-        ${stat('Daya', `${power} W`)}
+        ${stat('Perangkat online', `${devices.filter((d) => d.online).length} / ${devices.length}`)}
       </dl>
       ${!room.equipped ? '<p class="mt-4 rounded-nested border border-hairline px-3 py-2.5 text-mid-gray">Sensor belum terpasang di ruang ini.</p>' : ''}
       <h3 class="mt-5 mb-1 font-semibold">Perangkat <span class="font-normal text-mid-gray">${devices.length}</span></h3>
@@ -300,7 +298,7 @@ function renderEnergy() {
     statTile({ label: 'Beban saat ini', value: fmt1(trafo.kw), unit: ' kW', sub: 'Saat ini' }),
   ].join('');
 
-  const scopes = [{ value: 'all', label: 'Gedung' }, ...state.iot.building.floors.map((f) => ({ value: f.id, label: f.short }))];
+  const scopes = [{ value: 'all', label: 'Semua lantai' }, ...state.iot.building.floors.map((f) => ({ value: f.id, label: f.name }))];
   $('[data-energy-scope]').innerHTML = segmentedHtml(scopes, state.energyScope, 'data-energy-scope-id');
   const scopeFloor = state.iot.building.floors.find((f) => f.id === state.energyScope);
   const series = e.seriesFor(scopeFloor?.id ?? null);
@@ -364,13 +362,41 @@ function monitoredChecks() {
 }
 
 function renderAlerts() {
-  alertPanel.update(getAlerts(state.iot, state.parking), { checks: monitoredChecks(), checkedAt: fmtTime(state.iot.updatedAt) });
+  const alerts = getAlerts(state.iot, state.parking);
+  const critical = alerts.filter((a) => a.severity === 'critical').length;
+  const warning = alerts.length - critical;
+  const split = [critical && `${critical} kritis`, warning && `${warning} perhatian`].filter(Boolean).join(', ');
+  $('[data-alert-count]').innerHTML = alerts.length
+    ? `<span class="text-subheading font-semibold ${critical ? 'text-ember' : 'text-ink'}">${alerts.length}</span><span class="text-caption tracking-normal text-mid-gray">${split}</span>`
+    : '<span class="font-medium">Semua normal</span>';
+  $('[data-alert-types]').innerHTML = alertTypes(alerts)
+    .map((t) => `<li class="flex min-w-0 flex-1 flex-col justify-center px-5 py-2.5">
+        <span class="text-caption tracking-normal text-mid-gray">${esc(t.label)}</span>
+        <span class="text-subheading font-semibold tabular-nums ${t.severity === 'critical' ? 'text-ember' : ''}">${t.count}</span>
+      </li>`)
+    .join('');
+  alertPanel.update(alerts, { checks: monitoredChecks(), checkedAt: fmtTime(state.iot.updatedAt) });
 }
 
+// Panel Peringatan dan Telegram tertutup secara bawaan; tautan #peringatan membukanya.
+function setAlertDetail(open) {
+  $('#alert-detail').classList.toggle('hidden', !open);
+  $('#alert-detail').classList.toggle('grid', open);
+  const toggle = $('[data-alert-toggle]');
+  toggle.setAttribute('aria-expanded', String(open));
+  toggle.textContent = open ? 'Tutup detail' : 'Lihat detail';
+}
+
+$('[data-alert-toggle]').addEventListener('click', () => setAlertDetail($('#alert-detail').classList.contains('hidden')));
+window.addEventListener('hashchange', () => {
+  if (location.hash === '#peringatan') setAlertDetail(true);
+});
+setAlertDetail(location.hash === '#peringatan');
+
 const TG_STATUS = {
-  sent: '<span class="badge badge-solid">Terkirim</span>',
-  skipped: '<span class="badge badge-soft">Tidak dikirim</span>',
-  failed: '<span class="badge badge-alert">Gagal</span>',
+  sent: '<span class="text-mid-gray">Terkirim</span>',
+  skipped: '<span class="text-mid-gray">Tidak dikirim</span>',
+  failed: '<span class="font-medium text-ember">Gagal</span>',
 };
 const TG_KIND = { alert: '', resolved: 'Pulih · ', test: '' };
 
@@ -379,7 +405,7 @@ function renderTelegram() {
   if (!n) return;
   const { channel, settings } = n;
   $('[data-tg-channel]').textContent = `${channel.bot} ke ${channel.chat}`;
-  $('[data-tg-status]').innerHTML = channel.connected ? '<span class="badge badge-outline">Terhubung</span>' : '<span class="badge badge-alert">Terputus</span>';
+  $('[data-tg-status]').innerHTML = channel.connected ? '<span class="text-mid-gray">Terhubung</span>' : '<span class="font-medium text-ember">Terputus</span>';
   const row = (key, label, desc, disabled = false) => `<div class="flex items-center justify-between gap-3 px-3 py-2.5">
       <span class="min-w-0"><span class="block font-medium">${label}</span><span class="block text-caption tracking-normal text-mid-gray">${desc}</span></span>
       <button type="button" class="switch" role="switch" aria-checked="${settings[key]}" aria-label="${label}" data-tg-setting="${key}" ${disabled ? 'disabled' : ''}></button>
@@ -443,6 +469,7 @@ let uptimeChart = null;
 const pct2 = (ratio) => `${(ratio * 100).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
 
 function renderHistory() {
+  renderKpis();
   if (!state.history) return;
   const range = picker.range;
   const u = deviceUptime(state.history, state.iot, range);
@@ -456,7 +483,7 @@ function renderHistory() {
     statTile({ label: 'Total waktu terputus', value: fmtDuration(u.downMs / 60000), sub: 'Dijumlah dari semua perangkat' }),
   ].join('');
 
-  $('[data-uptime-desc]').textContent = `Porsi waktu perangkat terhubung ${range.single ? 'per jam' : 'per hari'}, ${range.label}`;
+  $('[data-uptime-desc]').textContent = `Persentase waktu perangkat terhubung ${range.single ? 'per jam' : 'per hari'}, ${range.label}`;
   const opts = {
     labels: u.buckets.map((b) => b.label),
     series: [{ label: 'Kestabilan', values: u.buckets.map((b) => (b.ratio == null ? null : b.ratio * 100)), style: 'current' }],

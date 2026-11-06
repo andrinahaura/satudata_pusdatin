@@ -2,7 +2,7 @@ import { icon, renderIcons } from './icons.js';
 
 export const NAV = [
   { id: 'home', label: 'Home', href: '/', icon: 'layout-dashboard' },
-  { id: 'iot', label: 'IoT', href: '/iot.html', icon: 'cpu' },
+  { id: 'iot', label: 'IoT & Kelistrikan', href: '/iot.html', icon: 'cpu' },
   { id: 'vision', label: 'AI Vision', href: '/vision.html', icon: 'car' },
   { id: 'chatbot', label: 'Chatbot', href: '/chatbot.html', icon: 'message-square' },
 ];

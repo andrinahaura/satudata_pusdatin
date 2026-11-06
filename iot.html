@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Monitoring perangkat IoT, kondisi ruang, dan listrik Gedung Pusdatin per lantai." />
-    <title>IoT · SatuData Pusdatin</title>
+    <title>IoT &amp; Kelistrikan · SatuData Pusdatin</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,81 +15,33 @@
     <div class="flex min-h-dvh flex-col">
       <header id="navbar" class="sticky top-0 z-30 bg-ink text-paper"></header>
       <main class="mx-auto w-full max-w-[1680px] flex-1 px-4 py-6 sm:px-5 lg:px-6 lg:py-6">
-        <!-- Rentang waktu berlaku untuk notifikasi, riwayat perangkat, dan listrik.
-             KPI atas, denah, tabel perangkat, dan peringatan aktif selalu kondisi saat ini. -->
+        <!-- Halaman ini punya tiga bagian: Peringatan & notifikasi, IoT, dan Kelistrikan.
+             Periode berlaku untuk kestabilan, riwayat perangkat, kelistrikan, dan notifikasi.
+             Angka perangkat, denah, tabel perangkat, dan peringatan aktif selalu kondisi saat ini. -->
         <section class="page-toolbar flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div>
-            <h1 class="text-heading font-semibold">Monitoring gedung</h1>
-            <div class="mt-2 flex flex-wrap items-center gap-2">
-              <a href="#peringatan" class="btn btn-secondary btn-sm">Peringatan</a>
-              <a href="#riwayat" class="btn btn-secondary btn-sm">Riwayat</a>
-              <a href="#listrik" class="btn btn-secondary btn-sm">Listrik</a>
-              <span class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated>Memuat…</span>
-            </div>
+            <h1 class="text-heading font-semibold">IoT &amp; Kelistrikan</h1>
+            <p class="text-caption tracking-normal text-mid-gray tabular-nums" data-updated>Memuat…</p>
           </div>
           <div data-range></div>
         </section>
 
-        <section class="stat-strip mt-6 grid-cols-2 lg:grid-cols-4" data-kpis aria-label="Ringkasan gedung"></section>
-
-        <section class="card mt-4 min-w-0">
-          <div class="card-header">
-            <div class="flex flex-wrap items-center gap-3">
-              <h2 class="card-title">Denah</h2>
-              <div class="segmented" role="tablist" aria-label="Pilih lantai" data-floor-tabs></div>
+        <!-- Peringatan paling atas tetapi ringkas: total, lalu satu kolom per jenis, supaya IoT tetap terlihat tanpa gulir.
+             "Lihat detail" membuka panel Peringatan dan Telegram. Tautan #peringatan membukanya otomatis. -->
+        <section id="peringatan" class="mt-3 scroll-mt-24 lg:scroll-mt-48" aria-labelledby="peringatan-title">
+          <div class="card flex items-stretch overflow-hidden">
+            <div class="flex shrink-0 flex-col justify-center px-5 py-2.5">
+              <h2 id="peringatan-title" class="text-caption tracking-normal text-mid-gray">Peringatan aktif</h2>
+              <p class="flex items-baseline gap-2 tabular-nums" data-alert-count></p>
             </div>
-            <div class="flex max-w-full flex-wrap items-center gap-2">
-              <div class="scroll-thin max-w-full overflow-x-auto">
-                <div class="segmented" role="tablist" aria-label="Filter perangkat" data-type-filter></div>
-              </div>
-              <div data-view-toggle></div>
-            </div>
+            <ul class="hidden min-w-0 flex-1 divide-x divide-hairline border-x border-hairline md:flex" data-alert-types></ul>
+            <button type="button" class="ml-auto shrink-0 cursor-pointer px-5 font-medium underline underline-offset-4 hover:text-mid-gray" data-alert-toggle aria-expanded="false" aria-controls="alert-detail"></button>
           </div>
-          <div class="card-body">
-            <div data-plan-3d></div>
-            <div data-plan-2d></div>
-          </div>
-          <div class="card-footer flex-wrap" data-floor-legend></div>
-        </section>
-
-        <section class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
-          <div class="border-b border-hairline lg:border-r lg:border-b-0" data-room-panel aria-live="polite"></div>
-          <div class="flex min-w-0 flex-col">
-            <div class="card-header">
-              <div>
-                <h2 class="card-title" data-table-title>Perangkat</h2>
-              </div>
-              <div class="relative w-full sm:w-64">
-                <i data-lucide="search" class="pointer-events-none absolute top-2.5 left-3 size-4 text-mid-gray"></i>
-                <input type="search" class="input pl-9" placeholder="Cari perangkat / ruangan" data-search aria-label="Cari perangkat" />
-              </div>
-            </div>
-            <!-- Tinggi tabel mengikuti panel ruang di kiri (lg), supaya tidak ada ruang kosong. -->
-            <div class="scroll-thin mt-3 max-h-[520px] overflow-auto lg:h-0 lg:max-h-none lg:min-h-[420px] lg:grow lg:basis-0">
-              <table class="w-full min-w-[640px] text-left">
-                <thead class="sticky top-0 bg-paper">
-                  <tr class="border-b border-hairline text-caption tracking-normal text-mid-gray">
-                    <th class="px-5 py-2 font-medium">Perangkat</th>
-                    <th class="px-3 py-2 font-medium">Ruangan</th>
-                    <th class="px-3 py-2 font-medium">Status</th>
-                    <th class="px-3 py-2 font-medium">Terakhir aktif</th>
-                    <th class="px-5 py-2 text-right font-medium">Kontrol</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-hairline" data-table-body></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <!-- Peringatan di dashboard + notifikasi ke Telegram: dua kartu, tinggi sama di layar lebar. -->
-        <section id="peringatan" class="mt-8 scroll-mt-24 lg:scroll-mt-48" aria-labelledby="peringatan-title">
-          <h2 id="peringatan-title" class="text-heading-sm font-semibold">Peringatan &amp; notifikasi</h2>
-          <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <article class="card flex min-w-0 flex-col overflow-hidden xl:h-[600px]">
+          <div id="alert-detail" class="mt-4 hidden grid-cols-1 gap-4 xl:grid-cols-2">
+            <article class="card flex min-w-0 flex-col overflow-hidden xl:h-[480px]">
               <div class="flex min-h-0 flex-1 flex-col" data-alert-panel aria-live="polite"></div>
             </article>
-            <article class="card flex min-w-0 flex-col overflow-hidden xl:h-[600px]">
+            <article class="card flex min-w-0 flex-col overflow-hidden xl:h-[480px]">
               <div class="card-header">
                 <div class="min-w-0">
                   <h3 class="card-title text-body-lg">Notifikasi Telegram</h3>
@@ -114,10 +66,66 @@
           </div>
         </section>
 
-        <!-- Data historis: riwayat status (aktif / tidak aktif) dan kestabilan (terhubung / terputus). -->
+        <!-- IoT: perangkat IoT di gedung beserta kondisi, kontrol, dan riwayatnya. -->
+        <section id="iot" class="page-section-first scroll-mt-24 lg:scroll-mt-48" aria-labelledby="iot-title">
+          <h2 id="iot-title" class="text-heading-sm font-semibold">IoT</h2>
+
+        <section class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-kpis aria-label="Ringkasan perangkat IoT"></section>
+
+        <section class="card mt-4 min-w-0">
+          <div class="card-header">
+            <div class="flex flex-wrap items-center gap-3">
+              <h3 class="card-title">Denah</h3>
+              <div class="segmented" role="tablist" aria-label="Pilih lantai" data-floor-tabs></div>
+            </div>
+            <div class="flex max-w-full flex-wrap items-center gap-2">
+              <div class="scroll-thin max-w-full overflow-x-auto">
+                <div class="segmented" role="tablist" aria-label="Filter perangkat" data-type-filter></div>
+              </div>
+              <div data-view-toggle></div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div data-plan-3d></div>
+            <div data-plan-2d></div>
+          </div>
+          <div class="card-footer flex-wrap" data-floor-legend></div>
+        </section>
+
+        <section class="card mt-4 grid min-w-0 grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <div class="border-b border-hairline lg:border-r lg:border-b-0" data-room-panel aria-live="polite"></div>
+          <div class="flex min-w-0 flex-col">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title" data-table-title>Perangkat</h3>
+              </div>
+              <div class="relative w-full sm:w-64">
+                <i data-lucide="search" class="pointer-events-none absolute top-2.5 left-3 size-4 text-mid-gray"></i>
+                <input type="search" class="input pl-9" placeholder="Cari perangkat / ruangan" data-search aria-label="Cari perangkat" />
+              </div>
+            </div>
+            <!-- Tinggi tabel mengikuti panel ruang di kiri (lg), supaya tidak ada ruang kosong. -->
+            <div class="scroll-thin mt-3 max-h-[520px] overflow-auto lg:h-0 lg:max-h-none lg:min-h-[420px] lg:grow lg:basis-0">
+              <table class="w-full min-w-[640px] text-left">
+                <thead class="sticky top-0 bg-paper">
+                  <tr class="border-b border-hairline text-caption tracking-normal text-mid-gray">
+                    <th class="px-5 py-2 font-medium">Perangkat</th>
+                    <th class="px-3 py-2 font-medium">Ruangan</th>
+                    <th class="px-3 py-2 font-medium">Status</th>
+                    <th class="px-3 py-2 font-medium">Terakhir aktif</th>
+                    <th class="px-5 py-2 text-right font-medium">Kontrol</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-hairline" data-table-body></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Data historis perangkat IoT: riwayat status (aktif / tidak aktif) dan kestabilan (terhubung / terputus). -->
         <section id="riwayat" class="mt-8 scroll-mt-24 lg:scroll-mt-48" aria-labelledby="riwayat-title">
-          <h2 id="riwayat-title" class="text-heading-sm font-semibold">Riwayat perangkat</h2>
-          <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-uptime-kpis aria-label="Ringkasan konektivitas"></div>
+          <h3 id="riwayat-title" class="text-body-lg font-semibold">Riwayat perangkat</h3>
+          <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-uptime-kpis aria-label="Ringkasan kestabilan perangkat"></div>
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
             <!-- Grafik mengisi tinggi kartu, mengikuti tinggi tabel "Kestabilan terendah" di sebelahnya. -->
             <article class="card flex min-w-0 flex-col">
@@ -163,29 +171,34 @@
             </div>
           </article>
         </section>
+        </section>
 
-        <section id="listrik" class="mt-8 scroll-mt-24 lg:scroll-mt-48" aria-labelledby="listrik-title">
-          <h2 id="listrik-title" class="text-heading-sm font-semibold">Listrik</h2>
+        <!-- Kelistrikan: data meter per lantai, sudah mencakup semua perangkat di lantai itu termasuk perangkat IoT.
+             Pemakaian listrik khusus perangkat IoT tidak tersedia, jadi tidak ditampilkan. -->
+        <section id="listrik" class="page-section scroll-mt-24 lg:scroll-mt-48" aria-labelledby="listrik-title">
+          <h2 id="listrik-title" class="text-heading-sm font-semibold">Kelistrikan</h2>
 
-          <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-energy-kpis aria-label="Ringkasan listrik"></div>
+          <div class="stat-strip mt-4 grid-cols-2 lg:grid-cols-4" data-energy-kpis aria-label="Ringkasan kelistrikan"></div>
 
           <!-- Dua kartu terpisah dengan tinggi sama; tabel per lantai mengisi tinggi kartunya. -->
           <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_500px]">
             <article class="card min-w-0">
               <div class="card-header">
-                <h3 class="card-title">Grafik pemakaian</h3>
-                <div class="segmented" role="tablist" aria-label="Pilih lingkup" data-energy-scope></div>
+                <h3 class="card-title">Pemakaian listrik</h3>
+                <div class="scroll-thin max-w-full overflow-x-auto">
+                  <div class="segmented" role="tablist" aria-label="Pilih lantai" data-energy-scope></div>
+                </div>
               </div>
               <div class="card-body" data-energy-chart></div>
               <div class="card-footer" data-energy-legend></div>
             </article>
             <article class="card flex min-w-0 flex-col overflow-hidden">
               <div class="card-header">
-                <h3 class="card-title">Per lantai</h3>
+                <h3 class="card-title">Pemakaian per lantai</h3>
               </div>
-              <div class="mt-3 flex-1 pb-2">
+              <div class="scroll-thin mt-3 flex-1 overflow-x-auto pb-2">
                 <table class="data-table data-table-fill h-full">
-                  <thead><tr><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">Porsi</th><th class="num" data-prev-head>vs lalu</th></tr></thead>
+                  <thead><tr><th>Lantai</th><th class="num">kWh</th><th class="num">Biaya</th><th class="num">Persentase</th><th class="num" data-prev-head>vs lalu</th></tr></thead>
                   <tbody data-energy-floors></tbody>
                   <tfoot data-energy-floors-total></tfoot>
                 </table>

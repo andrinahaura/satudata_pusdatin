@@ -155,7 +155,8 @@ function renderAnalytics() {
     statTile({ label: 'Pengguna', value: fmtInt(s.users), unit: ' orang', sub: `Bertanya ${range.short}` }),
     statTile({ label: 'Total pertanyaan', value: fmtInt(s.questions), sub: range.label }),
     statTile({ label: 'Biaya AI', value: fmtRupiah(s.rupiah), sub: `${fmtCompact(s.tokens)} token` }),
-    statTile({ label: 'Jawaban sesuai', value: s.rated ? fmtPct(s.upRate) : '–', sub: `dari ${fmtInt(s.rated)} ulasan` }),
+    statTile({ label: 'Ulasan sesuai', value: s.rated ? fmtPct(s.upRate) : '–', sub: `${fmtInt(s.ratings.up)} dari ${fmtInt(s.rated)} ulasan` }),
+    statTile({ label: 'Ulasan tidak sesuai', value: s.rated ? fmtPct(1 - s.upRate) : '–', sub: `${fmtInt(s.ratings.down)} dari ${fmtInt(s.rated)} ulasan` }),
   ].join('');
   renderTrend();
   $('[data-model-desc]').textContent = range.label;

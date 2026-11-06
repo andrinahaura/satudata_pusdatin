@@ -1,45 +1,48 @@
 // Panel Peringatan di halaman IoT.
 // Dirancang supaya mudah dipahami semua pengguna, termasuk pengguna lanjut usia:
 //   - teks utama 16px, lokasi & saran 14px (bukan teks kecil 12px)
-//   - tingkat ditandai label teks ("Kritis"/"Perhatian") + garis warna, tidak hanya warna
+//   - tingkat ditandai label teks ("Kritis"/"Perhatian"), tidak hanya warna
 //   - setiap peringatan menyebut apa yang perlu dilakukan, dalam bahasa sehari-hari
-//   - tombol aksi terlihat jelas ("Lihat di denah"), bukan baris yang diam-diam bisa diklik
+//   - aksi berupa tautan teks yang jelas ("Lihat di denah"), bukan baris yang diam-diam bisa diklik
 // Tata letak: satu baris untuk setiap hal yang dipantau (koneksi perangkat, listrik, lampu di
 // ruang kosong, parkir), jadi isi panel selalu lengkap dan tingginya sama dengan kartu Telegram.
 //   - ada masalah : baris lengkap (jumlah, lokasi, saran, tombol), peringatan sejenis dikelompokkan
 //                   ("6 ruang kosong …") dan daftar lokasinya bisa dibuka
-//   - normal      : baris ringkas dengan tanda centang dan nilai saat ini ("24/24 online")
+//   - normal      : baris ringkas dengan nilai saat ini ("24/24 online")
 //   - baris berbagi sisa tinggi panel; bila daftar dibuka dan terlalu panjang, panel bisa digulir.
 import { esc } from '../utils/dom.js';
-import { icon, renderIcons } from './icons.js';
 
 const SEVERITY = {
-  critical: { label: 'Kritis', bar: 'border-l-ember', badge: 'badge-alert' },
-  warning: { label: 'Perhatian', bar: 'border-l-accent', badge: 'badge-outline' },
+  critical: { label: 'Kritis', text: 'text-ember' },
+  warning: { label: 'Perhatian', text: 'text-mid-gray' },
 };
 
 // Urutan baris saat normal, nama hal yang dipantau, judul kelompok, saran, dan label tombol.
 const TYPES = {
   offline: {
     label: 'Koneksi perangkat',
+    short: 'Perangkat offline',
     many: (n) => `${n} perangkat offline`,
     hint: 'Perangkat tidak mengirim data. Periksa listrik atau koneksi perangkat.',
     action: 'Lihat di denah',
   },
   energy: {
     label: 'Listrik per lantai',
+    short: 'Listrik di atas target',
     many: (n) => `${n} lantai di atas target listrik`,
     hint: 'Pemakaian listrik jam ini lebih tinggi dari target. Cek lampu yang tidak dipakai.',
     action: 'Lihat grafik listrik',
   },
   waste: {
     label: 'Lampu di ruang kosong',
+    short: 'Ruang kosong, lampu menyala',
     many: (n) => `${n} ruang kosong, lampu menyala`,
     hint: 'Tidak ada orang di ruang ini. Matikan lampu dari halaman IoT.',
     action: 'Lihat di denah',
   },
   parking: {
     label: 'Ruang parkir tersedia',
+    short: 'Parkir hampir penuh',
     many: (n) => `${n} zona parkir hampir penuh`,
     hint: 'Sisa ruang parkir kurang dari 10%.',
     action: 'Lihat peta parkir',
@@ -58,6 +61,10 @@ function groupAlerts(alerts) {
   return [...groups.values()].sort((a, b) => RANK[a.severity] - RANK[b.severity] || b.items.length - a.items.length);
 }
 
+/** Ringkasan per jenis untuk baris Peringatan: [{ label, count, severity }], kritis lebih dulu. */
+export const alertTypes = (alerts) =>
+  groupAlerts(alerts).map((g) => ({ label: TYPES[g.type]?.short ?? 'Peringatan lain', count: g.items.length, severity: g.severity }));
+
 function placeLine(items) {
   if (items.length === 1) return items[0].meta;
   // Untuk kelompok cukup nama ruang/zona ("09 R. Tim Jaringan"), lantai ada di daftar lengkap.
@@ -66,7 +73,8 @@ function placeLine(items) {
 }
 
 // Baris mengisi sisa tinggi panel bersama-sama (grow), isinya tetap di tengah secara vertikal.
-const ROW = 'flex grow flex-col justify-center border-l-4';
+const ROW = 'flex grow flex-col justify-center px-5 py-3';
+const LINK = 'cursor-pointer font-medium underline underline-offset-4 hover:text-mid-gray';
 
 function groupHtml(group, expanded) {
   const sev = SEVERITY[group.severity];
@@ -75,8 +83,8 @@ function groupHtml(group, expanded) {
   const single = items.length === 1;
   const title = single ? items[0].title : meta.many(items.length);
   const action = single
-    ? `<a href="${esc(items[0].href)}" class="btn btn-secondary btn-sm">${esc(meta.action)}</a>`
-    : `<button type="button" class="btn btn-secondary btn-sm" data-expand="${esc(group.key)}" aria-expanded="${expanded}">${expanded ? 'Sembunyikan daftar' : `Lihat ${items.length} lokasi`}</button>`;
+    ? `<a href="${esc(items[0].href)}" class="${LINK}">${esc(meta.action)}</a>`
+    : `<button type="button" class="${LINK}" data-expand="${esc(group.key)}" aria-expanded="${expanded}">${expanded ? 'Sembunyikan daftar' : `Lihat ${items.length} lokasi`}</button>`;
   const list = !single && expanded
     ? `<ul class="mt-3 divide-y divide-hairline rounded-nested border border-hairline">
         ${items
@@ -89,27 +97,23 @@ function groupHtml(group, expanded) {
           .join('')}
       </ul>`
     : '';
-  return `<li class="${ROW} ${sev.bar} py-3 pr-5 pl-4">
-    <div class="flex items-start justify-between gap-3">
+  return `<li class="${ROW}">
+    <div class="flex items-baseline justify-between gap-3">
       <p class="text-body-lg leading-snug font-semibold">${esc(title)}</p>
-      <span class="badge ${sev.badge} shrink-0">${sev.label}</span>
+      <span class="shrink-0 font-medium ${sev.text}">${sev.label}</span>
     </div>
     <p class="mt-0.5 text-mid-gray">${esc(placeLine(items))}</p>
     ${meta.hint ? `<p class="mt-1.5">${esc(meta.hint)}</p>` : ''}
-    <div class="mt-3">${action}</div>
+    <div class="mt-2">${action}</div>
     ${list}
   </li>`;
 }
 
 function normalHtml(type, value) {
-  return `<li class="${ROW} border-l-transparent py-3 pr-5 pl-4">
-    <div class="flex items-center gap-3">
-      <span class="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-ink">${icon('check', 'size-4')}</span>
-      <div class="min-w-0 flex-1">
-        <p class="label-caps">${esc(TYPES[type].label)}</p>
-        <p class="text-body-lg font-medium">Normal</p>
-      </div>
-      <span class="shrink-0 text-mid-gray tabular-nums">${esc(value)}</span>
+  return `<li class="${ROW}">
+    <div class="flex items-baseline justify-between gap-3">
+      <p class="min-w-0 font-medium">${esc(TYPES[type].label)}</p>
+      <span class="shrink-0 text-mid-gray tabular-nums">Normal · ${esc(value)}</span>
     </div>
   </li>`;
 }
@@ -129,7 +133,7 @@ export function createAlertPanel(root) {
         <h3 class="card-title text-body-lg">Peringatan</h3>
         <p class="truncate text-mid-gray" data-alert-checked></p>
       </div>
-      <div class="flex shrink-0 gap-1.5" data-alert-summary></div>
+      <div class="flex shrink-0 font-medium" data-alert-summary></div>
     </div>
     <div class="scroll-thin flex max-h-[560px] min-h-0 flex-1 flex-col overflow-y-auto border-t border-hairline xl:max-h-none" data-alert-body></div>
     <p class="hidden border-t border-hairline px-5 py-2.5 text-mid-gray" data-alert-more></p>`;
@@ -145,13 +149,10 @@ export function createAlertPanel(root) {
 
     $('[data-alert-checked]').textContent = `Kondisi saat ini · dicek ${ctx.checkedAt}`;
     $('[data-alert-summary]').innerHTML = alerts.length
-      ? [
-          critical && `<span class="badge badge-alert">${critical} kritis</span>`,
-          warning && `<span class="badge badge-outline">${warning} perhatian</span>`,
-        ]
+      ? [critical && `<span class="text-ember">${critical} kritis</span>`, warning && `<span>${warning} perhatian</span>`]
           .filter(Boolean)
-          .join('')
-      : '<span class="badge badge-solid">Semua normal</span>';
+          .join('<span class="text-mid-gray">,&nbsp;</span>')
+      : '<span>Semua normal</span>';
 
     // Jenis bermasalah di atas (kritis dulu), lalu jenis yang normal sesuai urutan TYPES.
     const groups = groupAlerts(alerts);
@@ -164,7 +165,6 @@ export function createAlertPanel(root) {
         ${normal.map((t) => normalHtml(t, ctx.checks[t])).join('')}
       </ul>`;
     body.scrollTop = scroll;
-    renderIcons(root);
     updateScrollHint();
   }
 

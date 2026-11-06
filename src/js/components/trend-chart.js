@@ -69,7 +69,7 @@ const chipText = (label) => (/^\d{2}\.00$/.test(label) ? label.slice(0, 2) : lab
  * @param {HTMLElement} container
  * @param {{ labels: string[],
  *           series: {label:string, values:(number|null)[], style:'current'|'previous'|'target'}[],
- *           height?: number, fill?: boolean, format?: (v:number)=>string, selected?: number }} opts
+ *           height?: number, fill?: boolean, format?: (v:number)=>string, onSelect?: (i:number)=>void, selected?: number }} opts
  *   `selected` = indeks yang disorot saat tidak ada hover (default: titik terakhir seri utama).
  *   `fill` = tinggi grafik mengikuti tinggi container (minimal `height`). Container harus `relative`
  *   dan tingginya ditentukan oleh tata letak (mis. flex-1), bukan oleh isi grafik.
@@ -161,6 +161,7 @@ export function createTrendChart(container, opts) {
       .join('');
 
     // Tooltip pill di atas titik terpilih, dijepit agar tidak keluar dari kartu.
+    options.onSelect?.(sel);
     const text = pillText(sel);
     const pillW = Math.max(64, text.length * 6.6 + 28);
     const pillX = Math.min(Math.max(sx - pillW / 2, 0), width - pillW);

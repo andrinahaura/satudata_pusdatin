@@ -7,10 +7,10 @@ Tema visual mengikuti [`design.md`](design.md).
 
 | Menu | Halaman | Isi |
 |------|---------|-----|
-| Home | `index.html` | Setiap tile bisa diklik ke halaman detail. Tombol "Layar penuh" untuk layar ruang monitoring: satu layar tanpa gulir, diskalakan dari kanvas 1366×768. KPI dan grafik dari tiga menu: IoT (perangkat, uptime, peringatan, Telegram, listrik), AI Vision (slot tersedia di gedung parkir, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
-| IoT | `iot.html` | Denah 3D/2D per lantai, detail ruang, kontrol perangkat, peringatan + notifikasi Telegram, riwayat status dan kestabilan perangkat, listrik per lantai dan panel distribusi |
+| Home | `index.html` | Setiap tile bisa diklik ke halaman detail. Tombol "Layar penuh" untuk layar ruang monitoring: satu layar tanpa gulir, diskalakan dari kanvas 1366×768. KPI dan grafik dari tiga menu: IoT dan Kelistrikan dengan satu filter lantai (IoT = alat IoT; Kelistrikan = seluruh perangkat, termasuk di luar IoT), AI Vision (slot tersedia di gedung parkir, okupansi, kendaraan masuk/keluar, lama parkir), Chatbot (pengguna, pertanyaan, token, biaya, penilaian jawaban) |
+| IoT & Kelistrikan | `iot.html` | Tiga bagian. Peringatan: satu baris ringkas, "Lihat detail" membuka panel peringatan dan Telegram. IoT: perangkat IoT (denah 3D/2D per lantai, detail ruang, kontrol, riwayat status dan kestabilan). Kelistrikan: pemakaian listrik per lantai dari semua perangkat termasuk IoT, dan panel distribusi; pemakaian khusus IoT tidak tersedia |
 | Chatbot | `chatbot.html` | Chatbot TEJAS (pintas unit PU, SITABA, rujukan dokumen, analisis lampiran, grafik, penilaian jawaban) dan tab Analitik (tren pertanyaan/token/biaya, pengguna, riwayat chat) |
-| AI Vision | `vision.html` | Smart Parking (parkir susun, piloting; 11 lantai, 8 gate depan dan 8 gate belakang). Ilustrasi gedung 3D/2D (ruang parkir tersedia muncul saat gedung disorot), ruang parkir tersedia, kendaraan yang sedang parkir, okupansi, deteksi nomor polisi di gerbang, riwayat kendaraan (jam masuk/keluar, lama parkir). Tanpa kamera area |
+| AI Vision | `vision.html` | Smart Parking (parkir susun, piloting; 11 lantai, 8 gerbang depan dan 8 gerbang belakang, 24 slot per gerbang). Ilustrasi gedung 3D/2D dengan satu menara mobil per gerbang (slot tersedia muncul saat gerbang disorot), ruang parkir tersedia, kendaraan yang sedang parkir, okupansi, deteksi nomor polisi di gerbang, riwayat kendaraan (jam masuk/keluar, lama parkir). Tanpa kamera area |
 
 Ruang lingkup mengikuti paparan *Sistem Informasi Kecerdasan Buatan* (Pusdatin Kementerian PU):
 Dashboard Monitoring IoT, Dashboard AI Vision, dan Dashboard Chatbot. SSO masih dalam kajian, jadi
@@ -63,7 +63,7 @@ Aturan utama: halaman dan komponen **tidak pernah memanggil `fetch` langsung**; 
 ## Rentang waktu
 
 Setiap dashboard **wajib** punya pemilih rentang waktu: satu tombol kalender di kanan judul halaman
-yang membuka panel Hari ini, Kemarin, 7 hari terakhir, 30 hari terakhir, dan Custom (maksimal 90 hari).
+yang membuka panel Hari ini, Kemarin, 7 hari terakhir, 30 hari terakhir, dan Periode (tanggal dari–sampai, maksimal 90 hari).
 Baris judul memakai kelas `.page-toolbar`, jadi di layar lebar menempel di bawah navbar saat digulir. Pilihan disimpan di URL (`?range=7d`,
 `?range=custom&from=2026-09-10&to=2026-09-20`) dan localStorage, jadi terbawa saat pindah halaman.
 
@@ -169,7 +169,7 @@ Request `{ "ids": ["L1-R01-LMP1"], "on": false }`, response `{ "updated": 1 }`.
 ### `GET /parking`
 
 Kondisi parkir saat ini. Saat ini baru satu gedung: Smart Parking (parkir susun, piloting), 11 lantai,
-8 gate di muka depan dan 8 di muka belakang. Data yang dipakai dashboard hanya hasil pembacaan nomor polisi
+8 gerbang di muka depan dan 8 di muka belakang, 24 slot per gerbang. Data yang dipakai dashboard hanya hasil pembacaan nomor polisi
 (ALPR) di gate dan jumlah slot terisi; letak slot yang kosong tidak diketahui. Tidak ada kamera area.
 
 ```jsonc

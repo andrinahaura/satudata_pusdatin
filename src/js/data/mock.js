@@ -399,11 +399,11 @@ export function stepIot(state, rand = Math.random, dtSec = 5) {
 /* ------------------------------------------------------------------ */
 
 // Gedung parkir yang dipantau. Saat ini baru Smart Parking (parkir susun, piloting): 11 lantai,
-// 8 gate di muka depan dan 8 di muka belakang. type 'smart' = Smart Parking, 'regular' = gedung parkir
-// biasa (untuk gedung berikutnya). Okupansi dihitung dari nomor polisi yang terbaca di gate; letak slot
-// yang kosong tidak diketahui. Kapasitas masih angka contoh, ganti dengan data asli.
+// 8 gerbang di muka depan dan 8 di muka belakang, tiap gerbang melayani 24 slot susun. type 'smart' =
+// Smart Parking, 'regular' = gedung parkir biasa (untuk gedung berikutnya). Okupansi dihitung per gerbang
+// dari nomor polisi yang terbaca; letak slot yang kosong tidak diketahui. Kapasitas masih angka contoh.
 const ZONES = [
-  { id: 'SP', name: 'Smart Parking', type: 'smart', location: 'Parkir susun', kind: 'car', levels: 11, gates: { front: 8, back: 8 }, capacity: 160, fill: 0.8 },
+  { id: 'SP', name: 'Smart Parking', type: 'smart', location: 'Parkir susun', kind: 'car', levels: 11, gates: { front: 8, back: 8 }, slotsPerGate: 24, fill: 0.8 },
 ];
 
 const PLATE_LETTERS = 'ABCDEFGHJKLMNPRSTUVWXYZ';
@@ -422,8 +422,21 @@ function minutesAgo(min) {
 
 /* Riwayat kendaraan: satu baris per kunjungan (plat, jam masuk, jam keluar). */
 
-const VISIT_LIMIT = 220;
-const gateOf = (zone) => `Gerbang ${zone.name}`;
+const VISIT_LIMIT = 600;
+
+const capacityOf = (zone) => (zone.gates.front + zone.gates.back) * zone.slotsPerGate;
+
+/** Kode gerbang berurutan: D1–D8 di muka depan, B1–B8 di muka belakang. */
+const gateCodes = (zone) => [
+  ...Array.from({ length: zone.gates.front }, (_, i) => `D${i + 1}`),
+  ...Array.from({ length: zone.gates.back }, (_, i) => `B${i + 1}`),
+];
+const gateName = (code) => `Gerbang ${code}`;
+// Kunjungan tanpa slot (sudah keluar) cukup memakai gerbang acak.
+const anyGate = (zone, rand) => {
+  const codes = gateCodes(zone);
+  return gateName(codes[Math.floor(rand() * codes.length)]);
+};
 const confidence = (rand) => Math.round((0.9 + rand() * 0.09) * 100) / 100;
 
 function seedVisits(zones, rand) {
@@ -432,7 +445,7 @@ function seedVisits(zones, rand) {
   // Kendaraan yang sedang parkir: jam masuk = sejak kapan slot terisi.
   for (const zone of zones) {
     for (const s of zone.slots.filter((x) => x.occupied)) {
-      visits.push({ id: `VS-${s.id}`, plate: s.plate, vehicleType: s.vehicleType, zoneId: zone.id, slotId: s.id, gateIn: gateOf(zone), gateOut: null, inAt: s.since, outAt: null, confidence: confidence(rand) });
+      visits.push({ id: `VS-${s.id}`, plate: s.plate, vehicleType: s.vehicleType, zoneId: zone.id, slotId: s.id, gateIn: gateName(s.gate), gateOut: null, inAt: s.since, outAt: null, confidence: confidence(rand) });
     }
   }
   // Kendaraan yang sudah keluar hari ini.
@@ -445,7 +458,7 @@ function seedVisits(zones, rand) {
     const inAt = dayStart.getTime() + rand() * span;
     const outAt = Math.min(now - 60000, inAt + (15 + rand() * 300) * 60000);
     const vehicleType = 'car';
-    visits.push({ id: `VS-done-${i}`, plate: plate(rand), vehicleType, zoneId: zone.id, slotId: null, gateIn: gateOf(zone), gateOut: gateOf(zone), inAt: new Date(inAt).toISOString(), outAt: new Date(outAt).toISOString(), confidence: confidence(rand) });
+    visits.push({ id: `VS-done-${i}`, plate: plate(rand), vehicleType, zoneId: zone.id, slotId: null, gateIn: anyGate(zone, rand), gateOut: anyGate(zone, rand), inAt: new Date(inAt).toISOString(), outAt: new Date(outAt).toISOString(), confidence: confidence(rand) });
   }
   return visits.sort((a, b) => lastMove(b).localeCompare(lastMove(a)));
 }
@@ -462,11 +475,11 @@ const lastMove = (v) => v.outAt ?? v.inAt;
 /* Hari-hari lalu: kunjungan dibuat ulang dari tanggalnya, lalu okupansi & jumlah masuk/keluar
    dihitung dari kunjungan itu supaya angka grafik, KPI, dan tabel saling cocok. */
 
-const CAPACITY = ZONES.reduce((s, z) => s + z.capacity, 0);
+const CAPACITY = ZONES.reduce((s, z) => s + capacityOf(z), 0);
 const HOURS = Array.from({ length: 15 }, (_, i) => 6 + i); // 06.00–20.00
 
 // pickZone() butuh `slots`; untuk hari lalu cukup panjangnya saja.
-const ZONE_SLOTS = ZONES.map((z) => ({ ...z, slots: { length: z.capacity } }));
+const ZONE_SLOTS = ZONES.map((z) => ({ ...z, slots: { length: capacityOf(z) } }));
 
 /** Kunjungan kendaraan pada hari yang sudah lewat, terbaru di depan. */
 export function parkingDayVisits(key) {
@@ -488,8 +501,8 @@ export function parkingDayVisits(key) {
       vehicleType: kind,
       zoneId: zone.id,
       slotId: null,
-      gateIn: gateOf(zone),
-      gateOut: gateOf(zone),
+      gateIn: anyGate(zone, rand),
+      gateOut: anyGate(zone, rand),
       inAt: new Date(day + arrive * 3600000).toISOString(),
       outAt: new Date(day + leave * 3600000).toISOString(),
       confidence: confidence(rand),
@@ -523,13 +536,17 @@ export function parkingStatsFromVisits(key, visits, untilHour = 24) {
 
 export function createParkingState(seed = 7310) {
   const rand = createRng(seed);
-  const zones = ZONES.map(({ fill, capacity, ...zone }) => {
-    const slots = Array.from({ length: capacity }, (_, i) => {
+  const zones = ZONES.map(({ fill, ...zone }) => {
+    // Keterisian tiap gerbang dibuat berbeda supaya tidak semua menara terlihat sama.
+    const fills = gateCodes(zone).map(() => Math.min(1, fill - 0.2 + rand() * 0.4));
+    const slots = Array.from({ length: capacityOf(zone) }, (_, i) => {
       const id = `${zone.id}-${pad2(i + 1)}`;
       const reserved = null;
-      const occupied = rand() < fill;
+      const gateIndex = Math.floor(i / zone.slotsPerGate);
+      const occupied = rand() < fills[gateIndex];
       return {
         id,
+        gate: gateCodes(zone)[gateIndex],
         reserved,
         occupied,
         vehicleType: occupied ? 'car' : null,
@@ -551,7 +568,7 @@ export function createParkingState(seed = 7310) {
       id: `EV-${1000 - i}`,
       time: minutesAgo(t),
       zoneId: zone.id,
-      gate: gateOf(zone),
+      gate: anyGate(zone, rand),
       direction: rand() < 0.6 ? 'in' : 'out',
       vehicleType: type,
       plate: plate(rand),
@@ -595,7 +612,7 @@ export function stepParking(state, rand = Math.random) {
     : { occupied: false, vehicleType: null, plate: null, since: null });
 
   const now = new Date().toISOString();
-  const gate = gateOf(zone);
+  const gate = gateName(slot.gate);
   const conf = confidence(rand);
   state.events.unshift({ id: `EV-${Date.now()}`, time: now, zoneId: zone.id, gate, direction: entering ? 'in' : 'out', vehicleType, plate: plateNo, confidence: conf });
   if (entering) {

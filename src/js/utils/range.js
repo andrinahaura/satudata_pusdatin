@@ -1,4 +1,4 @@
-// Rentang waktu dashboard: Hari ini, Kemarin, 7 hari, 30 hari, atau Custom (tanggal dari–sampai).
+// Rentang waktu dashboard: Hari ini, Kemarin, 7 hari, 30 hari, atau Periode (tanggal dari–sampai).
 // Semua tanggal memakai zona waktu lokal browser. Kunci tanggal berbentuk 'YYYY-MM-DD'.
 // resolveRange() mengubah pilihan pengguna (spec) menjadi objek rentang yang dipakai halaman,
 // selector, dan api: { from, to, keys, single, label, short, previous: { from, to, keys }, ... }.
@@ -8,14 +8,13 @@ export const RANGE_PRESETS = [
   { value: 'yesterday', label: 'Kemarin' },
   { value: '7d', label: '7 hari' },
   { value: '30d', label: '30 hari' },
-  { value: 'custom', label: 'Custom' },
+  { value: 'custom', label: 'Periode' },
 ];
 
 export const DEFAULT_RANGE = { preset: 'today' };
 export const MAX_RANGE_DAYS = 90;
 
 const DAY = 86400000;
-const WEEKDAY_SHORT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 const pad2 = (n) => String(n).padStart(2, '0');
 
 export const dateKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -113,9 +112,9 @@ export function resolveRange(spec = DEFAULT_RANGE, now = new Date()) {
   };
 }
 
-/** Label sumbu-x per hari: nama hari untuk ≤ 7 hari, tanggal untuk rentang lebih panjang. */
+/** Label sumbu-x per hari: tanggal. */
 export function dayLabels(keys) {
-  return keys.map((k) => (keys.length <= 7 ? WEEKDAY_SHORT[parseKey(k).getDay()] : String(parseKey(k).getDate())));
+  return keys.map((k) => String(parseKey(k).getDate()));
 }
 
 /** Label sumbu-x per jam: '00.00' … '23.00'. */

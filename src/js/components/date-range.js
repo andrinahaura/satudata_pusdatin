@@ -1,5 +1,5 @@
 // Pemilih rentang waktu: satu tombol "kalender" yang membuka panel berisi
-// Hari ini, Kemarin, 7 hari, 30 hari, dan Custom (tanggal dari–sampai).
+// Hari ini, Kemarin, 7 hari, 30 hari, dan Periode (tanggal dari–sampai).
 // Wajib ada di setiap dashboard, di kanan judul halaman. Pilihan disimpan di URL
 // (?range=, &from=, &to=) dan localStorage, jadi rentang yang sama terbawa saat pindah halaman.
 //
@@ -69,7 +69,7 @@ export function createDateRange(root, { onChange } = {}) {
             .join('')}
         </ul>
         <form class="border-t border-hairline p-4" data-range-form>
-          <p class="flex items-center justify-between font-medium">Custom ${range.preset === 'custom' ? icon('check', 'size-4') : ''}</p>
+          <p class="flex items-center justify-between font-medium">Periode ${range.preset === 'custom' ? icon('check', 'size-4') : ''}</p>
           <div class="mt-2 grid grid-cols-2 gap-3">
             <label class="block"><span class="text-caption tracking-normal text-mid-gray">Dari</span>
               <input type="date" name="from" class="input mt-1 px-2" required min="${minKey()}" max="${todayKey()}" value="${esc(range.keys[0])}" /></label>
@@ -84,13 +84,12 @@ export function createDateRange(root, { onChange } = {}) {
 
   function render() {
     const range = resolveRange(spec);
-    const title = range.preset === 'custom' ? 'Custom' : RANGE_PRESETS.find((p) => p.value === range.preset).label;
     root.innerHTML = `
       <div class="relative">
         <button type="button" class="btn btn-outline h-10 max-w-full bg-paper" data-range-toggle aria-expanded="${open}" aria-controls="${id}-panel" aria-haspopup="dialog">
           ${icon('calendar-days', 'size-4 shrink-0 text-mid-gray')}
-          <span class="font-semibold">${esc(title)}</span>
-          <span class="truncate font-normal text-mid-gray tabular-nums max-sm:hidden">${esc(range.label)}</span>
+          <span class="font-semibold">Periode</span>
+          <span class="truncate font-normal text-mid-gray tabular-nums">${esc(range.label)}</span>
           ${icon('chevron-down', `size-4 shrink-0 text-mid-gray transition-transform ${open ? 'rotate-180' : ''}`)}
         </button>
         ${open ? panelHtml(range) : ''}
