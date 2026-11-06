@@ -328,6 +328,17 @@ async function load() {
   }
 }
 
+// Muat ulang mengambil data terbaru tanpa memuat ulang halaman, jadi filter dan layar penuh tetap terjaga.
+const reloadButton = $('[data-reload]');
+renderIcons(reloadButton);
+reloadButton.addEventListener('click', async () => {
+  reloadButton.disabled = true;
+  reloadButton.dataset.busy = 'true';
+  await Promise.all([load(), new Promise((done) => setTimeout(done, 400))]);
+  reloadButton.disabled = false;
+  reloadButton.dataset.busy = 'false';
+});
+
 // Lebar baris peringatan berubah (ukuran jendela, layar penuh): hitung ulang card yang muat.
 new ResizeObserver(() => {
   renderAlerts();

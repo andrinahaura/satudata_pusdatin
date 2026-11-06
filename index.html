@@ -26,6 +26,10 @@
           </div>
           <div class="flex items-center gap-2">
             <div data-range></div>
+            <button type="button" class="btn btn-outline h-10 bg-paper data-[busy=true]:[&>svg]:animate-spin" data-reload aria-label="Muat ulang">
+              <i data-lucide="refresh-cw" class="size-4 text-mid-gray"></i>
+              <span class="max-sm:hidden">Muat ulang</span>
+            </button>
             <button type="button" class="btn btn-outline hidden h-10 bg-paper lg:inline-flex" data-fullscreen></button>
           </div>
         </section>

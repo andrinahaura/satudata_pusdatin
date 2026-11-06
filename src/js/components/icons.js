@@ -1,9 +1,9 @@
 // Hanya ikon yang dipakai yang di-import, supaya bundle kecil.
 // Ikon dipakai untuk fungsi (tombol ikon, kolom cari, pesan error), bukan hiasan.
 // Tambah ikon baru: import dari 'lucide' lalu masukkan ke objek ICONS.
-import { ArrowUp, CalendarDays, Car, Check, ChevronDown, ChevronRight, Cpu, createIcons, DollarSign, LayoutDashboard, LogOut, Maximize, Menu, MessageSquare, Mic, Minimize, Minus, Plus, RotateCcw, Search, Square, TriangleAlert, X } from 'lucide';
+import { ArrowUp, CalendarDays, Car, Check, ChevronDown, ChevronRight, Cpu, createIcons, DollarSign, LayoutDashboard, LogOut, Maximize, Menu, MessageSquare, Mic, Minimize, RefreshCw, Minus, Plus, RotateCcw, Search, Square, TriangleAlert, X } from 'lucide';
 
-const ICONS = { ArrowUp, CalendarDays, Car, Check, ChevronDown, ChevronRight, Cpu, DollarSign, LayoutDashboard, LogOut, Maximize, Menu, MessageSquare, Mic, Minimize, Minus, Plus, RotateCcw, Search, Square, TriangleAlert, X };
+const ICONS = { ArrowUp, CalendarDays, Car, Check, ChevronDown, ChevronRight, Cpu, DollarSign, LayoutDashboard, LogOut, Maximize, Menu, MessageSquare, Mic, Minimize, RefreshCw, Minus, Plus, RotateCcw, Search, Square, TriangleAlert, X };
 
 /** Ganti semua <i data-lucide="nama"> di dalam root menjadi SVG. */
 export function renderIcons(root = document) {
