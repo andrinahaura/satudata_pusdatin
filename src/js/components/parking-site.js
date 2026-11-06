@@ -46,7 +46,7 @@ export const ZONE_TYPES = { smart: 'Smart Parking', regular: 'Parkir biasa' };
 /** Jumlah gate depan + belakang, mis. 16. */
 export const gateCount = (z) => (z.gates ? z.gates.front + z.gates.back : 0);
 
-/** "Parkir susun · 8 gerbang · 24 slot per gerbang" (Smart Parking) atau "Parkir biasa · 2 lantai". */
+/** "Parkir susun · 16 gerbang · 24 slot per gerbang" (Smart Parking) atau "Parkir biasa · 2 lantai". */
 export function zoneKind(z) {
   const gates = gateCount(z);
   const type = z.type === 'smart' ? 'Parkir susun' : ZONE_TYPES[z.type] ?? 'Parkir';

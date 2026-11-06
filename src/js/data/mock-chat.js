@@ -34,7 +34,7 @@ const USERS = (() => {
 // Contoh tanya-jawab. 'bad' = jawaban yang sering dinilai Tidak sesuai.
 const SAMPLE_BUILDING = [
   ['Lampu yang belum mati di lantai 1?', 'Ada 9 lampu yang masih menyala di Lantai 1, tersebar di 4 ruangan. Terbanyak di Lobby (3 lampu).'],
-  ['Berapa ruang parkir yang tersedia?', 'Tersedia 38 ruang parkir di Smart Parking dari 192 ruang (okupansi 80%).'],
+  ['Berapa ruang parkir yang tersedia?', 'Tersedia 77 ruang parkir di Smart Parking dari 384 ruang (okupansi 80%).'],
   ['Pemakaian listrik hari ini?', 'Pemakaian listrik seluruh gedung hari ini 104,2 kWh (Rp 179.953), turun 12% dibanding kemarin pada jam yang sama.'],
   ['Perangkat mana yang offline?', 'Ada 3 perangkat offline: Lampu 1 di 22 R. Katim, Lampu 1 di 09 R. Tim Jaringan, dan sensor kehadiran di Mushola.'],
   ['Ruang kosong tapi lampu masih menyala?', 'Workspace Lt 2 kosong tetapi 4 lampu masih menyala.'],

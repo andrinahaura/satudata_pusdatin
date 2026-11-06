@@ -69,7 +69,7 @@ export function findWasteRooms(iot) {
   return result;
 }
 
-// Satu menara slot per gerbang, urut seperti gerbangnya (D1–D4 lalu B1–B4).
+// Satu menara slot per gerbang, urut seperti gerbangnya (D1–D8 lalu B1–B8).
 function towersOf(zone) {
   const towers = new Map();
   for (const s of zone.slots) {

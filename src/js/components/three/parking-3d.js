@@ -1,7 +1,7 @@
 // Ilustrasi 3D gedung parkir, mengikuti Smart Parking: rangka baja dengan panel penutup. Muka depan dan
 // belakang masing-masing punya satu menara per gerbang setinggi levelsOf(), dua slot per tingkat dengan lift di
 // tengah. Slot tersedia terbuka dan berisi mobil yang menghadap ke dalam sehingga bagian belakangnya terlihat dari
-// luar. Slot terisi tertutup panel. Jumlah slot tersedia tertulis di pintu gerbang.
+// luar. Slot terisi tertutup panel. Jumlah slot tersedia tertulis di pintu gerbang ("7 tersedia").
 // Sisi samping polos abu-abu. Bila ada lebih dari satu gedung, gedung berjajar (bukan peta lokasi).
 // Jumlah slot tersedia muncul saat menara disorot.
 import * as THREE from 'three';
@@ -15,7 +15,7 @@ import { createScene3D, disposeGroup, mat, PALETTE } from './scene.js';
 
 const COL_W = 37; // lebar satu kolom muka gedung (satu gerbang = 2 kolom)
 const DEPTH = 132; // kedalaman gedung: dua baris slot saling membelakangi
-const GROUND_H = 30; // tinggi lantai dasar (gerbang)
+const GROUND_H = 40; // tinggi lantai dasar (gerbang)
 const LAMP_H = 2; // lampu penanda di atas pintu, menempel di bawah panel dan lift
 const ROW_H = 22; // tinggi satu tingkat pada menara
 const CORNICE = 5; // lis atap
@@ -59,21 +59,23 @@ const CAR = (() => {
   return { paint, dark, lamp, plate };
 })();
 
-// Material pintu berisi angka slot tersedia, satu per angka, dipakai ulang saat pembaruan realtime.
+// Material pintu berisi tulisan "7 tersedia", satu per angka, dipakai ulang saat pembaruan realtime.
 const doorCache = new Map();
 function doorMat(count) {
   if (doorCache.has(count)) return doorCache.get(count);
   const c = document.createElement('canvas');
   c.width = 256;
-  c.height = 112;
+  c.height = 132;
   const g = c.getContext('2d');
   g.fillStyle = FACADE.door;
   g.fillRect(0, 0, c.width, c.height);
   g.fillStyle = '#ffffff';
-  g.font = '700 84px Inter, system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(String(count), c.width / 2, c.height / 2 + 4);
+  g.font = '700 72px Inter, system-ui, sans-serif';
+  g.fillText(String(count), c.width / 2, 46);
+  g.font = '600 42px Inter, system-ui, sans-serif';
+  g.fillText('tersedia', c.width / 2, 106);
   const map = new THREE.CanvasTexture(c);
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 4;
@@ -92,7 +94,7 @@ function nameLabel(text, x, y, z, tone = 'default') {
 }
 
 export function createParking3D(container) {
-  const ctx = createScene3D(container, { height: 'clamp(420px, 46vw, 560px)', view: viewFor([{ gates: { front: 4, back: 4 }, slotsPerGate: 24 }]) });
+  const ctx = createScene3D(container, { height: 'clamp(420px, 46vw, 560px)', view: viewFor([{ gates: { front: 8, back: 8 }, slotsPerGate: 24 }]) });
   const { scene, tooltip, render, pick, setView } = ctx;
   const group = new THREE.Group();
   const hits = new THREE.Group(); // bidang tak terlihat untuk hover; mobil tidak ikut di-raycast.

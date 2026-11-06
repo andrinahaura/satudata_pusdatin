@@ -399,11 +399,11 @@ export function stepIot(state, rand = Math.random, dtSec = 5) {
 /* ------------------------------------------------------------------ */
 
 // Gedung parkir yang dipantau. Saat ini baru Smart Parking (parkir susun, piloting): 11 lantai,
-// 4 gerbang di muka depan dan 4 di muka belakang, tiap gerbang melayani 24 slot susun. type 'smart' =
+// 8 gerbang di muka depan dan 8 di muka belakang, tiap gerbang melayani 24 slot susun. type 'smart' =
 // Smart Parking, 'regular' = gedung parkir biasa (untuk gedung berikutnya). Okupansi dihitung per gerbang
 // dari nomor polisi yang terbaca; letak slot yang kosong tidak diketahui. Kapasitas masih angka contoh.
 const ZONES = [
-  { id: 'SP', name: 'Smart Parking', type: 'smart', location: 'Parkir susun', kind: 'car', levels: 11, gates: { front: 4, back: 4 }, slotsPerGate: 24, fill: 0.8 },
+  { id: 'SP', name: 'Smart Parking', type: 'smart', location: 'Parkir susun', kind: 'car', levels: 11, gates: { front: 8, back: 8 }, slotsPerGate: 24, fill: 0.8 },
 ];
 
 const PLATE_LETTERS = 'ABCDEFGHJKLMNPRSTUVWXYZ';
@@ -426,7 +426,7 @@ const VISIT_LIMIT = 600;
 
 const capacityOf = (zone) => (zone.gates.front + zone.gates.back) * zone.slotsPerGate;
 
-/** Kode gerbang berurutan: D1–D4 di muka depan, B1–B4 di muka belakang. */
+/** Kode gerbang berurutan: D1–D8 di muka depan, B1–B8 di muka belakang. */
 const gateCodes = (zone) => [
   ...Array.from({ length: zone.gates.front }, (_, i) => `D${i + 1}`),
   ...Array.from({ length: zone.gates.back }, (_, i) => `B${i + 1}`),

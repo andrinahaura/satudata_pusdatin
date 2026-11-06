@@ -14,7 +14,7 @@ const COL_W = INNER_W + TOWER_GAP; // lebar satu menara (satu gerbang)
 const ROW_H = 34; // tinggi satu baris mobil
 const CAR_H = 30;
 const CAR_W = (CAR_H * CAR_BOX.w) / CAR_BOX.h;
-const GROUND_H = 44; // lantai dasar (gerbang)
+const GROUND_H = 60; // lantai dasar (gerbang)
 const LAMP_H = 3; // lampu penanda di atas pintu
 const CORNICE = 8;
 const GAP = 60;
@@ -57,7 +57,8 @@ function tower(t, rows, x, top, groundY) {
     ${closed}${cars}${lift}
     <rect x="${ix}" y="${doorY}" width="${INNER_W}" height="${doorH}" fill="${C.inkSoft}"/>
     <rect x="${ix}" y="${lampY}" width="${INNER_W}" height="${LAMP_H}" fill="${C.accent}"/>
-    <text x="${x + COL_W / 2}" y="${doorY + doorH / 2 + 8}" text-anchor="middle" font-size="24" font-weight="700" fill="${C.paper}">${t.free}</text>
+    <text x="${x + COL_W / 2}" y="${doorY + 27}" text-anchor="middle" font-size="26" font-weight="700" fill="${C.paper}">${t.free}</text>
+    <text x="${x + COL_W / 2}" y="${doorY + 47}" text-anchor="middle" font-size="16" font-weight="600" fill="${C.paper}">tersedia</text>
     <rect class="pk-hit" x="${x}" y="${top}" width="${COL_W}" height="${groundY - top}" fill="transparent"/>
   </g>`;
 }
