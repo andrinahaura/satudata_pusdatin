@@ -41,7 +41,7 @@ function chartHtml(chart) {
       <div class="mt-1 flex justify-between text-caption tracking-normal text-mid-gray"><span>${esc(chart.labels[0])}</span><span>${esc(chart.labels[chart.labels.length - 1])}</span></div>
       <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
         ${chart.series.length > 1 ? lineLegendHtml(chart.series) : '<span></span>'}
-        <span class="text-caption tracking-normal text-mid-gray">Puncak ${esc(fmtValue(peak, chart.unit))}${peakLabel ? ` · ${esc(peakLabel)}` : ''}</span>
+        <span class="text-caption tracking-normal text-mid-gray">Tertinggi ${esc(fmtValue(peak, chart.unit))}${peakLabel ? ` · ${esc(peakLabel)}` : ''}</span>
       </div>
     </div>`;
 }

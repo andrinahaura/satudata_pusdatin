@@ -233,7 +233,7 @@ function renderVision(range) {
   if (r) {
     const now = r.series.labels.indexOf(String(new Date().getHours()).padStart(2, '0'));
     const lines = r.series.second
-      ? [{ label: 'Puncak', values: r.series.main, style: 'current' }, { label: 'Rata-rata', values: r.series.second, style: 'previous' }]
+      ? [{ label: 'Tertinggi', values: r.series.main, style: 'current' }, { label: 'Rata-rata', values: r.series.second, style: 'previous' }]
       : [{ label: 'Okupansi', values: r.series.main, style: 'current' }];
     $('[data-parking-legend]').classList.toggle('hidden', lines.length < 2);
     $('[data-parking-legend]').innerHTML = lines.length > 1 ? lineLegendHtml(lines) : '';

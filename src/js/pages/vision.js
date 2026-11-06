@@ -52,7 +52,7 @@ function renderKpis() {
     statTile({ label: 'Kendaraan masuk', value: r ? fmtInt(r.in) : '–', sub: 'Nomor polisi terbaca di gerbang' }),
     statTile({ label: 'Kendaraan keluar', value: r ? fmtInt(r.out) : '–', sub: 'Nomor polisi terbaca di gerbang' }),
     statTile({ label: 'Rata-rata lama parkir', value: r ? fmtDuration(r.avgDurationMin) : '–', sub: `Kendaraan keluar ${range.short}` }),
-    statTile({ label: 'Okupansi puncak', value: r ? `${Math.round(r.peak * 100)}%` : '–', sub: range.label }),
+    statTile({ label: 'Okupansi tertinggi', value: r ? `${Math.round(r.peak * 100)}%` : '–', sub: range.label }),
   ].join('');
   $('[data-updated]').textContent = `Diperbarui ${fmtTime(state.parking.updatedAt)}`;
 }
@@ -91,14 +91,14 @@ function renderChart() {
   const range = picker.range;
   const r = parkingRange(state.stats, range);
   const lines = r.series.second
-    ? [{ label: 'Puncak', values: r.series.main, style: 'current' }, { label: 'Rata-rata', values: r.series.second, style: 'previous' }]
+    ? [{ label: 'Tertinggi', values: r.series.main, style: 'current' }, { label: 'Rata-rata', values: r.series.second, style: 'previous' }]
     : [{ label: 'Okupansi', values: r.series.main, style: 'current' }];
   const now = r.series.labels.indexOf(String(new Date().getHours()).padStart(2, '0'));
   const opts = { labels: r.series.labels, series: lines, height: 260, format: (v) => `${v}% terisi`, selected: range.preset === 'today' && now >= 0 ? now : undefined };
   $('[data-chart-legend]').classList.toggle('hidden', lines.length < 2);
   $('[data-chart-legend]').innerHTML = lines.length > 1 ? lineLegendHtml(lines) : '';
-  $('[data-chart-desc]').textContent = `${range.single ? 'Per jam' : 'Puncak dan rata-rata per hari'}, ${range.label}`;
-  $('[data-chart-summary]').innerHTML = `<span class="text-ink/80">Puncak</span><span class="font-semibold tabular-nums">${Math.round(r.peak * 100)}%</span>`;
+  $('[data-chart-desc]').textContent = `${range.single ? 'Per jam' : 'Tertinggi dan rata-rata per hari'}, ${range.label}`;
+  $('[data-chart-summary]').innerHTML = `<span class="text-ink/80">Tertinggi</span><span class="font-semibold tabular-nums">${Math.round(r.peak * 100)}%</span>`;
   if (chart) chart.update(opts);
   else chart = createTrendChart($('[data-chart]'), opts);
 }
