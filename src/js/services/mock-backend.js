@@ -1,4 +1,4 @@
-// Backend palsu yang berjalan di browser. Menyimpan state di sessionStorage
+// Backend palsu yang berjalan di browser. Menyimpan state di localStorage
 // supaya perubahan (mis. mematikan lampu) terlihat konsisten antar halaman.
 // Endpoint berentang waktu menerima { from, to } (kunci tanggal 'YYYY-MM-DD', inklusif):
 // hari ini diambil dari state (realtime), hari-hari lalu dibuat ulang oleh generator per tanggal.
@@ -14,12 +14,20 @@ import { dateKey, keysBetween, parseKey, startOfDay } from '../utils/range.js';
 import { answer } from './chat-engine.js';
 import { getAlerts } from './selectors.js';
 
-const STORAGE_KEY = 'sdp:mock-state:v13';
+const STORAGE_KEY = 'sdp:mock-state:v14';
 const STATUS_RESPONSE_LIMIT = 1000;
 const listeners = new Set();
 let timer = null;
 
 const state = load() ?? createState();
+save();
+
+// Tab lain mengubah data: pakai data itu supaya semua halaman menampilkan angka yang sama.
+window.addEventListener('storage', (e) => {
+  if (e.key !== STORAGE_KEY || !e.newValue) return;
+  Object.assign(state, JSON.parse(e.newValue).state);
+  emit();
+});
 
 function createState() {
   const iot = createIotState();
@@ -31,8 +39,9 @@ function createState() {
 
 function load() {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    // Data simulasi berlaku satu hari; besok dibuat baru.
+    return saved?.day === dateKey(new Date()) ? saved.state : null;
   } catch {
     return null;
   }
@@ -40,7 +49,7 @@ function load() {
 
 function save() {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ day: dateKey(new Date()), state }));
   } catch {
     /* storage penuh / diblokir: state tetap jalan di memori */
   }
@@ -238,6 +247,9 @@ export function subscribe(handler, interval) {
   listeners.add(handler);
   if (!timer) {
     timer = setInterval(() => {
+      // Beberapa tab terbuka: cukup satu yang menjalankan simulasi tiap putaran.
+      if (Date.now() - (state.tickedAt ?? 0) < interval * 0.9) return;
+      state.tickedAt = Date.now();
       const before = snapshotDevices(state.iot);
       simulateConnectivity(state.iot);
       stepIot(state.iot, Math.random, interval / 1000);
@@ -259,7 +271,7 @@ export function subscribe(handler, interval) {
 
 export function reset() {
   try {
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
   } catch {
     /* abaikan */
   }

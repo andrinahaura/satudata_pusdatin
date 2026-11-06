@@ -28,7 +28,7 @@ npm run preview          # cek hasil build
 
 Tanpa backend, dashboard berjalan dengan **data simulasi** (`VITE_USE_MOCK=true`): status perangkat
 dan parkir berubah tiap 5 detik, dan aksi seperti "matikan lampu" benar-benar mengubah state mock
-(tersimpan di `sessionStorage` per tab).
+(tersimpan di `localStorage`, dipakai bersama semua halaman dan tab, dibuat baru tiap hari).
 
 Kontrol tampilan 3D: seret untuk memutar, klik kanan + seret untuk menggeser, `⌘/Ctrl` + scroll
 (atau pinch trackpad) untuk zoom. Tombol di pojok kanan: perbesar, perkecil, tampak atas, reset.

@@ -18,10 +18,10 @@ import { errorState, segmentedHtml } from '../components/ui.js';
 import { kpiFormula } from '../data/kpi-info.js';
 import { api, DEVICES_CHANGED } from '../services/api.js';
 import {
-  deviceUptime, energyRange, parkingRange, summarizeChat, summarizeIot, summarizeParking,
+  deviceUptime, energyRange, getAlerts, parkingRange, summarizeChat, summarizeIot, summarizeParking,
 } from '../services/selectors.js';
 import { $, esc } from '../utils/dom.js';
-import { fmt1, fmtDuration, fmtInt, fmtPct, fmtRupiah, fmtTime } from '../utils/format.js';
+import { fmt1, fmtDuration, fmtInt, fmtPct, fmtPct2, fmtRupiah, fmtTime } from '../utils/format.js';
 import { rangeQuery } from '../utils/range.js';
 
 mountLayout({ page: 'home' });
@@ -67,7 +67,6 @@ const picker = createDateRange($('[data-range]'), {
 const CHART_MIN_H = 100;
 
 // Dibulatkan ke bawah supaya 99,96% tidak tampil "100%".
-const pctFloor = (ratio) => `${(Math.floor(ratio * 1000) / 10).toLocaleString('id-ID', { maximumFractionDigits: 1 })}%`;
 
 function chart(key, selector, opts) {
   if (charts[key]) charts[key].update(opts);
@@ -97,19 +96,6 @@ function stat({ label, value, unit = '', sub = '', aside = '', alert = false, hr
 /* -------------------------------- Peringatan -------------------------------- */
 
 const SEVERITY = { critical: { label: 'Kritis', dot: 'bg-ember' }, warning: { label: 'Perhatian', dot: 'bg-accent' } };
-
-// Data statis untuk memperlihatkan tampilan saat peringatan banyak, jadi kotak "+N" selalu tampil.
-// Tidak mengikuti kondisi perangkat. Untuk kembali ke data asli, pakai getAlerts(state.iot) dengan type 'offline'.
-const STATIC_ALERTS = [
-  ['Lampu offline', 'Basement', '09 R. Tim Jaringan', 'B', 'B-R03'],
-  ['Lampu offline', 'Lantai 1', '22 R. Katim', 'L1', 'L1-R03'],
-  ['Sensor kehadiran offline', 'Lantai 1', 'Mushola', 'L1', 'L1-R22'],
-  ['Lampu offline', 'Lantai 2', 'Workspace Lt 2', 'L2', 'L2-R01'],
-  ['Sensor kehadiran offline', 'Lantai 1', '18 R. Rapat', 'L1', 'L1-R14'],
-  ['Lampu offline', 'Lantai 1', 'Lobby', 'L1', 'L1-R20'],
-  ['Sensor kehadiran offline', 'Basement', '08 R. Katim', 'B', 'B-R02'],
-  ['Lampu offline', 'Lantai 2', 'Area Sekretaris', 'L2', 'L2-R07'],
-].map(([title, floor, room, floorId, roomId]) => ({ title, severity: 'critical', place: `${floor} · ${room}`, href: `/iot.html?floor=${floorId}&room=${roomId}` }));
 
 // Card peringatan selalu satu baris. Yang tidak muat diwakili satu kotak "+N" di ujung kanan.
 const ALERT_CARD_MIN = 254;
@@ -141,7 +127,8 @@ function alertFit(reserve = 0) {
 }
 
 function renderAlerts() {
-  const alerts = STATIC_ALERTS;
+  // Sumber yang sama dengan baris Peringatan di halaman IoT & Kelistrikan.
+  const alerts = getAlerts(state.iot, state.parking);
   const critical = alerts.filter((a) => a.severity === 'critical').length;
   const warning = alerts.length - critical;
   const split = [critical && `${critical} kritis`, warning && `${warning} perhatian`].filter(Boolean).join(', ');
@@ -193,7 +180,7 @@ function renderIot(range) {
 
   $('[data-iot-stats]').innerHTML = [
     stat({ label: 'Perangkat online', value: s.online, unit: ` / ${s.totalDevices}`, meter: s.online / Math.max(1, s.totalDevices), href: iotHref }),
-    stat({ label: 'Kestabilan perangkat', value: ratio == null ? '–' : pctFloor(ratio), alert: ratio != null && ratio < 0.95, href: `${iotHref}#riwayat` }),
+    stat({ label: 'Kestabilan perangkat', value: ratio == null ? '–' : fmtPct2(ratio), alert: ratio != null && ratio < 0.95, href: `${iotHref}#riwayat` }),
     stat({ label: 'Lampu menyala', value: light?.on ?? 0, unit: ` / ${light?.total ?? 0} lampu`, href: iotHref }),
     stat({ label: 'Jumlah ruangan terisi', value: s.occupiedRooms, unit: ` / ${s.workspaceRooms} ruang`, href: iotHref }),
   ].join('');

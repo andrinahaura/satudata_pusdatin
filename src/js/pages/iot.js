@@ -15,7 +15,7 @@ import {
   roomActivity, summarizeIot, summarizeParking,
 } from '../services/selectors.js';
 import { $, esc, getParam, setParams } from '../utils/dom.js';
-import { fmt1, fmtDateTime, fmtDuration, fmtInt, fmtRelative, fmtTime } from '../utils/format.js';
+import { fmt1, fmtDateTime, fmtDuration, fmtInt, fmtPct2, fmtRelative, fmtTime } from '../utils/format.js';
 import { rangeQuery } from '../utils/range.js';
 
 mountLayout({ page: 'iot' });
@@ -150,7 +150,7 @@ function renderKpis() {
   const stable = state.history ? deviceUptime(state.history, state.iot, picker.range).overall : null;
   $('[data-kpis]').innerHTML = [
     statTile({ label: 'Perangkat online', value: s.online, unit: ` / ${s.totalDevices}`, sub: s.offline ? `${s.offline} offline` : '' }),
-    statTile({ label: 'Kestabilan perangkat', value: stable == null ? '–' : pct2(stable), sub: picker.range.label }),
+    statTile({ label: 'Kestabilan perangkat', value: stable == null ? '–' : fmtPct2(stable), sub: picker.range.label }),
     statTile({ label: 'Lampu menyala', value: s.byType.light.on, unit: ` / ${s.byType.light.total} lampu` }),
     statTile({ label: 'Jumlah ruangan terisi', value: s.occupiedRooms, unit: ` / ${s.workspaceRooms} ruang` }),
   ].join('');
@@ -466,7 +466,6 @@ $('[data-tg-test]').addEventListener('click', async (e) => {
 /* --------------------------- riwayat perangkat --------------------------- */
 
 let uptimeChart = null;
-const pct2 = (ratio) => `${(ratio * 100).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
 
 function renderHistory() {
   renderKpis();
@@ -477,7 +476,7 @@ function renderHistory() {
   const roomName = (id) => rooms.get(id)?.name ?? '–';
 
   $('[data-uptime-kpis]').innerHTML = [
-    statTile({ label: 'Kestabilan perangkat', value: pct2(u.overall), sub: `${state.iot.devices.length} perangkat` }),
+    statTile({ label: 'Kestabilan perangkat', value: fmtPct2(u.overall), sub: `${state.iot.devices.length} perangkat` }),
     statTile({ label: 'Gangguan koneksi', value: fmtInt(u.outages), sub: range.label }),
     statTile({ label: 'Terputus saat ini', value: u.disconnected, unit: ' perangkat', alert: u.disconnected > 0 }),
     statTile({ label: 'Total waktu terputus', value: fmtDuration(u.downMs / 60000), sub: 'Dijumlah dari semua perangkat' }),
@@ -498,7 +497,7 @@ function renderHistory() {
     .slice(0, 6)
     .map((r) => `<tr>
         <td><span class="block font-medium">${esc(r.device.name)} <span class="font-normal text-mid-gray">· ${esc(roomName(r.device.roomId))}</span></span><span class="block font-mono text-[11px] text-mid-gray">${esc(r.device.id)}</span></td>
-        <td class="num font-medium">${pct2(r.uptime)}</td>
+        <td class="num font-medium">${fmtPct2(r.uptime)}</td>
         <td class="num">${r.outages}</td>
         <td class="whitespace-nowrap">${r.last ? (r.last.end ? `<span class="text-mid-gray">${fmtDateTime(r.last.start)}</span>` : '<span class="badge badge-alert">Masih terputus</span>') : '–'}</td>
       </tr>`)

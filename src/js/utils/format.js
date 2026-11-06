@@ -4,6 +4,8 @@ const nf0 = new Intl.NumberFormat('id-ID');
 export const fmt1 = (n) => nf1.format(n);
 export const fmtInt = (n) => nf0.format(n);
 export const fmtPct = (ratio) => `${Math.round(ratio * 100)}%`;
+/** Persen sampai dua desimal, untuk angka yang selisihnya kecil seperti kestabilan perangkat. */
+export const fmtPct2 = (ratio) => `${(ratio * 100).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
 
 export function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
